@@ -20,6 +20,7 @@ import { formatHookOutput, hookWrite } from "./commands/hook.js";
 import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
+import { formatUpgrade, upgrade } from "./commands/upgrade.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
 import { isGrade, type Grade } from "./core/version.js";
@@ -28,6 +29,7 @@ import { VERSION } from "./version.js";
 const USAGE = `sdd-first <명령>
 
   init                             이 저장소에 설치한다 (--language, --prefix, --yes)
+  upgrade                          설치된 파일을 이 버전으로 올린다
   status [feature]                 진행 상태와 버전 체인 판정
   check                            설치와 문서에 깨진 곳이 없는지 검사한다
   gate <단계>                      그 단계의 착수 게이트 판정
@@ -66,7 +68,8 @@ function isInstalledBundle(): boolean {
  * 판정은 언제나 저장소의 번들이 해야 팀원 사이에 결과가 어긋나지 않는다.
  */
 function delegate(argv: string[]): boolean {
-  if (isInstalledBundle() || argv[0] === "init" || argv.length === 0) return false;
+  const command = argv.find((arg) => !arg.startsWith("-"));
+  if (isInstalledBundle() || command === "init" || command === "upgrade" || argv.length === 0) return false;
   const rootFlag = argv.indexOf("--root");
   const root = rootFlag >= 0 ? argv[rootFlag + 1] : (process.env.SDD_FIRST_ROOT ?? findRoot(process.cwd()));
   if (!root) return false;
@@ -127,6 +130,20 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
   const [command, ...rest] = positionals;
   if (values.version) return { text: VERSION, data: { version: VERSION } };
   if (values.help || !command) return { text: USAGE, data: { usage: USAGE } };
+
+  if (command === "upgrade") {
+    // 저장소의 번들은 자기 자신을 새 버전으로 바꿀 수 없다. 새 버전의 패키지로 실행해야 한다.
+    if (isInstalledBundle()) throw new Refusal("upgrade는 새 버전의 패키지로 실행한다: npx sdd-first@latest upgrade");
+    const changelogFile = path.join(path.dirname(SELF), "CHANGELOG.md");
+    const result = upgrade({
+      target: resolveRoot(values.root),
+      assetsDir: path.join(path.dirname(SELF), "assets"),
+      bundlePath: SELF,
+      version: VERSION,
+      changelog: fs.existsSync(changelogFile) ? fs.readFileSync(changelogFile, "utf8") : undefined,
+    });
+    return { text: formatUpgrade(result), data: result };
+  }
 
   const repo: Repo = openRepo(resolveRoot(values.root));
   const write = { today: localDate(), acknowledged: values.acknowledged };

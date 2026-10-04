@@ -3,11 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildAssets, compareLanguages, composeSkill, includedFragments } from "../scripts/build.mjs";
+import { buildAssets, compareLanguages, composeSkill, includedFragments, readText } from "../scripts/build.mjs";
 import { check } from "../src/commands/check.js";
 import { docChecklist, docComplete, docNew } from "../src/commands/doc.js";
 import { init } from "../src/commands/init.js";
 import { promptInit } from "../src/commands/init-prompt.js";
+import { changelogBetween, upgrade } from "../src/commands/upgrade.js";
 import { parseTasks, validateTasks, countTasks } from "../src/core/breakdown.js";
 import { readManifest } from "../src/core/manifest.js";
 import { docPath, openRepo, Refusal } from "../src/core/repo.js";
@@ -445,6 +446,18 @@ describe("실린 스킬과 템플릿", () => {
     }
   });
 
+  it("빌드 결과에 CRLF가 없고, CRLF인 원본도 LF로 읽는다", () => {
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)],
+      );
+    for (const file of walk(assets)) expect(fs.readFileSync(file, "utf8"), file).not.toContain("\r");
+
+    const crlf = path.join(tempDir("crlf"), "a.md");
+    fs.writeFileSync(crlf, "하나\r\n둘\r\n");
+    expect(readText(crlf)).toBe("하나\n둘\n");
+  });
+
   it("스킬이 가리키는 스킬은 접두사를 붙여 설치된다", () => {
     const pkg = tempDir("pkg");
     const bundle = path.join(pkg, "sdd-first.mjs");
@@ -455,5 +468,92 @@ describe("실린 스킬과 템플릿", () => {
     expect(prd).toContain("name: sdd-prd");
     expect(prd).toContain("`/sdd-spec`");
     expect(prd).not.toContain("{{");
+  });
+});
+
+describe("upgrade", () => {
+  let pkg: string;
+  let target: string;
+  const skill = () => path.join(target, ".claude", "skills", "sdd-spec", "SKILL.md");
+  const asset = (...parts: string[]) => path.join(pkg, "assets", "ko", ...parts);
+  const run = (version = "0.2.0") =>
+    upgrade({ target, assetsDir: path.join(pkg, "assets"), bundlePath: path.join(pkg, "sdd-first.mjs"), version });
+
+  beforeEach(() => {
+    pkg = tempDir("pkg");
+    fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 1\n");
+    target = gitRepo();
+    init({ target, language: "ko", prefix: "sdd", assetsDir: makeAssets(pkg), bundlePath: path.join(pkg, "sdd-first.mjs"), version: "0.1.0", homeDir: tempDir("home") });
+    // 새 버전의 패키지: 번들과 spec 스킬이 바뀌고, 템플릿 하나가 빠지고 하나가 생긴다.
+    fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 2\n");
+    fs.writeFileSync(asset("skills", "spec", "SKILL.md"), SKILLS.spec + "새 문단. `/{{skill:blueprint}}`\n");
+    fs.rmSync(asset("templates", "research.md"));
+    fs.writeFileSync(asset("templates", "wiki.md"), "# 위키\n");
+  });
+
+  it("고치지 않은 파일은 새 버전으로 바꾸고 설정의 접두사를 그대로 쓴다", () => {
+    const result = run();
+    expect(result).toMatchObject({ from: "0.1.0", to: "0.2.0" });
+    expect(result.replaced).toEqual([".sdd-first/bin/sdd-first.mjs", ".claude/skills/sdd-spec/SKILL.md"]);
+    expect(result.added).toEqual([".sdd-first/templates/wiki.md"]);
+    expect(result.removed).toEqual([".sdd-first/templates/research.md"]);
+    expect(fs.readFileSync(skill(), "utf8")).toContain("새 문단. `/sdd-blueprint`");
+    expect(fs.existsSync(path.join(target, ".sdd-first", "templates", "research.md"))).toBe(false);
+
+    const manifest = readManifest(target);
+    expect(manifest?.version).toBe("0.2.0");
+    expect(manifest?.files[".sdd-first/templates/research.md"]).toBeUndefined();
+    expect(check(openRepo(target)).ok).toBe(true);
+  });
+
+  it("고친 파일은 그대로 두고 새 버전을 옆에 둔다", () => {
+    fs.appendFileSync(skill(), "내가 더한 줄\n");
+    fs.appendFileSync(path.join(target, ".sdd-first", "templates", "research.md"), "내 메모\n");
+    const result = run();
+    expect(result.kept).toEqual([{ file: ".claude/skills/sdd-spec/SKILL.md", next: ".claude/skills/sdd-spec/SKILL.md.new" }]);
+    expect(result.orphaned).toEqual([".sdd-first/templates/research.md"]);
+    expect(fs.readFileSync(skill(), "utf8")).toContain("내가 더한 줄");
+    expect(fs.readFileSync(`${skill()}.new`, "utf8")).toContain("새 문단");
+    expect(fs.existsSync(path.join(target, ".sdd-first", "templates", "research.md"))).toBe(true);
+  });
+
+  it("고쳤지만 새 버전에서 바뀌지 않은 파일에는 아무것도 두지 않는다", () => {
+    const blueprint = path.join(target, ".claude", "skills", "sdd-blueprint", "SKILL.md");
+    fs.appendFileSync(blueprint, "내가 더한 줄\n");
+    const result = run();
+    expect(result.kept).toEqual([]);
+    expect(fs.existsSync(`${blueprint}.new`)).toBe(false);
+  });
+
+  it("없어진 파일은 다시 만들고, 문서와 설정은 건드리지 않는다", () => {
+    fs.rmSync(skill());
+    const repo = openRepo(target);
+    docNew(repo, "prd", undefined, { today: "2026-10-05" });
+    const prd = fs.readFileSync(docPath(repo, "prd"), "utf8");
+    const config = fs.readFileSync(path.join(target, ".sdd-first", "config.yaml"), "utf8");
+
+    expect(run().restored).toEqual([".claude/skills/sdd-spec/SKILL.md"]);
+    expect(fs.readFileSync(docPath(repo, "prd"), "utf8")).toBe(prd);
+    expect(fs.readFileSync(path.join(target, ".sdd-first", "config.yaml"), "utf8")).toBe(config);
+  });
+
+  it("두 번 올리면 두 번째에는 바뀌는 것이 없다", () => {
+    run();
+    const again = run();
+    expect([again.replaced, again.added, again.removed, again.kept, again.restored].flat()).toEqual([]);
+  });
+
+  it("설치 기록이 없거나 낮은 버전으로는 올리지 않는다", () => {
+    expect(() => run("0.0.9")).toThrow(/낮은 버전/);
+    fs.rmSync(path.join(target, ".sdd-first", "manifest.json"));
+    expect(() => run()).toThrow(/init/);
+  });
+
+  it("변경 내역에서 설치된 버전 뒤부터 새 버전까지를 뽑는다", () => {
+    const log = "# 변경 내역\n\n## 0.3.0\n\n- 셋\n\n## 0.2.0\n\n- 둘\n\n## 0.1.0\n\n- 하나\n";
+    expect(changelogBetween(log, "0.1.0", "0.2.0")).toBe("## 0.2.0\n\n- 둘");
+    expect(changelogBetween(log, "0.1.0", "0.3.0")).toContain("- 셋");
+    expect(changelogBetween(log, "0.1.0", "0.3.0")).not.toContain("- 하나");
+    expect(changelogBetween(log, "0.3.0", "0.3.0")).toBe("");
   });
 });

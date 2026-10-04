@@ -7,3 +7,4 @@ export function compareLanguages(
   >,
 ): string[];
 export function buildAssets(outDir: string): string[];
+export function readText(file: string): string;

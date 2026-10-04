@@ -75,19 +75,13 @@ export function describeConflicts(conflicts: InitConflicts): string[] {
   ];
 }
 
-/** 설치할 파일과 겹치는 곳을 계산한다. 아무것도 쓰지 않는다. */
-export function planInit(options: InitOptions): InitPlan {
-  const { target, language, prefix } = options;
-  if (!fs.existsSync(path.join(target, ".git"))) {
-    throw new Refusal(`git 저장소의 루트가 아니다: ${target}\n저장소 루트에서 실행하거나 먼저 git init을 실행한다.`);
-  }
-  if (fs.existsSync(manifestPath(target))) {
-    throw new Refusal("이미 설치되어 있다. 새 버전으로 올리려면 upgrade를 쓴다.");
-  }
-  if (prefix && !PREFIX.test(prefix)) throw new Refusal(`접두사는 소문자, 숫자, 하이픈만 쓴다: ${prefix}`);
-
-  const assets = path.join(options.assetsDir, language);
-  if (!fs.existsSync(assets)) throw new Refusal(`지원하지 않는 언어다: ${language}`);
+/** 패키지가 설치하는 코어 파일. 경로에서 내용으로. `init`과 `upgrade`가 함께 쓴다. */
+export function coreFiles(options: Pick<InitOptions, "assetsDir" | "language" | "prefix" | "bundlePath">): {
+  files: Map<string, string | Buffer>;
+  skills: string[];
+} {
+  const assets = path.join(options.assetsDir, options.language);
+  if (!fs.existsSync(assets)) throw new Refusal(`지원하지 않는 언어다: ${options.language}`);
 
   const files = new Map<string, string | Buffer>();
   files.set(".sdd-first/bin/sdd-first.mjs", fs.readFileSync(options.bundlePath));
@@ -101,10 +95,25 @@ export function planInit(options: InitOptions): InitPlan {
   const skills: string[] = [];
   for (const name of listDirs(path.join(assets, "skills"))) {
     const source = fs.readFileSync(path.join(assets, "skills", name, "SKILL.md"), "utf8");
-    const installed = skillName(name, prefix);
+    const installed = skillName(name, options.prefix);
     skills.push(installed);
-    files.set(`.claude/skills/${installed}/SKILL.md`, applyPrefix(source, prefix));
+    files.set(`.claude/skills/${installed}/SKILL.md`, applyPrefix(source, options.prefix));
   }
+  return { files, skills };
+}
+
+/** 설치할 파일과 겹치는 곳을 계산한다. 아무것도 쓰지 않는다. */
+export function planInit(options: InitOptions): InitPlan {
+  const { target, language, prefix } = options;
+  if (!fs.existsSync(path.join(target, ".git"))) {
+    throw new Refusal(`git 저장소의 루트가 아니다: ${target}\n저장소 루트에서 실행하거나 먼저 git init을 실행한다.`);
+  }
+  if (fs.existsSync(manifestPath(target))) {
+    throw new Refusal("이미 설치되어 있다. 새 버전으로 올리려면 upgrade를 쓴다.");
+  }
+  if (prefix && !PREFIX.test(prefix)) throw new Refusal(`접두사는 소문자, 숫자, 하이픈만 쓴다: ${prefix}`);
+
+  const { files, skills } = coreFiles(options);
 
   const exists = (rel: string) => fs.existsSync(path.join(target, rel));
   const home = options.homeDir ?? os.homedir();

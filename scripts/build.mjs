@@ -22,6 +22,14 @@ export function includedFragments(source) {
   return [...source.matchAll(INCLUDE)].map((match) => match[1]);
 }
 
+/**
+ * 원본을 읽을 때 줄바꿈을 LF로 통일한다. 빌드하는 사람의 git 설정(core.autocrlf)에 따라
+ * 작업 트리의 파일이 CRLF일 수 있는데, 그대로 실으면 같은 버전의 패키지가 빌드한 사람마다 달라진다.
+ */
+export function readText(file) {
+  return fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
+}
+
 function readDir(dir) {
   return fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : [];
 }
@@ -38,7 +46,7 @@ function loadFragments(language) {
   const fragments = {};
   for (const entry of readDir(dir)) {
     if (entry.isFile() && entry.name.endsWith(".md")) {
-      fragments[entry.name.slice(0, -3)] = fs.readFileSync(path.join(dir, entry.name), "utf8");
+      fragments[entry.name.slice(0, -3)] = readText(path.join(dir, entry.name));
     }
   }
   return fragments;
@@ -88,7 +96,7 @@ export function buildAssets(outDir) {
     const fragments = loadFragments(language);
     const structure = { fragments, skills: {} };
     for (const name of skillNames(language)) {
-      const source = fs.readFileSync(path.join(ROOT, "skills", language, name, "SKILL.md"), "utf8");
+      const source = readText(path.join(ROOT, "skills", language, name, "SKILL.md"));
       const target = path.join(outDir, language, "skills", name, "SKILL.md");
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, composeSkill(source, fragments));
@@ -102,7 +110,7 @@ export function buildAssets(outDir) {
       if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
       const target = path.join(outDir, language, "templates", entry.name);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(path.join(templates, entry.name), target);
+      fs.writeFileSync(target, readText(path.join(templates, entry.name)));
     }
     structures[language] = structure;
   }
@@ -131,6 +139,8 @@ async function main() {
     },
   });
   const built = buildAssets(path.join(dist, "assets"));
+  // upgrade가 설치된 버전부터 새 버전까지의 변경 내역을 보여 준다.
+  fs.writeFileSync(path.join(dist, "CHANGELOG.md"), readText(path.join(ROOT, "CHANGELOG.md")));
   console.log(`dist/sdd-first.mjs ${version}, assets: ${built.join(", ") || "없음"}`);
 }
 
