@@ -426,21 +426,43 @@ describe("실린 스킬과 템플릿", () => {
   const languages = buildAssets(assets);
   const skillsDir = path.join(assets, "ko", "skills");
 
+  const DOC_STAGES = ["constitution", "prd", "spec", "blueprint", "breakdown"];
+  const READ_ONLY = ["clarify", "analyze"];
+
   it("한국어 스킬이 합성되고 채우지 않은 포함 표기가 남지 않는다", () => {
     expect(languages).toContain("ko");
+    expect(fs.readdirSync(skillsDir).sort()).toEqual([...DOC_STAGES, ...READ_ONLY].sort());
     for (const name of fs.readdirSync(skillsDir)) {
       const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("{{>");
       expect(text, name).toContain(`name: {{skill:${name}}}`);
       expect(text, name).toContain("allowed-tools: Bash(sh *)");
-      expect(text, name).toContain("hook write");
-      expect(text, name).toContain(`.sdd-first/bin/sdd-first" gate ${name}`);
       expect(text, name).not.toContain("sdd-first.mjs");
     }
   });
 
-  it("스킬마다 같은 이름의 템플릿이 있고, 템플릿의 자리표시자는 항목으로 읽히지 않는다", () => {
-    for (const name of fs.readdirSync(skillsDir)) {
+  it("문서를 쓰는 단계는 게이트 판정을 주입받고 쓰기 hook을 갖는다", () => {
+    for (const name of DOC_STAGES) {
+      const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
+      expect(text, name).toContain("hook write");
+      expect(text, name).toContain(`.sdd-first/bin/sdd-first" gate ${name}`);
+    }
+  });
+
+  it("읽기 전용 단계는 hook과 기록 명령의 호출을 갖지 않는다", () => {
+    for (const name of READ_ONLY) {
+      const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
+      // hook은 스킬이 끝난 뒤에도 세션에 남아, 같은 세션의 다음 단계가 쓰는 것까지 막는다.
+      expect(text, name).not.toContain("hooks:");
+      expect(text, name).toContain("## 읽기 전용");
+      expect(text, name).not.toMatch(/^\s*sdd-first doc (new|complete|revise|confirm|checklist)/m);
+    }
+    const analyze = fs.readFileSync(path.join(skillsDir, "analyze", "SKILL.md"), "utf8");
+    expect(analyze).toContain("context: fork");
+  });
+
+  it("문서를 쓰는 단계마다 같은 이름의 템플릿이 있고, 템플릿의 자리표시자는 항목으로 읽히지 않는다", () => {
+    for (const name of DOC_STAGES) {
       const template = fs.readFileSync(path.join(assets, "ko", "templates", `${name}.md`), "utf8");
       expect(splitItems(template).items.size, name).toBe(0);
     }
