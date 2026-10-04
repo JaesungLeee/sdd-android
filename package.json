@@ -1,0 +1,28 @@
+{
+  "name": "sdd-first",
+  "version": "0.1.0",
+  "description": "문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD 워크플로 CLI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "sdd-first": "dist/sdd-first.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0",
+    "yaml": "^2.6.0"
+  }
+}
