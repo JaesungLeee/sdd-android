@@ -7,6 +7,7 @@ import { ITEM_ID_PATTERN, splitItems } from "../core/items.js";
 import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
+import { duplicateItems } from "./doc.js";
 
 export interface Problem {
   level: "error" | "warn";
@@ -88,8 +89,10 @@ function checkDoc(repo: Repo, doc: LoadedDoc, add: Add): void {
   if (!meta.status || !DOC_STATUS.includes(meta.status)) add("error", where, `status가 draft나 created가 아니다: ${meta.status}`);
 
   if (hasItems(doc.kind)) {
-    const { duplicates } = splitItems(doc.body);
-    if (duplicates.length > 0) add("error", where, `항목 ID가 중복됐다: ${duplicates.join(", ")}`);
+    for (const duplicate of duplicateItems(repo, doc)) {
+      const dependents = duplicate.dependents.length > 0 ? ` 이 ID에 의존하는 문서: ${duplicate.dependents.join(", ")}` : "";
+      add("error", where, `항목 ID가 중복됐다: ${duplicate.id}. 그 단계를 다시 실행해 들어온 쪽에 새 번호를 준다.${dependents}`);
+    }
   }
   if (meta.status !== "created") return;
 

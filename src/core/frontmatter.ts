@@ -32,6 +32,11 @@ export interface ParsedDoc {
 
 const CONFLICT_MARKER = /^(<{7}|={7}|>{7})( |$)/m;
 
+/** git이 남긴 충돌 표시가 있는지. */
+export function hasConflictMarker(text: string): boolean {
+  return CONFLICT_MARKER.test(text.replace(/\r\n?/g, "\n"));
+}
+
 /** 문서를 frontmatter와 본문으로 나눈다. 본문은 해시의 대상이다. */
 export function parseDoc(text: string): ParsedDoc {
   const source = text.replace(/\r\n?/g, "\n");

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parse } from "yaml";
 import type { DocState } from "./chain.js";
-import { formatDoc, parseDoc, type Meta, type ParsedDoc } from "./frontmatter.js";
+import { formatDoc, hasConflictMarker, parseDoc, type Meta, type ParsedDoc } from "./frontmatter.js";
 import {
   diffHashes,
   formatHashFile,
@@ -122,6 +122,8 @@ export interface LoadedDoc {
   current: Hashes;
   /** 완료된 뒤 본문이 기록된 해시와 달라졌다. */
   unrecorded: boolean;
+  /** frontmatter나 해시 파일에 병합 충돌이 남아 있다. `doc restore`로 푼다. */
+  conflict: boolean;
 }
 
 export function loadDoc(repo: Repo, kind: DocKind, feature?: string): LoadedDoc | undefined {
@@ -130,14 +132,18 @@ export function loadDoc(repo: Repo, kind: DocKind, feature?: string): LoadedDoc 
 
   const parsed = parseDoc(fs.readFileSync(file, "utf8"));
   const hashFile = hashPath(repo, kind, feature);
-  const recorded = fs.existsSync(hashFile) ? parseHashFile(fs.readFileSync(hashFile, "utf8")) : undefined;
+  // 해시 파일은 병합에서 함께 충돌한다. 읽지 못하는 것을 오류로 던지면 판정을 주입받는 스킬이 로드되지 않는다.
+  const hashText = fs.existsSync(hashFile) ? fs.readFileSync(hashFile, "utf8") : undefined;
+  const hashConflict = hashText !== undefined && hasConflictMarker(hashText);
+  const recorded = hashText !== undefined && !hashConflict ? parseHashFile(hashText) : undefined;
+  const conflict = hashConflict || (parsed.error !== undefined && hasConflictMarker(fs.readFileSync(file, "utf8")));
   const current = hashBody(kind, parsed.body);
   const unrecorded =
     kind !== "checklist" &&
     parsed.meta.status === "created" &&
     (!recorded || !isUnchanged(diffHashes(recorded.hashes, current)));
 
-  return { kind, feature, path: file, parsed, meta: parsed.meta, body: parsed.body, recorded, current, unrecorded };
+  return { kind, feature, path: file, parsed, meta: parsed.meta, body: parsed.body, recorded, current, unrecorded, conflict };
 }
 
 export function toState(doc: LoadedDoc): DocState {

@@ -12,6 +12,8 @@ export interface ItemSplit {
   outside: string;
   /** 두 번 이상 나온 항목 ID. */
   duplicates: string[];
+  /** 두 번 이상 나온 항목 ID에서, 문서에 나온 순서대로의 본문. 병합으로 번호가 겹쳤을 때 어느 쪽이 들어온 것인지 가리는 데 쓴다. */
+  occurrences: Map<string, string[]>;
 }
 
 /**
@@ -23,6 +25,7 @@ export interface ItemSplit {
  */
 export function splitItems(body: string): ItemSplit {
   const items = new Map<string, string[]>();
+  const all = new Map<string, string[][]>();
   const outside: string[] = [];
   const duplicates = new Set<string>();
 
@@ -58,6 +61,7 @@ export function splitItems(body: string): ItemSplit {
         if (items.has(id)) duplicates.add(id);
         current = { id, level, lines: [] };
         items.set(id, current.lines);
+        all.set(id, [...(all.get(id) ?? []), current.lines]);
       }
     }
 
@@ -69,5 +73,8 @@ export function splitItems(body: string): ItemSplit {
     items: new Map([...items].map(([id, lines]) => [id, lines.join("\n")])),
     outside: outside.join("\n"),
     duplicates: [...duplicates].sort(),
+    occurrences: new Map(
+      [...all].filter(([, list]) => list.length > 1).map(([id, list]) => [id, list.map((lines) => lines.join("\n"))]),
+    ),
   };
 }

@@ -1,11 +1,15 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import { judgeChain, judgeRelation, RELATIONS, type RelationResult } from "../core/chain.js";
-import type { Meta } from "../core/frontmatter.js";
-import { BODY, diffHashes, hasItems, isUnchanged, OUTSIDE, type DocKind, type HashDiff } from "../core/hash.js";
+import { hasConflictMarker, parseDoc, type Meta } from "../core/frontmatter.js";
+import { BODY, diffHashes, hasItems, isUnchanged, OUTSIDE, sha256, type DocKind, type HashDiff } from "../core/hash.js";
+import { normalizeText } from "../core/normalize.js";
 import { ITEM_ID_PATTERN, splitItems } from "../core/items.js";
 import {
   assertFeatureName,
   docPath,
+  hashPath,
   isFeatureStage,
   listFeatures,
   loadDoc,
@@ -112,7 +116,48 @@ function stampChecklist(repo: Repo, feature: string, checklist: LoadedDoc, specV
 function assertNoDuplicateItems(doc: LoadedDoc): void {
   if (!hasItems(doc.kind)) return;
   const { duplicates } = splitItems(doc.body);
-  if (duplicates.length > 0) throw new Refusal(`항목 ID가 중복됐다: ${duplicates.join(", ")}`);
+  if (duplicates.length > 0) {
+    throw new Refusal(`항목 ID가 중복됐다: ${duplicates.join(", ")}. doc changes로 어느 쪽이 들어온 항목인지 확인하고 새 번호를 준다.`);
+  }
+}
+
+export interface DuplicateItem {
+  id: string;
+  /** 문서에 나온 순서대로의 제목 줄. */
+  headings: string[];
+  /** 기록된 해시와 같은, 원래 있던 항목의 순서(1부터). 어느 것도 같지 않으면 없다. */
+  original?: number;
+  /** 이 ID를 의존 항목으로 적은 하위 문서. 어느 쪽 항목을 뜻했는지는 사람이 확인한다. */
+  dependents: string[];
+}
+
+/** 그 항목 ID를 의존 항목으로 적은 하위 문서의 경로. */
+export function dependentsOf(repo: Repo, kind: DocKind, id: string): string[] {
+  const found: string[] = [];
+  for (const feature of listFeatures(repo)) {
+    for (const lower of ["spec", "blueprint"] as const) {
+      const doc = loadDoc(repo, lower, feature);
+      if (doc?.meta.based_on?.[kind]?.items?.includes(id)) found.push(path.relative(repo.root, doc.path));
+    }
+  }
+  return found;
+}
+
+/** 병합으로 번호가 겹친 항목. 기록된 해시와 같은 쪽이 원래 있던 항목이고 다른 쪽이 들어온 항목이다. */
+export function duplicateItems(repo: Repo, doc: LoadedDoc): DuplicateItem[] {
+  if (!hasItems(doc.kind)) return [];
+  const result: DuplicateItem[] = [];
+  for (const [id, texts] of splitItems(doc.body).occurrences) {
+    const recorded = doc.recorded?.hashes[id];
+    const index = texts.findIndex((text) => sha256(normalizeText(text)) === recorded);
+    result.push({
+      id,
+      headings: texts.map((text) => (text.split("\n")[0] ?? "").trim()),
+      ...(index >= 0 ? { original: index + 1 } : {}),
+      dependents: dependentsOf(repo, doc.kind, id),
+    });
+  }
+  return result.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export interface NewResult {
@@ -233,6 +278,8 @@ export interface ChangesResult {
   removed: string[];
   /** CLI가 고정하는 등급의 하한. 지워진 항목은 major, 새 항목은 minor 이상이다. */
   floors: Record<string, Grade>;
+  /** 번호가 겹친 항목. 풀기 전에는 개정을 기록할 수 없다. */
+  duplicates: DuplicateItem[];
 }
 
 function requireCreated(doc: LoadedDoc): { version: string; diff: HashDiff } {
@@ -251,7 +298,7 @@ export function docChanges(repo: Repo, stage: Stage, featureArg: string | undefi
   const floors: Record<string, Grade> = {};
   for (const id of diff.removed) floors[id] = "major";
   for (const id of diff.added) floors[id] = "minor";
-  return { version, dirty: !isUnchanged(diff), ...diff, floors };
+  return { version, dirty: !isUnchanged(diff), ...diff, floors, duplicates: duplicateItems(repo, doc) };
 }
 
 export interface ReviseOptions extends CompleteOptions {
@@ -406,4 +453,79 @@ export function staleDocs(repo: Repo, stage: Stage, feature: string | undefined)
     }
   }
   return stale;
+}
+
+export interface RestoreOptions {
+  /** 기준으로 삼을 커밋. 기본은 `HEAD`다. */
+  from?: string;
+}
+
+export interface RestoreResult {
+  /** 메타데이터와 해시를 되돌린 파일. */
+  restored: string[];
+  /** 되돌린 뒤의 버전. `draft`면 없다. */
+  version?: string;
+  from: string;
+}
+
+function gitShow(repo: Repo, from: string, file: string): string | undefined {
+  const rel = path.relative(repo.root, file).split(path.sep).join("/");
+  try {
+    return execFileSync("git", ["-C", repo.root, "show", `${from}:${rel}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return undefined;
+  }
+}
+
+function restoreOne(repo: Repo, kind: DocKind, feature: string | undefined, from: string): { files: string[]; meta: Meta } | undefined {
+  const file = docPath(repo, kind, feature);
+  if (!fs.existsSync(file)) return undefined;
+
+  const current = parseDoc(fs.readFileSync(file, "utf8"));
+  if (current.hasFrontmatter && current.body === "" && current.error) throw new Refusal(`${file}: ${current.error}`);
+  if (hasConflictMarker(current.body)) {
+    throw new Refusal(`${file}: 본문에 충돌 표시가 남아 있다. 본문의 충돌을 먼저 푼다. 맨 위 메타데이터의 충돌은 손대지 않는다.`);
+  }
+
+  const baseText = gitShow(repo, from, file);
+  if (baseText === undefined) {
+    throw new Refusal(`${from}에 이 문서가 없다: ${file}. 상대 브랜치에서만 만든 문서면 되돌릴 것이 없다.`);
+  }
+  const base = parseDoc(baseText);
+  if (base.error) {
+    throw new Refusal(`${from}의 ${file}도 읽을 수 없다(${base.error}). --from으로 충돌 전의 커밋을 준다.`);
+  }
+
+  const files = [file];
+  writeDoc(repo, kind, feature, base.meta, current.body);
+  const hashFile = hashPath(repo, kind, feature);
+  const baseHash = gitShow(repo, from, hashFile);
+  if (baseHash !== undefined) {
+    if (hasConflictMarker(baseHash)) throw new Refusal(`${from}의 해시 기록에도 충돌 표시가 있다. --from으로 충돌 전의 커밋을 준다.`);
+    writeFile(hashFile, baseHash);
+    files.push(hashFile);
+  } else if (fs.existsSync(hashFile)) {
+    fs.rmSync(hashFile);
+    files.push(hashFile);
+  }
+  return { files, meta: base.meta };
+}
+
+/**
+ * 병합 뒤 정리(PRD SYS-002). 문서의 메타데이터와 해시를 `HEAD` 쪽의 것으로 되돌린다. 본문은 그대로 둔다.
+ * 되돌린 뒤에는 병합된 본문이 기준 해시와 달라, 들어온 변경이 바뀐 곳으로 계산된다. 그것을 개정으로 기록한다.
+ * merge든 rebase든 `HEAD`에 이미 있는 기록이 기준이고 들어오는 변경이 새 버전으로 다시 기록된다.
+ */
+export function docRestore(repo: Repo, stage: Stage, featureArg: string | undefined, options: RestoreOptions = {}): RestoreResult {
+  const feature = requireFeature(stage, featureArg);
+  const from = options.from ?? "HEAD";
+  const main = restoreOne(repo, stage, feature, from);
+  if (!main) throw new Refusal(`문서가 없다: ${docPath(repo, stage, feature)}`);
+
+  const restored = [...main.files];
+  // checklist는 spec과 함께 충돌한다. spec을 개정으로 기록하려면 어차피 다시 검증한다.
+  if (stage === "spec" && gitShow(repo, from, docPath(repo, "checklist", feature)) !== undefined) {
+    restored.push(...(restoreOne(repo, "checklist", feature, from)?.files ?? []));
+  }
+  return { restored: restored.map((file) => path.relative(repo.root, file)), version: main.meta.version, from };
 }

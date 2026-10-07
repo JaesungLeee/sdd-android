@@ -11,6 +11,7 @@ import {
   docComplete,
   docConfirm,
   docNew,
+  docRestore,
   docRevise,
   type RecordResult,
 } from "./commands/doc.js";
@@ -38,6 +39,7 @@ const USAGE = `sdd-first <명령>
   doc complete <단계> [feature]    신규 문서의 완료를 기록한다
   doc revise <단계> [feature]      개정을 기록한다 (--grade)
   doc confirm <단계> [feature]     영향 없음을 기록한다
+  doc restore <단계> [feature]     병합 뒤 메타데이터와 해시를 HEAD 쪽으로 되돌린다 (--from)
   doc checklist <feature>          체크리스트의 상태를 기록한다
   hook write                       쓰기 hook (입력은 표준 입력의 JSON)
 
@@ -49,6 +51,7 @@ const OPTIONS = {
   grade: { type: "string", multiple: true, default: [] as string[] },
   depends: { type: "string" },
   root: { type: "string" },
+  from: { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
@@ -189,7 +192,15 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
               `지워진 항목: ${result.removed.join(", ") || "없음"}`,
             ].join("\n")
           : `기준 버전 ${result.version}\n바뀐 곳이 없다.`;
-        return { text, data: result };
+        const duplicates = result.duplicates.flatMap((duplicate) => [
+          `번호가 겹친 항목: ${duplicate.id}`,
+          ...duplicate.headings.map((heading, index) => {
+            const side = duplicate.original === undefined ? "" : duplicate.original === index + 1 ? " (원래 있던 항목)" : " (들어온 항목. 새 번호를 준다)";
+            return `  ${index + 1}. ${heading}${side}`;
+          }),
+          ...(duplicate.dependents.length > 0 ? [`  이 ID에 의존하는 문서: ${duplicate.dependents.join(", ")}`] : []),
+        ]);
+        return { text: [text, ...duplicates].join("\n"), data: result };
       }
       case "complete": {
         const result = docComplete(repo, stage, second, { ...write, depends });
@@ -198,6 +209,15 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
       case "revise": {
         const result = docRevise(repo, stage, second, { ...write, depends, ...parseGrades(values.grade) });
         return { text: formatRecord(result), data: result };
+      }
+      case "restore": {
+        const result = docRestore(repo, stage, second, { from: values.from });
+        const lines = [
+          `${result.from}의 기록으로 되돌렸다${result.version ? ` (버전 ${result.version})` : ""}.`,
+          ...result.restored.map((file) => `- ${file}`),
+          "이어서 doc changes로 들어온 변경을 확인하고 개정으로 기록한다.",
+        ];
+        return { text: lines.join("\n"), data: result };
       }
       case "confirm": {
         const result = docConfirm(repo, stage, second, { depends });

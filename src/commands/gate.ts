@@ -15,7 +15,7 @@ export interface GateResult {
   stage: Stage;
   feature?: string;
   /** 이 단계의 산출물이 지금 어떤 상태인지. */
-  mode: "new" | "draft" | "revise";
+  mode: "new" | "draft" | "revise" | "conflict";
   /** 단계를 시작해도 되는지. 가장 무거운 사유를 따른다. */
   action: "pass" | "confirm" | "block";
   /** 입력으로 삼는 상위 문서의 문제. */
@@ -72,7 +72,7 @@ export function stageGate(repo: Repo, stage: Stage, feature?: string): GateResul
   return {
     stage,
     feature,
-    mode: !target ? "new" : target.meta.status === "created" ? "revise" : "draft",
+    mode: !target ? "new" : target.conflict ? "conflict" : target.meta.status === "created" ? "revise" : "draft",
     action,
     reasons,
     own: target ? chain.filter((result) => result.lower === stage) : [],
@@ -99,7 +99,7 @@ const VERDICT_TEXT: Record<Verdict, string> = {
 };
 
 const ACTION_TEXT: Record<GateResult["action"], string> = { pass: "통과", confirm: "확인 필요", block: "중단" };
-const MODE_TEXT: Record<GateResult["mode"], string> = { new: "신규", draft: "작성 중", revise: "개정" };
+const MODE_TEXT: Record<GateResult["mode"], string> = { new: "신규", draft: "작성 중", revise: "개정", conflict: "병합 충돌" };
 
 export function verdictText(verdict: Verdict): string {
   return VERDICT_TEXT[verdict];
