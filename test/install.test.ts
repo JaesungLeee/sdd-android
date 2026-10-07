@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildAssets, compareLanguages, composeSkill, includedFragments, readText } from "../scripts/build.mjs";
+import { assetsFromDir } from "../src/core/assets.js";
 import { check } from "../src/commands/check.js";
 import { docChecklist, docComplete, docNew } from "../src/commands/doc.js";
 import { init } from "../src/commands/init.js";
@@ -136,7 +137,7 @@ describe("init", () => {
     target,
     language: "ko",
     prefix,
-    assetsDir: path.join(pkg, "assets"),
+    assets: assetsFromDir(path.join(pkg, "assets")),
     bundlePath: bundle,
     version: "0.1.0",
     homeDir: home,
@@ -296,7 +297,7 @@ describe("check", () => {
     const bundle = path.join(pkg, "sdd-first.mjs");
     fs.writeFileSync(bundle, "// bundle\n");
     target = gitRepo();
-    init({ target, language: "ko", prefix: "", assetsDir: makeAssets(pkg), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
+    init({ target, language: "ko", prefix: "", assets: assetsFromDir(makeAssets(pkg)), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
   });
 
   const errors = () => check(openRepo(target)).problems.filter((problem) => problem.level === "error").map((problem) => problem.message);
@@ -407,6 +408,19 @@ describe("번들", () => {
     expect(run(sub, "check").status).toBe(0);
     expect(JSON.parse(run(sub, "status", "--json").stdout).project.prd.version).toBe("1.0.0");
 
+    // 번들에 실린 원본으로 preset을 설치하고 제거한다. 패키지의 assets 디렉터리는 필요 없다.
+    fs.rmSync(path.join(pkg, "assets"), { recursive: true });
+    expect(run(sub, "extension", "list").stdout).toContain("없다");
+    const preset = tempDir("preset");
+    fs.mkdirSync(path.join(preset, "templates"), { recursive: true });
+    fs.writeFileSync(path.join(preset, "extension.yaml"), "name: acme\nkind: preset\nversion: 1.0.0\n");
+    fs.writeFileSync(path.join(preset, "templates", "spec.md"), "# acme\n");
+    expect(run(sub, "preset", "add", preset).stdout).toContain("설치했다");
+    expect(fs.readFileSync(path.join(target, ".sdd-first", "templates", "spec.md"), "utf8")).toBe("# acme\n");
+    expect(run(sub, "preset", "remove", "acme").stdout).toContain("되살렸다");
+    expect(fs.readFileSync(path.join(target, ".sdd-first", "templates", "spec.md"), "utf8")).toContain("# 스펙");
+    expect(run(sub, "directives", "spec").stdout).toContain("확장 지시가 없다");
+
     // PATH에 node가 없는 셸에서도 실행 스크립트가 node를 찾아 판정을 낸다.
     const fakeHome = tempDir("home");
     fs.mkdirSync(path.join(fakeHome, ".local", "bin"), { recursive: true });
@@ -423,7 +437,8 @@ describe("번들", () => {
 
 describe("실린 스킬과 템플릿", () => {
   const assets = tempDir("assets");
-  const languages = buildAssets(assets);
+  const built = buildAssets(assets);
+  const languages = [...new Set(Object.keys(built).map((key) => key.split("/")[0]))];
   const skillsDir = path.join(assets, "ko", "skills");
 
   const DOC_STAGES = ["constitution", "prd", "spec", "blueprint", "breakdown"];
@@ -438,6 +453,8 @@ describe("실린 스킬과 템플릿", () => {
       expect(text, name).toContain(`name: {{skill:${name}}}`);
       expect(text, name).toContain("allowed-tools: Bash(sh *)");
       expect(text, name).not.toContain("sdd-first.mjs");
+      expect(text, name).toContain(`.sdd-first/bin/sdd-first" directives ${name}`);
+      expect(text, name).toContain("## 확장 지시");
     }
   });
 
@@ -485,7 +502,7 @@ describe("실린 스킬과 템플릿", () => {
     const bundle = path.join(pkg, "sdd-first.mjs");
     fs.writeFileSync(bundle, "// bundle\n");
     const target = gitRepo();
-    init({ target, language: "ko", prefix: "sdd", assetsDir: assets, bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
+    init({ target, language: "ko", prefix: "sdd", assets: assetsFromDir(assets), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
     const prd = fs.readFileSync(path.join(target, ".claude", "skills", "sdd-prd", "SKILL.md"), "utf8");
     expect(prd).toContain("name: sdd-prd");
     expect(prd).toContain("`/sdd-spec`");
@@ -499,13 +516,13 @@ describe("upgrade", () => {
   const skill = () => path.join(target, ".claude", "skills", "sdd-spec", "SKILL.md");
   const asset = (...parts: string[]) => path.join(pkg, "assets", "ko", ...parts);
   const run = (version = "0.2.0") =>
-    upgrade({ target, assetsDir: path.join(pkg, "assets"), bundlePath: path.join(pkg, "sdd-first.mjs"), version });
+    upgrade({ target, assets: assetsFromDir(path.join(pkg, "assets")), bundlePath: path.join(pkg, "sdd-first.mjs"), version });
 
   beforeEach(() => {
     pkg = tempDir("pkg");
     fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 1\n");
     target = gitRepo();
-    init({ target, language: "ko", prefix: "sdd", assetsDir: makeAssets(pkg), bundlePath: path.join(pkg, "sdd-first.mjs"), version: "0.1.0", homeDir: tempDir("home") });
+    init({ target, language: "ko", prefix: "sdd", assets: assetsFromDir(makeAssets(pkg)), bundlePath: path.join(pkg, "sdd-first.mjs"), version: "0.1.0", homeDir: tempDir("home") });
     // 새 버전의 패키지: 번들과 spec 스킬이 바뀌고, 템플릿 하나가 빠지고 하나가 생긴다.
     fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 2\n");
     fs.writeFileSync(asset("skills", "spec", "SKILL.md"), SKILLS.spec + "새 문단. `/{{skill:blueprint}}`\n");

@@ -8,6 +8,9 @@ import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
 import { duplicateItems } from "./doc.js";
+import { knownStages } from "./extension.js";
+import { bundleFromDir } from "../core/assets.js";
+import { MANIFEST_FILE, readBundle } from "../core/extension.js";
 
 export interface Problem {
   level: "error" | "warn";
@@ -77,6 +80,18 @@ function checkInstall(repo: Repo, add: Add): void {
     const full = path.join(repo.root, file);
     if (!fs.existsSync(full)) add("error", file, "설치된 파일이 없다");
     else if (hashContent(fs.readFileSync(full)) !== entry.sha256) add("warn", file, "설치한 뒤 바뀐 파일이다");
+  }
+  // 확장의 선언이 있는지와, 지시의 대상 단계가 설치된 스킬인지.
+  const stages = knownStages(repo, manifest);
+  for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
+    const dir = path.join(repo.root, ".sdd-first", "extensions", name);
+    if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
+      add("error", `.sdd-first/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
+      continue;
+    }
+    for (const stage of Object.keys(readBundle(bundleFromDir(dir)).manifest.directives)) {
+      if (!stages.has(stage)) add("warn", `.sdd-first/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
+    }
   }
 }
 

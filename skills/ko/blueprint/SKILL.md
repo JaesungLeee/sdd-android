@@ -38,6 +38,12 @@ feature 하나의 설계를 만들거나 개정한다. spec의 **무엇을, 왜*
 
 위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate blueprint`을 직접 불러 확인한다.
 
+## 확장 지시의 목록
+
+!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives blueprint`
+
+{{> directives}}
+
 {{> feature-target}}
 
 {{> gate}}

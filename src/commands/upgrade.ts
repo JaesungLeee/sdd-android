@@ -1,13 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { Assets } from "../core/assets.js";
+import { readBundle } from "../core/extension.js";
 import { hashContent, readManifest, writeManifest, type Manifest } from "../core/manifest.js";
 import { openRepo, Refusal } from "../core/repo.js";
 import { compareVersions, isVersion } from "../core/version.js";
+import { addExtension, type AddResult } from "./extension.js";
 import { coreFiles } from "./init.js";
 
 export interface UpgradeOptions {
   target: string;
-  assetsDir: string;
+  assets: Assets;
   bundlePath: string;
   /** 새 버전. */
   version: string;
@@ -30,6 +33,12 @@ export interface UpgradeResult {
   removed: string[];
   /** 새 버전에서 빠졌지만 사용자가 고쳐서 남긴 파일. */
   orphaned: string[];
+  /** preset이 교체한 코어 파일 가운데 새 버전에서 코어가 바뀐 것. 새 코어를 옆에 뒀다. */
+  presetStale: { file: string; preset: string; next: string }[];
+  /** 함께 올린 내장 확장. */
+  extensions: AddResult[];
+  /** 로컬 경로에서 설치해 손대지 않은 확장. 같은 경로로 add해 갱신한다. */
+  local: string[];
   changes: string;
 }
 
@@ -69,9 +78,10 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     throw new Refusal(`설치된 버전(${manifest.version})이 실행한 버전(${options.version})보다 높다. 낮은 버전으로 내리지 않는다.`);
   }
 
-  const { config } = openRepo(target);
+  const repo = openRepo(target);
+  const { config } = repo;
   const { files } = coreFiles({
-    assetsDir: options.assetsDir,
+    assets: options.assets,
     bundlePath: options.bundlePath,
     language: config.language,
     prefix: config.prefix,
@@ -86,6 +96,9 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     kept: [],
     removed: [],
     orphaned: [],
+    presetStale: [],
+    extensions: [],
+    local: [],
     changes: options.changelog ? changelogBetween(options.changelog, manifest.version, options.version) : "",
   };
   const next: Manifest = { version: options.version, files: {} };
@@ -101,12 +114,18 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
 
   for (const [rel, content] of files) {
     const recorded = manifest.files[rel];
-    // extension이나 preset이 설치한 파일은 코어의 upgrade가 건드리지 않는다(PRD CLI-004).
+    const incoming = hashContent(content);
+    // preset이 교체한 코어 파일은 그대로 둔다. 코어가 바뀌었으면 새 코어를 옆에 두고 알린다(PRD CLI-004).
     if (recorded && recorded.source !== "core") {
-      next.files[rel] = recorded;
+      if (recorded.core !== undefined && recorded.core !== incoming) {
+        write(`${rel}.new`, content);
+        result.presetStale.push({ file: rel, preset: recorded.source, next: `${rel}.new` });
+        next.files[rel] = { ...recorded, core: incoming };
+      } else {
+        next.files[rel] = recorded;
+      }
       continue;
     }
-    const incoming = hashContent(content);
     const current = currentHash(rel);
     next.files[rel] = { sha256: incoming, source: "core" };
 
@@ -144,7 +163,23 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     }
   }
 
+  next.extensions = manifest.extensions;
   writeManifest(target, next);
+
+  // 내장 확장은 새 버전의 묶음으로 함께 올린다. 로컬 확장은 원본 경로를 모르므로 건드리지 않는다.
+  const builtin = options.assets.extensions(config.language);
+  for (const [name, entry] of Object.entries(manifest.extensions ?? {})) {
+    if (entry.origin !== "builtin") {
+      result.local.push(name);
+      continue;
+    }
+    const files = builtin.get(name);
+    if (!files) {
+      result.local.push(name);
+      continue;
+    }
+    result.extensions.push(addExtension(repo, options.assets, readBundle(files), { origin: "builtin" }));
+  }
   return result;
 }
 
@@ -162,6 +197,12 @@ export function formatUpgrade(result: UpgradeResult): string {
   section("지운 파일(새 버전에 없다):", result.removed);
   section("고친 파일이라 그대로 뒀다. 새 버전을 옆에 뒀으니 직접 합친 뒤 .new를 지운다:", result.kept.map((kept) => `${kept.file} (새 버전: ${kept.next})`));
   section("새 버전에 없지만 고친 파일이라 남겼다:", result.orphaned);
+  section("preset이 교체한 파일인데 코어가 바뀌었다. 새 코어를 옆에 뒀으니 preset에 반영할지 본다:", result.presetStale.map((p) => `${p.file} (${p.preset}, 새 코어: ${p.next})`));
+  for (const ext of result.extensions) {
+    const changed = [...ext.added, ...ext.replaced, ...ext.removed, ...ext.kept.map((k) => k.file)];
+    if (changed.length > 0) lines.push(`내장 확장 ${ext.name} ${ext.version}: ${changed.join(", ")}`);
+  }
+  section("로컬 경로에서 설치한 확장이라 손대지 않았다. 같은 경로로 add해 갱신한다:", result.local);
   if (lines.length === 1) lines.push("바뀐 파일이 없다.");
   return lines.join("\n");
 }

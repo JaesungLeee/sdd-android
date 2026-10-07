@@ -30,6 +30,12 @@ agent: Explore
 
 위에 상태 대신 명령이 글자 그대로 보이면 `sdd-first status`를 직접 불러 확인한다.
 
+## 확장 지시의 목록
+
+!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives analyze`
+
+{{> directives}}
+
 ## 대상 feature
 
 입력에서 대상 feature를 정한다. 입력이 대상을 지목하지 않았을 때, 세 문서가 모두 완료된 feature가 하나뿐이면 그것을 대상으로 삼는다. 여럿이면 분석하지 않고 그 목록을 보고해 이름을 주어 다시 실행하게 한다. 이름을 추측하지 않는다.

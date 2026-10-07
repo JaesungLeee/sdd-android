@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { Assets } from "../core/assets.js";
 import { hashContent, manifestPath, writeManifest, type Manifest } from "../core/manifest.js";
 import { LAUNCHER } from "../core/launcher.js";
 import { Refusal } from "../core/repo.js";
@@ -12,8 +13,8 @@ export interface InitOptions {
   language: string;
   /** 스킬 이름 접두사. 없으면 빈 문자열. */
   prefix: string;
-  /** 패키지에 실린 스킬과 템플릿의 디렉터리. */
-  assetsDir: string;
+  /** 패키지에 실린 스킬, 템플릿, 내장 확장. */
+  assets: Assets;
   /** 저장소에 복사할 CLI 번들. */
   bundlePath: string;
   version: string;
@@ -49,20 +50,6 @@ export interface InitResult {
 
 const PREFIX = /^[a-z0-9][a-z0-9-]*$/;
 
-function listFiles(dir: string, suffix: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((name) => name.endsWith(suffix)).sort();
-}
-
-function listDirs(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-}
-
 export function hasConflicts(conflicts: InitConflicts): boolean {
   return conflicts.skills.length + conflicts.home.length + conflicts.state.length > 0;
 }
@@ -76,12 +63,12 @@ export function describeConflicts(conflicts: InitConflicts): string[] {
 }
 
 /** 패키지가 설치하는 코어 파일. 경로에서 내용으로. `init`과 `upgrade`가 함께 쓴다. */
-export function coreFiles(options: Pick<InitOptions, "assetsDir" | "language" | "prefix" | "bundlePath">): {
+export function coreFiles(options: Pick<InitOptions, "assets" | "language" | "prefix" | "bundlePath">): {
   files: Map<string, string | Buffer>;
   skills: string[];
 } {
-  const assets = path.join(options.assetsDir, options.language);
-  if (!fs.existsSync(assets)) throw new Refusal(`지원하지 않는 언어다: ${options.language}`);
+  const core = options.assets.core(options.language);
+  if (core.size === 0) throw new Refusal(`지원하지 않는 언어다: ${options.language}`);
 
   const files = new Map<string, string | Buffer>();
   files.set(".sdd-first/bin/sdd-first.mjs", fs.readFileSync(options.bundlePath));
@@ -89,15 +76,16 @@ export function coreFiles(options: Pick<InitOptions, "assetsDir" | "language" | 
   files.set(".sdd-first/.gitignore", "config.local.yaml\n");
   // 실행 스크립트가 CRLF로 체크아웃되면 sh가 실행하지 못한다. git의 줄바꿈 변환 설정과 무관하게 LF로 둔다.
   files.set(".sdd-first/.gitattributes", "bin/sdd-first text eol=lf\n");
-  for (const name of listFiles(path.join(assets, "templates"), ".md")) {
-    files.set(`.sdd-first/templates/${name}`, fs.readFileSync(path.join(assets, "templates", name)));
-  }
   const skills: string[] = [];
-  for (const name of listDirs(path.join(assets, "skills"))) {
-    const source = fs.readFileSync(path.join(assets, "skills", name, "SKILL.md"), "utf8");
-    const installed = skillName(name, options.prefix);
-    skills.push(installed);
-    files.set(`.claude/skills/${installed}/SKILL.md`, applyPrefix(source, options.prefix));
+  for (const [rel, text] of [...core].sort(([a], [b]) => a.localeCompare(b))) {
+    const template = /^templates\/([^/]+\.md)$/.exec(rel);
+    const skill = /^skills\/([^/]+)\/SKILL\.md$/.exec(rel);
+    if (template) files.set(`.sdd-first/templates/${template[1]}`, text);
+    if (skill) {
+      const installed = skillName(skill[1] as string, options.prefix);
+      skills.push(installed);
+      files.set(`.claude/skills/${installed}/SKILL.md`, applyPrefix(text, options.prefix));
+    }
   }
   return { files, skills };
 }
@@ -164,7 +152,7 @@ export function init(options: InitOptions): InitResult {
     }
   }
 
-  const manifest: Manifest = { version: options.version, files: {} };
+  const manifest: Manifest = { version: options.version, files: {}, extensions: {} };
   for (const [rel, content] of plan.files) {
     const file = path.join(target, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });

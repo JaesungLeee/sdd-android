@@ -90,16 +90,36 @@ export function compareLanguages(structures) {
   return problems;
 }
 
+/** 디렉터리의 파일을 상대 경로에서 내용으로 모은다. */
+function walk(dir, prefix = "") {
+  const files = {};
+  for (const entry of readDir(dir)) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) Object.assign(files, walk(path.join(dir, entry.name), rel));
+    else if (entry.isFile()) files[rel] = readText(path.join(dir, entry.name));
+  }
+  return files;
+}
+
+/**
+ * 스킬, 템플릿, 내장 확장을 `outDir`에 내고, 같은 내용을 `ko/skills/prd/SKILL.md` 꼴의 키로 모아 돌려준다.
+ * 돌려준 것은 번들 안에 넣는다. 디렉터리는 검토용이다.
+ */
 export function buildAssets(outDir) {
+  const built = {};
+  const emit = (key, text) => {
+    const target = path.join(outDir, ...key.split("/"));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, text);
+    built[key] = text;
+  };
   const structures = {};
   for (const language of languages()) {
     const fragments = loadFragments(language);
     const structure = { fragments, skills: {} };
     for (const name of skillNames(language)) {
       const source = readText(path.join(ROOT, "skills", language, name, "SKILL.md"));
-      const target = path.join(outDir, language, "skills", name, "SKILL.md");
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, composeSkill(source, fragments));
+      emit(`${language}/skills/${name}/SKILL.md`, composeSkill(source, fragments));
       structure.skills[name] = {
         includes: includedFragments(source),
         refs: [...source.matchAll(/\{\{skill:([a-z0-9][a-z0-9-]*)\}\}/g)].map((match) => match[1]),
@@ -108,15 +128,18 @@ export function buildAssets(outDir) {
     const templates = path.join(ROOT, "templates", language);
     for (const entry of readDir(templates)) {
       if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-      const target = path.join(outDir, language, "templates", entry.name);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, readText(path.join(templates, entry.name)));
+      emit(`${language}/templates/${entry.name}`, readText(path.join(templates, entry.name)));
+    }
+    // 내장 확장. 스킬은 코어와 같은 조각으로 합성하고 나머지 파일은 그대로 싣는다.
+    for (const [rel, text] of Object.entries(walk(path.join(ROOT, "extensions", language)))) {
+      const composed = /^[^/]+\/skills\/[^/]+\/SKILL\.md$/.test(rel) ? composeSkill(text, fragments) : text;
+      emit(`${language}/extensions/${rel}`, composed);
     }
     structures[language] = structure;
   }
   const problems = compareLanguages(structures);
   if (problems.length > 0) throw new Error(`언어 사이의 구조가 어긋난다:\n- ${problems.join("\n- ")}`);
-  return Object.keys(structures);
+  return built;
 }
 
 async function main() {
@@ -125,6 +148,7 @@ async function main() {
   const dist = path.join(ROOT, "dist");
   fs.rmSync(path.join(dist, "assets"), { recursive: true, force: true });
 
+  const assets = buildAssets(path.join(dist, "assets"));
   await build({
     entryPoints: [path.join(ROOT, "src", "cli.ts")],
     bundle: true,
@@ -132,16 +156,17 @@ async function main() {
     format: "esm",
     target: "node22",
     outfile: path.join(dist, "sdd-first.mjs"),
-    define: { __VERSION__: JSON.stringify(version) },
+    // 스킬, 템플릿, 내장 확장을 번들 안에 넣는다. 저장소의 번들이 자기 버전의 원본을 갖는다(PRD CLI-004).
+    define: { __VERSION__: JSON.stringify(version), __ASSETS__: JSON.stringify(assets) },
     // yaml 패키지가 번들 안에서 require를 쓴다. ESM 번들에는 require가 없어 만들어 준다.
     banner: {
       js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
     },
   });
-  const built = buildAssets(path.join(dist, "assets"));
+  const languages = [...new Set(Object.keys(assets).map((key) => key.split("/")[0]))].sort();
   // upgrade가 설치된 버전부터 새 버전까지의 변경 내역을 보여 준다.
   fs.writeFileSync(path.join(dist, "CHANGELOG.md"), readText(path.join(ROOT, "CHANGELOG.md")));
-  console.log(`dist/sdd-first.mjs ${version}, assets: ${built.join(", ") || "없음"}`);
+  console.log(`dist/sdd-first.mjs ${version}, assets: ${languages.join(", ") || "없음"}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

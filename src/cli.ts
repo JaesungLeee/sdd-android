@@ -18,6 +18,8 @@ import {
 import { check, formatCheck } from "./commands/check.js";
 import { formatGate, gateAll, verdictText } from "./commands/gate.js";
 import { formatHookOutput, hookWrite } from "./commands/hook.js";
+import { loadAssets } from "./core/assets.js";
+import { addExtension, directives, formatAdd, formatDirectives, formatList, formatRemove, listExtensions, removeExtension, resolveBundle } from "./commands/extension.js";
 import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
@@ -41,6 +43,9 @@ const USAGE = `sdd-first <명령>
   doc confirm <단계> [feature]     영향 없음을 기록한다
   doc restore <단계> [feature]     병합 뒤 메타데이터와 해시를 HEAD 쪽으로 되돌린다 (--from)
   doc checklist <feature>          체크리스트의 상태를 기록한다
+  extension list|add|remove        확장의 목록, 설치(이름이나 경로), 제거
+  preset list|add|remove           preset의 목록, 설치, 제거
+  directives <단계>                그 단계에 적용되는 확장 지시 파일
   hook write                       쓰기 hook (입력은 표준 입력의 JSON)
 
 옵션: --json, --acknowledged, --grade <등급|항목=등급>, --depends <ID,ID>, --root <경로>, --version`;
@@ -140,7 +145,7 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
     const changelogFile = path.join(path.dirname(SELF), "CHANGELOG.md");
     const result = upgrade({
       target: resolveRoot(values.root),
-      assetsDir: path.join(path.dirname(SELF), "assets"),
+      assets: loadAssets(SELF),
       bundlePath: SELF,
       version: VERSION,
       changelog: fs.existsSync(changelogFile) ? fs.readFileSync(changelogFile, "utf8") : undefined,
@@ -163,6 +168,29 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
   if (command === "gate") {
     const result = gateAll(repo, requireStage(rest[0]));
     return { text: formatGate(result), data: result };
+  }
+  if (command === "extension" || command === "preset") {
+    const assets = loadAssets(SELF);
+    const [action, target] = rest;
+    if (action === "list") {
+      const result = listExtensions(repo, assets, command);
+      return { text: formatList(result), data: result };
+    }
+    if (action === "add" && target) {
+      const { bundle, origin } = resolveBundle(repo, assets, target);
+      const result = addExtension(repo, assets, bundle, { origin, expectKind: command });
+      return { text: formatAdd(result), data: result };
+    }
+    if (action === "remove" && target) {
+      const result = removeExtension(repo, assets, target, command);
+      return { text: formatRemove(result), data: result };
+    }
+    throw new Refusal(`${command} 명령은 list, add <이름|경로>, remove <이름> 가운데 하나다`);
+  }
+  if (command === "directives") {
+    if (!rest[0]) throw new Refusal("단계 이름이 필요하다");
+    const found = directives(repo, rest[0]);
+    return { text: formatDirectives(found), data: found };
   }
   if (command === "hook" && rest[0] === "write") {
     const input = JSON.parse(fs.readFileSync(0, "utf8")) as { tool_input?: { file_path?: string } };
@@ -239,7 +267,7 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     target: path.resolve(values.root ?? process.cwd()),
     language: values.language,
     prefix: values.prefix ?? "",
-    assetsDir: path.join(path.dirname(SELF), "assets"),
+    assets: loadAssets(SELF),
     bundlePath: SELF,
     version: VERSION,
     today: localDate(),

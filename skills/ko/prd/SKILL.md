@@ -33,6 +33,12 @@ hooks:
 
 위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate prd`를 직접 불러 확인한다.
 
+## 확장 지시의 목록
+
+!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives prd`
+
+{{> directives}}
+
 괄호 안의 값이 이번 실행의 흐름을 정한다.
 
 - **신규**: PRD가 없다. 「새로 쓰기」를 따른다.
