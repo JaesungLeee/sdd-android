@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { check } from "../src/commands/check.js";
+import { addSource, listSources, removeSource } from "../src/commands/openapi.js";
 import { runScript } from "../src/commands/run.js";
 import { openRepo, Refusal } from "../src/core/repo.js";
 import { findOperations, formatList, listOperations, loadSource, main, parseSpec, renderOperation, validateSources, type Fetch } from "../src/extensions/openapi/openapi.js";
@@ -132,6 +133,40 @@ describe("OpenAPI 문서", () => {
     fs.mkdirSync(path.join(root, "contracts"));
     fs.writeFileSync(path.join(root, "contracts", "openapi.yaml"), "openapi: 3.0.0\n");
     expect(messages()).toEqual([]);
+  });
+});
+
+describe("openapi 출처 설정", () => {
+  it("add와 remove가 설정의 다른 내용을 보존한 채 출처를 쓰고, 같은 이름은 바꾸며, 마지막을 빼면 키를 지운다", () => {
+    const root = tempRepo("# 설정\nwiki:\n  categories:\n    domain: 도메인 # 주석\n");
+    const repo = openRepo(root);
+    expect(listSources(repo)).toEqual([]);
+    expect(addSource(repo, "mino", { url: "https://x/v3/api-docs" })).toMatchObject({ replaced: false, source: { name: "mino", url: "https://x/v3/api-docs" } });
+    fs.writeFileSync(path.join(root, "openapi.json"), "{}");
+    expect(addSource(repo, "local", { path: "openapi.json" }).sources.map((s) => s.name)).toEqual(["mino", "local"]);
+    expect(addSource(repo, "mino", { url: "https://y" })).toMatchObject({ replaced: true });
+    const text = fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
+    expect(text).toContain("# 설정");
+    expect(text).toContain("domain: 도메인 # 주석");
+    expect(text).toContain("openapi:\n  sources:\n    - name: local\n      path: openapi.json\n    - name: mino\n      url: https://y\n");
+    expect(check(openRepo(root)).problems.filter((p) => p.where === ".mob-sdd/config.yaml")).toEqual([]);
+    expect(removeSource(repo, "local").sources).toEqual([{ name: "mino", url: "https://y" }]);
+    expect(removeSource(repo, "mino").sources).toEqual([]);
+    expect(fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("openapi");
+  });
+
+  it("형식과 없는 파일, 없는 이름을 거부하고 깨진 설정은 고치라고 알린다", () => {
+    const root = tempRepo("");
+    const repo = openRepo(root);
+    expect(() => addSource(repo, undefined, { url: "https://x" })).toThrow(/이름/);
+    expect(() => addSource(repo, "a", {})).toThrow(/하나만/);
+    expect(() => addSource(repo, "a", { url: "https://x", path: "p" })).toThrow(/하나만/);
+    expect(() => addSource(repo, "A", { url: "https://x" })).toThrow(/name/);
+    expect(() => addSource(repo, "a", { url: "ftp://x" })).toThrow(/http/);
+    expect(() => addSource(repo, "a", { path: "없음.yaml" })).toThrow(/파일이 없다/);
+    expect(() => removeSource(repo, "a")).toThrow(/그런 출처가 없다/);
+    fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nopenapi: [1]\n");
+    expect(() => listSources(repo)).toThrow(/형식에 맞지 않는다/);
   });
 });
 

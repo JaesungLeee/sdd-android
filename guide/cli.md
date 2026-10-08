@@ -18,6 +18,7 @@
 | `check` | 설치 점검과 문서의 형식·일관성 검사. 문제가 있으면 0이 아닌 코드로 끝난다. CI에 둔다 |
 | `extension list\|add\|remove`, `preset list\|add\|remove` | 확장의 목록, 설치(내장 이름이나 로컬 경로), 제거 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
+| `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
 | `run <확장> <스크립트> [인자…]` | 확장의 `scripts/` 아래 `.mjs`를 실행한다. 스킬이 부르지만 사람이 쳐도 된다. [OpenAPI 대조](openapi.md) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.

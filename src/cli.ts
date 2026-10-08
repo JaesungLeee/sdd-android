@@ -47,6 +47,7 @@ import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
 import { runScript } from "./commands/run.js";
+import { addSource, formatSources as formatOpenApiSources, listSources, removeSource } from "./commands/openapi.js";
 import { formatIndex, formatLint, formatRecord as formatWikiRecord, formatSources, wikiCategoryAdd, wikiIndex, wikiLint, wikiRecord, wikiSources } from "./commands/wiki.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
@@ -81,6 +82,7 @@ const USAGE = `mob-sdd <명령>
   impl final <feature>             마지막 확인 (--result pass|fail, 통과면 --check 검사=pass|skip 모두, 실패면 --files, --failure, --symptom)
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
+  openapi list|add|remove          OpenAPI 출처의 목록, 추가(--url이나 --path), 제거. config.yaml의 openapi.sources를 쓴다
   run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (인자는 그대로 넘긴다)
   wiki index                       위키 색인을 다시 만든다
   wiki record <페이지>…            페이지의 원본 해시와 commit을 적고 색인을 다시 만든다
@@ -115,6 +117,8 @@ const OPTIONS = {
   name: { type: "string" },
   description: { type: "string" },
   scope: { type: "string" },
+  url: { type: "string" },
+  path: { type: "string" },
   version: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;
@@ -345,6 +349,24 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
       return { text: formatFigmaSetup(result), data: result };
     }
     throw new Refusal("figma 명령은 show나 setup이다");
+  }
+  if (command === "openapi") {
+    const [action, name] = rest;
+    if (action === "list") {
+      const result = listSources(repo);
+      return { text: formatOpenApiSources(result), data: { sources: result } };
+    }
+    if (action === "add") {
+      const result = addSource(repo, name, { url: values.url, path: values.path });
+      return { text: `출처를 ${result.replaced ? "바꿨다" : "더했다"}: ${result.source.name}
+${formatOpenApiSources(result.sources)}`, data: result };
+    }
+    if (action === "remove") {
+      const result = removeSource(repo, name);
+      return { text: `출처를 뺐다: ${result.removed.name}
+${formatOpenApiSources(result.sources)}`, data: result };
+    }
+    throw new Refusal("openapi 명령은 list, add <이름> --url <주소>|--path <경로>, remove <이름> 가운데 하나다");
   }
   if (command === "wiki") {
     const [action, ...args] = rest;

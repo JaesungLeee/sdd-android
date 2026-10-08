@@ -11,7 +11,14 @@ npx mob-sdd extension add openapi       # 이미 설치된 저장소에 더할 �
 
 ## 출처 설정
 
-`.mob-sdd/config.yaml`에 적는다. 커밋하는 파일이므로 팀이 같은 출처를 본다.
+```sh
+npx mob-sdd openapi add mino --url https://api.example.com/v3/api-docs
+npx mob-sdd openapi add auth --path contracts/auth-openapi.yaml    # 저장소 루트 기준. 파일이 있어야 한다
+npx mob-sdd openapi list
+npx mob-sdd openapi remove auth
+```
+
+같은 이름으로 다시 `add`하면 바꾼다. 결과는 `.mob-sdd/config.yaml`의 `openapi.sources`에 적히며, 커밋하는 파일이므로 팀이 같은 출처를 본다. 손으로 고쳐도 된다.
 
 ```yaml
 openapi:
