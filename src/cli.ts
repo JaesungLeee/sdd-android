@@ -365,7 +365,6 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
         formatOpenApiSources(result.sources),
       ];
       return { text: lines.join("\n"), data: result };
-${formatOpenApiSources(result.sources)}`, data: result };
     }
     if (action === "remove") {
       const result = removeSource(repo, name);
