@@ -7,6 +7,7 @@ import { addSource, listSources, removeSource } from "../src/commands/openapi.js
 import { runScript } from "../src/commands/run.js";
 import { openRepo, Refusal } from "../src/core/repo.js";
 import { findOperations, formatList, listOperations, loadSource, main, parseSpec, renderOperation, validateSources, type Fetch } from "../src/extensions/openapi/openapi.js";
+import { discoverDocument, inlineSwaggerDoc } from "../src/extensions/openapi/spec.js";
 
 const SPEC = {
   openapi: "3.0.3",
@@ -138,14 +139,15 @@ describe("OpenAPI 문서", () => {
 });
 
 describe("openapi 출처 설정", () => {
-  it("add와 remove가 설정의 다른 내용을 보존한 채 출처를 쓰고, 같은 이름은 바꾸며, 마지막을 빼면 키를 지운다", () => {
+  it("add와 remove가 설정의 다른 내용을 보존한 채 출처를 쓰고, 같은 이름은 바꾸며, 마지막을 빼면 키를 지운다", async () => {
     const root = tempRepo("# 설정\nwiki:\n  categories:\n    domain: 도메인 # 주석\n");
     const repo = openRepo(root);
+    const json = fakeFetch(JSON.stringify(SPEC));
     expect(listSources(repo)).toEqual([]);
-    expect(addSource(repo, "mino", { url: "https://x/v3/api-docs" })).toMatchObject({ replaced: false, source: { name: "mino", url: "https://x/v3/api-docs" } });
+    expect(await addSource(repo, "mino", { url: "https://x/v3/api-docs", fetchImpl: json })).toMatchObject({ replaced: false, source: { name: "mino", url: "https://x/v3/api-docs" } });
     fs.writeFileSync(path.join(root, "openapi.json"), "{}");
-    expect(addSource(repo, "local", { path: "openapi.json" }).sources.map((s) => s.name)).toEqual(["mino", "local"]);
-    expect(addSource(repo, "mino", { url: "https://y" })).toMatchObject({ replaced: true });
+    expect((await addSource(repo, "local", { path: "openapi.json" })).sources.map((s) => s.name)).toEqual(["mino", "local"]);
+    expect(await addSource(repo, "mino", { url: "https://y", fetchImpl: json })).toMatchObject({ replaced: true });
     const text = fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
     expect(text).toContain("# 설정");
     expect(text).toContain("domain: 도메인 # 주석");
@@ -156,18 +158,73 @@ describe("openapi 출처 설정", () => {
     expect(fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("openapi");
   });
 
-  it("형식과 없는 파일, 없는 이름을 거부하고 깨진 설정은 고치라고 알린다", () => {
+  it("형식과 없는 파일, 없는 이름을 거부하고 깨진 설정은 고치라고 알린다", async () => {
     const root = tempRepo("");
     const repo = openRepo(root);
-    expect(() => addSource(repo, undefined, { url: "https://x" })).toThrow(/이름/);
-    expect(() => addSource(repo, "a", {})).toThrow(/하나만/);
-    expect(() => addSource(repo, "a", { url: "https://x", path: "p" })).toThrow(/하나만/);
-    expect(() => addSource(repo, "A", { url: "https://x" })).toThrow(/name/);
-    expect(() => addSource(repo, "a", { url: "ftp://x" })).toThrow(/http/);
-    expect(() => addSource(repo, "a", { path: "없음.yaml" })).toThrow(/파일이 없다/);
+    const json = fakeFetch(JSON.stringify(SPEC));
+    await expect(addSource(repo, undefined, { url: "https://x" })).rejects.toThrow(/이름/);
+    await expect(addSource(repo, "a", {})).rejects.toThrow(/하나만/);
+    await expect(addSource(repo, "a", { url: "https://x", path: "p" })).rejects.toThrow(/하나만/);
+    await expect(addSource(repo, "A", { url: "https://x", fetchImpl: json })).rejects.toThrow(/name/);
+    await expect(addSource(repo, "a", { url: "ftp://x" })).rejects.toThrow(/http/);
+    await expect(addSource(repo, "a", { path: "없음.yaml" })).rejects.toThrow(/파일이 없다/);
     expect(() => removeSource(repo, "a")).toThrow(/그런 출처가 없다/);
     fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nopenapi: [1]\n");
     expect(() => listSources(repo)).toThrow(/형식에 맞지 않는다/);
+  });
+});
+
+describe("Swagger UI 페이지의 주소", () => {
+  const HTML = "\n<!-- static -->\n<!DOCTYPE html><html><body>Swagger UI</body></html>";
+  /** 페이지는 HTML, -json은 문서, 나머지는 404인 서버. */
+  const nest: Fetch = async (url) => {
+    if (url === "https://s.io/api-docs") return { ok: true, status: 200, text: async () => HTML };
+    if (url === "https://s.io/api-docs-json") return { ok: true, status: 200, text: async () => JSON.stringify(SPEC) };
+    return { ok: false, status: 404, text: async () => "" };
+  };
+  /** 초기화 스크립트가 문서 주소를 적어 둔 서버. */
+  const classic: Fetch = async (url) => {
+    if (url === "https://c.io/docs") return { ok: true, status: 200, text: async () => HTML };
+    if (url === "https://c.io/docs/swagger-initializer.js") return { ok: true, status: 200, text: async () => 'window.ui = SwaggerUIBundle({ url: "/spec/openapi.yaml" });' };
+    if (url === "https://c.io/spec/openapi.yaml") return { ok: true, status: 200, text: async () => "openapi: 3.0.0\ninfo: { title: C, version: 1 }\npaths: {}\n" };
+    return { ok: false, status: 404, text: async () => "" };
+  };
+  /** 문서를 페이지 안에 통째로 넣은 서버. */
+  const inline: Fetch = async (url) => {
+    if (url === "https://i.io/api") return { ok: true, status: 200, text: async () => HTML };
+    if (url === "https://i.io/api/swagger-ui-init.js") return { ok: true, status: 200, text: async () => `let options = {\n  "swaggerDoc": ${JSON.stringify(SPEC)},\n  "customOptions": {}\n};` };
+    return { ok: false, status: 404, text: async () => "" };
+  };
+
+  it("페이지가 읽는 문서를 세 가지 길로 찾는다", async () => {
+    expect((await discoverDocument("https://s.io/api-docs", nest))?.url).toBe("https://s.io/api-docs-json");
+    expect((await discoverDocument("https://c.io/docs", classic))?.url).toBe("https://c.io/spec/openapi.yaml");
+    expect((await discoverDocument("https://i.io/api", inline))?.url).toBe("https://i.io/api/swagger-ui-init.js");
+    expect(await discoverDocument("https://n.io/x", fakeFetch(404))).toBeUndefined();
+    expect(inlineSwaggerDoc('"swaggerDoc": {"a": "}", "b": {"c": 1}}, x')).toBe('{"a": "}", "b": {"c": 1}}');
+  });
+
+  it("스크립트는 찾은 주소로 읽고 머리말에 적으며, 못 찾으면 실패로 낸다", async () => {
+    const root = tempRepo("");
+    const found = await loadSource(root, { name: "s", url: "https://s.io/api-docs" }, nest, now);
+    expect(found.error).toBeUndefined();
+    expect(found.resolved).toBe("https://s.io/api-docs-json");
+    expect(formatList([found])).toContain("== s (https://s.io/api-docs → https://s.io/api-docs-json) · 조회");
+    const lost = await loadSource(root, { name: "l", url: "https://n.io/x" }, async () => ({ ok: true, status: 200, text: async () => HTML }), now);
+    expect(lost.error).toContain("HTML 페이지가 왔고");
+  });
+
+  it("add는 문서 주소로 바꿔 저장하고, 못 찾거나 네트워크가 없으면 그대로 저장하고 알린다", async () => {
+    const repo = openRepo(tempRepo(""));
+    const resolved = await addSource(repo, "s", { url: "https://s.io/api-docs", fetchImpl: nest });
+    expect(resolved).toMatchObject({ source: { name: "s", url: "https://s.io/api-docs-json" }, resolvedFrom: "https://s.io/api-docs" });
+    expect(listSources(repo)).toEqual([{ name: "s", url: "https://s.io/api-docs-json" }]);
+    const unknown = await addSource(repo, "u", { url: "https://n.io/x", fetchImpl: async () => ({ ok: true, status: 200, text: async () => HTML }) });
+    expect(unknown.source.url).toBe("https://n.io/x");
+    expect(unknown.note).toContain("찾지 못했다");
+    const offline = await addSource(repo, "o", { url: "https://o.io/x", fetchImpl: async () => { throw new Error("fetch failed"); } });
+    expect(offline.source.url).toBe("https://o.io/x");
+    expect(offline.note).toContain("fetch failed");
   });
 });
 

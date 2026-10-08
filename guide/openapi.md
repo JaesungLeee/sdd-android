@@ -18,7 +18,7 @@ npx mob-sdd openapi list
 npx mob-sdd openapi remove auth
 ```
 
-같은 이름으로 다시 `add`하면 바꾼다. 결과는 `.mob-sdd/config.yaml`의 `openapi.sources`에 적히며, 커밋하는 파일이므로 팀이 같은 출처를 본다. 손으로 고쳐도 된다.
+Swagger UI 페이지의 주소(`…/api-docs`, `…/swagger-ui`)를 주면 그 페이지가 읽는 문서의 주소를 찾아 저장한다. 초기화 스크립트에 적힌 주소, NestJS의 `…-json`, `/v3/api-docs` 같은 흔한 자리, 페이지 안에 든 문서의 순서로 본다. 찾지 못하거나 네트워크가 없으면 받은 대로 저장하고 알린다. 같은 이름으로 다시 `add`하면 바꾼다. 결과는 `.mob-sdd/config.yaml`의 `openapi.sources`에 적히며, 커밋하는 파일이므로 팀이 같은 출처를 본다. 손으로 고쳐도 된다.
 
 ```yaml
 openapi:
@@ -52,6 +52,7 @@ npx mob-sdd run openapi openapi.mjs show <operationId | "METHOD /path">… [--so
 - `list`는 출처마다 머리말(출처, 조회 시점, 제목과 버전)과 `METHOD /path operationId 요약 [태그]` 한 줄씩을 낸다.
 - `show`는 파라미터, 요청 본문, 응답의 스키마를 `$ref`를 풀어 낸다. 필수 필드는 `*`, 배열은 `[타입]`, 열거는 `"a" | "b"`로 적는다.
 - 조회 실패는 머리말에 적히고 종료 코드는 0이다. 캐시는 없어 실행마다 다시 받는다.
+- 설정에 Swagger UI 페이지의 주소가 적혀 있으면 스크립트도 같은 방법으로 문서를 찾아 읽고, 머리말에 `페이지 주소 → 문서 주소`로 적는다.
 - JSON과 YAML 문서를 모두 읽는다. 스크립트는 의존성과 함께 파일 하나로 설치되므로 `node_modules`가 필요 없다.
 
 `run`은 확장의 `scripts/` 아래 `.mjs`를 실행하는 코어 명령이다. 스킬이 허용하는 도구가 `Bash(sh *)`뿐이라 `node`를 직접 부르지 못하므로, 실행 스크립트가 찾은 `node`로 대신 돌린다. 인자는 그대로 넘기고, 작업 디렉터리는 저장소 루트이며, `MOB_SDD_ROOT` 환경 변수로 루트를 알려 준다.

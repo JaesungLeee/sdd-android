@@ -219,7 +219,7 @@ function formatRecord(result: RecordResult): string {
   return lines.join("\n");
 }
 
-function run(argv: string[]): { text: string; data: unknown; exitCode?: number } {
+async function run(argv: string[]): Promise<{ text: string; data: unknown; exitCode?: number }> {
   const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS });
   const [command, ...rest] = positionals;
   if (values.version) return { text: VERSION, data: { version: VERSION } };
@@ -357,8 +357,14 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
       return { text: formatOpenApiSources(result), data: { sources: result } };
     }
     if (action === "add") {
-      const result = addSource(repo, name, { url: values.url, path: values.path });
-      return { text: `출처를 ${result.replaced ? "바꿨다" : "더했다"}: ${result.source.name}
+      const result = await addSource(repo, name, { url: values.url, path: values.path });
+      const lines = [
+        `출처를 ${result.replaced ? "바꿨다" : "더했다"}: ${result.source.name}`,
+        ...(result.resolvedFrom ? [`${result.resolvedFrom}은 Swagger UI 페이지라 그 페이지가 읽는 문서의 주소로 바꿨다: ${result.source.url}`] : []),
+        ...(result.note ? [result.note] : []),
+        formatOpenApiSources(result.sources),
+      ];
+      return { text: lines.join("\n"), data: result };
 ${formatOpenApiSources(result.sources)}`, data: result };
     }
     if (action === "remove") {
@@ -537,7 +543,7 @@ async function main(): Promise<void> {
     }
     const wantsInfo = argv.includes("--help") || argv.includes("-h") || argv.includes("--version");
     const { text, data, exitCode }: { text: string; data: unknown; exitCode?: number } =
-      first === "init" && !wantsInfo ? await runInit(argv) : run(argv);
+      first === "init" && !wantsInfo ? await runInit(argv) : await run(argv);
     const output = json ? JSON.stringify(data, null, 2) : text;
     if (output) console.log(output);
     if (exitCode) process.exitCode = exitCode;

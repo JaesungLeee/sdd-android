@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseDocument } from "yaml";
 import { validateSources, type SourceConfig } from "../extensions/openapi/config.js";
+import { ACCEPT, discoverDocument, isHtml, type Fetch } from "../extensions/openapi/spec.js";
 import { Refusal, type Repo } from "../core/repo.js";
 
 /**
@@ -36,23 +37,57 @@ function writeSources(repo: Repo, sources: SourceConfig[]): void {
 export interface AddSourceOptions {
   url?: string;
   path?: string;
+  /** 시험용. 없으면 전역 fetch다. */
+  fetchImpl?: Fetch;
 }
 
 export interface AddSourceResult {
   source: SourceConfig;
   /** 같은 이름이 있어 바꿨다. */
   replaced: boolean;
+  /** 받은 주소가 Swagger UI 페이지라 문서 주소로 바꿨다. */
+  resolvedFrom?: string;
+  /** 주소를 확인하지 못한 이유. 그대로 저장했다. */
+  note?: string;
   sources: SourceConfig[];
 }
 
+/**
+ * 주소가 Swagger UI 페이지면 그 페이지가 읽는 문서의 주소로 바꾼다. 설정에는 문서의 주소가 남아야 조회 시점의 출처가 분명하다.
+ * 네트워크가 없거나 찾지 못하면 받은 대로 두고 알린다. 스크립트가 실행할 때 한 번 더 찾는다.
+ */
+async function resolveUrl(url: string, fetchImpl: Fetch): Promise<{ url: string; resolvedFrom?: string; note?: string }> {
+  let text: string;
+  try {
+    const response = await fetchImpl(url, { signal: AbortSignal.timeout(15_000), headers: ACCEPT });
+    if (!response.ok) return { url, note: `주소를 확인하지 못했다(HTTP ${response.status}). 그대로 저장했다` };
+    text = await response.text();
+  } catch (error) {
+    return { url, note: `주소를 확인하지 못했다(${error instanceof Error ? error.message : String(error)}). 그대로 저장했다` };
+  }
+  if (!isHtml(text)) return { url };
+  const found = await discoverDocument(url, fetchImpl);
+  if (!found) return { url, note: "Swagger UI 페이지인데 그 페이지가 읽는 문서를 찾지 못했다. 문서 자체의 주소(보통 /v3/api-docs나 …-json)를 적는다" };
+  return { url: found.url, resolvedFrom: url };
+}
+
 /** 출처를 더한다. 같은 이름이 있으면 바꾼다. `path`의 파일은 있어야 한다(`check`가 같은 것을 본다). */
-export function addSource(repo: Repo, name: string | undefined, options: AddSourceOptions): AddSourceResult {
+export async function addSource(repo: Repo, name: string | undefined, options: AddSourceOptions): Promise<AddSourceResult> {
   if (!name) throw new Refusal("출처 이름이 필요하다: openapi add <이름> --url <주소> | --path <경로>");
   const hasUrl = options.url !== undefined && options.url !== "";
   const hasPath = options.path !== undefined && options.path !== "";
   if (hasUrl === hasPath) throw new Refusal("--url과 --path 가운데 하나만 준다");
-  const source: SourceConfig = hasUrl ? { name, url: options.url as string } : { name, path: (options.path as string).replace(/\\/g, "/") };
+  let source: SourceConfig = hasUrl ? { name, url: options.url as string } : { name, path: (options.path as string).replace(/\\/g, "/") };
   if (source.path && !fs.existsSync(path.join(repo.root, source.path))) throw new Refusal(`파일이 없다: ${source.path} (저장소 루트 기준)`);
+  let resolvedFrom: string | undefined;
+  let note: string | undefined;
+  if (source.url) {
+    if (!/^https?:\/\//.test(source.url)) throw new Refusal("url은 http(s)로 시작한다");
+    const resolved = await resolveUrl(source.url, options.fetchImpl ?? fetch);
+    source = { name, url: resolved.url };
+    resolvedFrom = resolved.resolvedFrom;
+    note = resolved.note;
+  }
 
   const current = listSources(repo);
   const replaced = current.some((item) => item.name === name);
@@ -63,7 +98,7 @@ export function addSource(repo: Repo, name: string | undefined, options: AddSour
     throw new Refusal(error instanceof Error ? error.message : String(error));
   }
   writeSources(repo, next);
-  return { source, replaced, sources: next };
+  return { source, replaced, ...(resolvedFrom ? { resolvedFrom } : {}), ...(note ? { note } : {}), sources: next };
 }
 
 export function removeSource(repo: Repo, name: string | undefined): { removed: SourceConfig; sources: SourceConfig[] } {

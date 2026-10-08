@@ -11,12 +11,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
 import { readSources, type SourceConfig } from "./config.js";
+import { ACCEPT, discoverDocument, isHtml, parseSpec, type Fetch, type Json } from "./spec.js";
 
 export { readSources, validateSources, type SourceConfig } from "./config.js";
-
-type Json = Record<string, unknown>;
+export { parseSpec, type Fetch } from "./spec.js";
 
 export interface Operation {
   method: string;
@@ -31,6 +30,8 @@ export interface LoadedSource {
   name: string;
   /** URL이거나 저장소 루트 기준의 경로. */
   origin: string;
+  /** Swagger UI 페이지의 주소였을 때 실제로 문서를 읽은 주소. */
+  resolved?: string;
   fetchedAt: string;
   title?: string;
   version?: string;
@@ -43,17 +44,22 @@ const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "tr
 
 // 조회
 
-export type Fetch = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>;
-
 export async function loadSource(root: string, source: SourceConfig, fetchImpl: Fetch = fetch, now: Date = new Date()): Promise<LoadedSource> {
   const origin = source.url ?? (source.path as string);
   const loaded: LoadedSource = { name: source.name, origin, fetchedAt: now.toISOString(), operations: [] };
   try {
     let text: string;
     if (source.url) {
-      const response = await fetchImpl(source.url, { signal: AbortSignal.timeout(30_000), headers: { accept: "application/json, application/yaml, text/yaml, */*" } });
+      const response = await fetchImpl(source.url, { signal: AbortSignal.timeout(30_000), headers: ACCEPT });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       text = await response.text();
+      // Swagger UI 페이지의 주소를 적은 경우: 그 페이지가 읽는 문서를 찾아 쓰고 머리말에 적는다.
+      if (isHtml(text)) {
+        const found = await discoverDocument(source.url, fetchImpl);
+        if (!found) throw new Error("HTML 페이지가 왔고 그 페이지가 읽는 문서를 찾지 못했다. 문서 자체의 주소를 적는다(보통 /v3/api-docs나 …-json)");
+        loaded.resolved = found.url;
+        text = found.text;
+      }
     } else {
       const file = path.resolve(root, source.path as string);
       if (!fs.existsSync(file)) throw new Error(`파일이 없다: ${source.path}`);
@@ -69,20 +75,6 @@ export async function loadSource(root: string, source: SourceConfig, fetchImpl: 
     loaded.error = error instanceof Error ? error.message.split("\n")[0] : String(error);
   }
   return loaded;
-}
-
-/** JSON이면 JSON으로, 아니면 YAML로 읽는다. OpenAPI 문서는 YAML이 흔하다. */
-export function parseSpec(text: string): Json {
-  let data: unknown;
-  const trimmed = text.trimStart();
-  // Swagger UI 페이지의 주소를 적은 경우가 흔하다. YAML 오류 대신 무엇이 왔는지 알린다.
-  if (/^<!doctype html|^<html|^<!--/i.test(trimmed)) throw new Error("HTML 페이지가 왔다. Swagger UI가 아니라 문서 자체의 주소를 적는다(보통 /v3/api-docs나 …/openapi.json)");
-  if (trimmed.startsWith("{")) data = JSON.parse(trimmed);
-  else data = parse(text);
-  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("OpenAPI 문서가 아니다");
-  const doc = data as Json;
-  if (typeof doc.openapi !== "string" && typeof doc.swagger !== "string") throw new Error("OpenAPI 문서가 아니다: openapi 키가 없다");
-  return doc;
 }
 
 export function listOperations(doc: Json): Operation[] {
@@ -131,7 +123,8 @@ export function findOperations(sources: LoadedSource[], selector: string): { sou
 function header(source: LoadedSource): string {
   if (source.error) return `== ${source.name} (${source.origin}) · 조회 실패: ${source.error}`;
   const info = [source.title, source.version].filter(Boolean).join(" ");
-  return `== ${source.name} (${source.origin}) · 조회 ${source.fetchedAt}${info ? ` · ${info}` : ""}`;
+  const origin = source.resolved ? `${source.origin} → ${source.resolved}` : source.origin;
+  return `== ${source.name} (${origin}) · 조회 ${source.fetchedAt}${info ? ` · ${info}` : ""}`;
 }
 
 export function formatList(sources: LoadedSource[], filter?: string): string {
