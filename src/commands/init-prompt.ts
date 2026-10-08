@@ -27,7 +27,7 @@ export async function promptInit(base: InitOptions, prompt: PromptOptions): Prom
   // 구현 단계의 확장은 명시했을 때만 설치한다. 코어는 스택을 전제하지 않는다(PRD CLI-001). 선택지는 내장 확장의 이름이다.
   const builtin = [...options.assets.extensions(options.language).keys()].sort();
   if (!prompt.extensionsGiven && builtin.length > 0) {
-    const answer = (await ask(`구현 단계의 확장을 함께 설치할까? (없음 / ${builtin.join(" / ")}) [없음]: `)).trim().toLowerCase();
+    const answer = (await ask(`내장 확장을 함께 설치할까? 여럿이면 띄어 쓴다 (없음 / ${builtin.join(" / ")}) [없음]: `)).trim().toLowerCase();
     options.extensions = answer === "" || answer === "없음" || answer === "n" || answer === "no" ? [] : answer.split(/[\s,]+/);
   }
 

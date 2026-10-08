@@ -1,0 +1,14 @@
+name: wiki
+kind: extension
+version: 0.1.0
+requires: ">=0.4.0"
+description: "지식 계층의 위키. 코드베이스의 구조, 관찰된 규약, 결정, 실패를 LLM이 수집하고 점검하는 마크다운 페이지. 단계들이 읽기 전용 힌트로 읽는다"
+directives:
+  constitution: directives/constitution.md
+  blueprint: directives/blueprint.md
+  create-test: directives/create.md
+  create-logic: directives/create.md
+  create-ui: directives/create.md
+  create-structure: directives/create.md
+  heal-build: directives/heal.md
+  heal-test: directives/heal.md

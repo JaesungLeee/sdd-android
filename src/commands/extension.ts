@@ -314,9 +314,19 @@ export function directives(repo: Repo, stage: string): Directive[] {
   return found;
 }
 
-/** 지시의 대상이 될 수 있는 단계 이름. 코어 단계와 설치된 스킬(접두사를 뺀 이름)이다. */
-export function knownStages(repo: Repo, manifest: Manifest): Set<string> {
+/**
+ * 지시의 대상이 될 수 있는 단계 이름. 코어 단계, 설치된 스킬(접두사를 뺀 이름), 내장 확장의 스킬이다.
+ * 내장 확장의 스킬을 넣는 것은 위키의 지시가 `android`의 `create-*`를 가리키는데 `android`가 없는 저장소에서 매번 경고하지 않기 위해서다.
+ * 로컬 확장이 없는 단계를 적은 것은 그대로 잡힌다.
+ */
+export function knownStages(repo: Repo, manifest: Manifest, assets?: Assets): Set<string> {
   const names = new Set<string>(STAGES);
+  for (const files of assets?.extensions(repo.config.language).values() ?? []) {
+    for (const rel of files.keys()) {
+      const skill = /^skills\/([^/]+)\/SKILL\.md$/.exec(rel);
+      if (skill) names.add(skill[1] as string);
+    }
+  }
   const { prefix } = repo.config;
   for (const rel of Object.keys(manifest.files)) {
     const skill = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/.exec(rel);

@@ -18,9 +18,9 @@
 ## 설치
 
 ```sh
-npx mob-sdd init                        # 코어: constitution부터 analyze까지
-npx mob-sdd init --extension android    # 코어와 Android 구현 단계
-npx mob-sdd@latest upgrade              # 새 버전으로 올린다
+npx mob-sdd init                                     # 코어: constitution부터 analyze까지
+npx mob-sdd init --extension android --extension wiki  # Android 구현 단계와 위키를 함께
+npx mob-sdd@latest upgrade                           # 새 버전으로 올린다
 ```
 
 설치되는 곳은 두 군데다. 둘 다 커밋한다.
@@ -47,6 +47,15 @@ npx mob-sdd@latest upgrade              # 새 버전으로 올린다
 
 feature는 `docs/specs/` 아래의 디렉터리 하나다. `/spec 로그인`처럼 입력을 주면 그 feature를 대상으로 하고, 입력이 없으면 목록에서 고른다.
 
+## 확장
+
+코어는 스택을 전제하지 않는다. 구현 단계와 지식 계층은 내장 확장으로 더한다.
+
+| 확장 | 하는 일 |
+|---|---|
+| `android` | Kotlin, Gradle, Jetpack Compose 프로젝트의 구현 단계. `/impl-orchestrator` |
+| `wiki` | 코드베이스의 서술을 담는 위키. `/wiki-ingest`, `/wiki-lint`. 단계들이 읽기 전용 힌트로 읽는다 |
+
 ## 사람이 치는 명령
 
 ```sh
@@ -72,6 +81,7 @@ npx mob-sdd figma setup --server desktop --name figma-desktop
 - [문서 형식](guide/documents.md): frontmatter, 항목 ID, 변경의 판정, breakdown 작업 줄
 - [CLI와 설정 파일](guide/cli.md): 명령 전체와 `.mob-sdd/`의 파일
 - [구현 단계](guide/implementation.md): `android` extension의 스킬과 흐름
+- [위키](guide/wiki.md): `wiki` extension의 지식 계층, 수집과 점검
 - [Figma 설정](guide/figma.md): 서버 선택, 권한, 캡처 환경
 - [확장 만들기](guide/extensions.md): extension과 preset의 형식
 

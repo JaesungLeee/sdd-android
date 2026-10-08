@@ -18,7 +18,7 @@ import {
 import { check, formatCheck } from "./commands/check.js";
 import { formatGate, gateAll, isGateStage, verdictText, type GateStage } from "./commands/gate.js";
 import { figmaSetup, figmaShow, formatFigmaSetup, formatFigmaShow } from "./commands/figma.js";
-import { formatHookOutput, hookWrite } from "./commands/hook.js";
+import { formatHookOutput, hookWrite, hookWriteScoped, isHookScope } from "./commands/hook.js";
 import {
   formatAssign,
   formatAttempt,
@@ -70,7 +70,7 @@ const USAGE = `mob-sdd <명령>
   figma show|setup                 Figma 서버 설정과 읽기 도구의 권한 (--server, --name)
   preset list|add|remove           preset의 목록, 설치, 제거
   directives <단계>                그 단계에 적용되는 확장 지시 파일
-  hook write                       쓰기 hook (입력은 표준 입력의 JSON)
+  hook write                       쓰기 hook (입력은 표준 입력의 JSON, --scope wiki면 위키 밖의 문서 쓰기를 막는다)
   impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
   impl next <feature>              다음 작업과 종류, 단계
@@ -112,6 +112,7 @@ const OPTIONS = {
   server: { type: "string" },
   name: { type: "string" },
   description: { type: "string" },
+  scope: { type: "string" },
   version: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;
@@ -241,7 +242,7 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
     return { text: formatStatus(result), data: result };
   }
   if (command === "check") {
-    const result = check(repo);
+    const result = check(repo, undefined, loadAssets(SELF));
     return { text: formatCheck(result), data: result, exitCode: result.ok ? 0 : 1 };
   }
   if (command === "gate") {
@@ -378,7 +379,9 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
   if (command === "hook" && rest[0] === "write") {
     const input = JSON.parse(fs.readFileSync(0, "utf8")) as { tool_input?: { file_path?: string } };
     const file = input.tool_input?.file_path;
-    const decision = file ? hookWrite(repo, file) : { allow: true };
+    const scope = values.scope;
+    if (scope !== undefined && !isHookScope(scope)) throw new Refusal(`--scope는 wiki다: ${scope}`);
+    const decision = !file ? { allow: true } : scope ? hookWriteScoped(repo, file, scope) : hookWrite(repo, file);
     return { text: formatHookOutput(decision), data: decision };
   }
   if (command === "doc") {
@@ -479,11 +482,15 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     ...result.files.map((file) => `- ${file}`),
     ...result.backedUp.map((moved) => `옮겼다: ${moved.from} → ${moved.to}`),
     result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: mob-sdd extension add android",
+    ...(result.existingCode && !result.extensions.includes("wiki")
+      ? ["기존 코드가 있다. mob-sdd extension add wiki로 위키를 설치하고 /wiki-ingest로 첫 수집을 하면 단계들이 코드베이스의 서술을 읽는다."]
+      : []),
     "",
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
     ...(result.extensions.includes("android") ? ["Figma를 쓰면 mob-sdd figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
+    ...(result.extensions.includes("wiki") && result.existingCode ? ["첫 수집: /wiki-ingest 로 architecture/overview.md부터 만든다."] : []),
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
 }

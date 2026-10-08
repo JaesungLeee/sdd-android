@@ -11,7 +11,7 @@ import { compareVersions, isGrade, isVersion } from "../core/version.js";
 import { duplicateItems } from "./doc.js";
 import { knownStages } from "./extension.js";
 import { figmaStories } from "./impl.js";
-import { bundleFromDir } from "../core/assets.js";
+import { bundleFromDir, type Assets } from "../core/assets.js";
 import { MANIFEST_FILE, readBundle } from "../core/extension.js";
 
 export interface Problem {
@@ -32,14 +32,14 @@ const DOC_STATUS = ["draft", "created"];
 const CHECKLIST_STATUS = ["draft", "pass", "failed"];
 
 /** 깨진 곳이 없는지를 답한다(PRD CLI-003). 오류가 하나라도 있으면 `ok`가 거짓이다. */
-export function check(repo: Repo, nodeVersion: string = process.versions.node): CheckResult {
+export function check(repo: Repo, nodeVersion: string = process.versions.node, assets?: Assets): CheckResult {
   const problems: Problem[] = [];
   const add = (level: Problem["level"], where: string, message: string) => problems.push({ level, where, message });
 
   if (Number(nodeVersion.split(".")[0]) < MIN_NODE_MAJOR) {
     add("error", "환경", `Node.js ${MIN_NODE_MAJOR} 이상이 필요하다(지금 ${nodeVersion})`);
   }
-  checkInstall(repo, add);
+  checkInstall(repo, add, assets);
 
   const project = { constitution: loadDoc(repo, "constitution"), prd: loadDoc(repo, "prd") };
   for (const doc of Object.values(project)) if (doc) checkDoc(repo, doc, add);
@@ -78,7 +78,7 @@ function rel(repo: Repo, file: string): string {
   return path.relative(repo.root, file);
 }
 
-function checkInstall(repo: Repo, add: Add): void {
+function checkInstall(repo: Repo, add: Add, assets?: Assets): void {
   const manifest = readManifest(repo.root);
   if (!manifest) {
     add("error", ".mob-sdd/manifest.json", "설치 기록이 없다");
@@ -89,8 +89,8 @@ function checkInstall(repo: Repo, add: Add): void {
     if (!fs.existsSync(full)) add("error", file, "설치된 파일이 없다");
     else if (hashContent(fs.readFileSync(full)) !== entry.sha256) add("warn", file, "설치한 뒤 바뀐 파일이다");
   }
-  // 확장의 선언이 있는지와, 지시의 대상 단계가 설치된 스킬인지.
-  const stages = knownStages(repo, manifest);
+  // 확장의 선언이 있는지와, 지시의 대상 단계가 설치된 스킬인지. 내장 확장의 스킬은 설치되지 않았어도 아는 단계다(위키의 지시가 android의 스킬을 가리킨다).
+  const stages = knownStages(repo, manifest, assets);
   // spec에 Figma 줄이 있는 feature가 있으면 Figma 설정이 있어야 한다. 없으면 기본값으로 동작하지만 사람마다 다른 값이라 알린다(PRD SYS-006).
   // Figma를 쓰지 않는 저장소는 조용하다.
   if (!readLocalConfig(repo)?.figma) {
