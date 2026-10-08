@@ -46,6 +46,7 @@ import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
+import { formatIndex, formatLint, formatRecord as formatWikiRecord, formatSources, wikiCategoryAdd, wikiIndex, wikiLint, wikiRecord, wikiSources } from "./commands/wiki.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
 import { isGrade, type Grade } from "./core/version.js";
@@ -79,6 +80,11 @@ const USAGE = `mob-sdd <명령>
   impl final <feature>             마지막 확인 (--result pass|fail, 통과면 --check 검사=pass|skip 모두, 실패면 --files, --failure, --symptom)
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
+  wiki index                       위키 색인을 다시 만든다
+  wiki record <페이지>…            페이지의 원본 해시와 commit을 적고 색인을 다시 만든다
+  wiki lint                        위키 점검의 계산 부분 (형식, 깨진 링크, 원본 없음, 낡음 후보, 고아, 색인)
+  wiki sources                     미수집 원본과 낡음 후보
+  wiki category add <이름>         갈래를 설정에 더한다 (--description)
 
 옵션: --json, --acknowledged, --grade <등급|항목=등급>, --depends <ID,ID>, --root <경로>, --version`;
 
@@ -105,6 +111,7 @@ const OPTIONS = {
   extension: { type: "string", multiple: true },
   server: { type: "string" },
   name: { type: "string" },
+  description: { type: "string" },
   version: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;
@@ -335,6 +342,33 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
       return { text: formatFigmaSetup(result), data: result };
     }
     throw new Refusal("figma 명령은 show나 setup이다");
+  }
+  if (command === "wiki") {
+    const [action, ...args] = rest;
+    switch (action) {
+      case "index": {
+        const result = wikiIndex(repo);
+        return { text: formatIndex(result), data: result };
+      }
+      case "record": {
+        const result = wikiRecord(repo, args);
+        return { text: formatWikiRecord(result), data: result };
+      }
+      case "lint": {
+        const result = wikiLint(repo);
+        return { text: formatLint(result), data: result };
+      }
+      case "sources": {
+        const result = wikiSources(repo);
+        return { text: formatSources(result), data: result };
+      }
+      case "category": {
+        if (args[0] !== "add") throw new Refusal("wiki category 명령은 add <이름> --description <설명>이다");
+        const result = wikiCategoryAdd(repo, args[1], values.description);
+        return { text: `갈래를 더했다: ${result.name} (${result.description})`, data: result };
+      }
+    }
+    throw new Refusal("wiki 명령은 index, record, lint, sources, category add 가운데 하나다");
   }
   if (command === "directives") {
     if (!rest[0]) throw new Refusal("단계 이름이 필요하다");

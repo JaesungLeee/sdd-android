@@ -4,6 +4,7 @@ import { countTasks, FINAL_ID, parseTasks } from "../core/breakdown.js";
 import { checkpointPath } from "../core/checkpoint.js";
 import type { DocKind } from "../core/hash.js";
 import { listFeatures, loadDoc, loadDocs, toStates, type LoadedDoc, type Repo } from "../core/repo.js";
+import { wikiSummary } from "../core/wiki.js";
 import { countChecks } from "./doc.js";
 import { verdictText } from "./gate.js";
 
@@ -27,6 +28,8 @@ export interface FeatureStatus {
 export interface StatusResult {
   project: Partial<Record<DocKind, DocSummary>>;
   features: FeatureStatus[];
+  /** 위키가 있을 때만. 없는 저장소의 출력은 바뀌지 않는다(PRD §4 「확장」). */
+  wiki?: { pages: number; stale: number; uncollected: number };
 }
 
 function summarize(doc: LoadedDoc): DocSummary {
@@ -66,7 +69,8 @@ export function status(repo: Repo, only?: string): StatusResult {
     }
     features.push(feature);
   }
-  return { project, features };
+  const wiki = wikiSummary(repo);
+  return { project, features, ...(wiki ? { wiki } : {}) };
 }
 
 function describeDoc(kind: string, doc: DocSummary | undefined): string {
@@ -99,5 +103,6 @@ export function formatStatus(result: StatusResult): string {
       lines.push(`  ${relation.lower} → ${relation.upper}: ${verdictText(relation.verdict)} (${kind})`);
     }
   }
+  if (result.wiki) lines.push("", `위키: 페이지 ${result.wiki.pages}, 낡음 후보 ${result.wiki.stale}, 미수집 원본 ${result.wiki.uncollected}`);
   return lines.join("\n");
 }

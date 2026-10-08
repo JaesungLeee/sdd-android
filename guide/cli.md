@@ -34,6 +34,7 @@
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
+| `wiki index\|record\|lint\|sources\|category add` | `wiki-ingest`, `wiki-lint` | 위키의 색인, 원본 해시 기록, 점검 계산, 미수집 원본, 갈래 추가 |
 
 공통 옵션은 다음과 같다.
 
@@ -70,6 +71,9 @@ language: ko          # 설치 언어. 1.0부터 en
 agent: claude-code
 docs_dir: docs        # 산출물의 자리
 prefix: ""            # 스킬 이름 접두사
+wiki:                 # 위키 갈래 가운데 사용자가 더한 것. 기본 네 갈래는 CLI가 안다
+  categories:
+    domain: 도메인 용어와 업무 규칙
 ```
 
 ### `config.local.yaml`
