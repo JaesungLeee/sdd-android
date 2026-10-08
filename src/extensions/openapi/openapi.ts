@@ -75,6 +75,8 @@ export async function loadSource(root: string, source: SourceConfig, fetchImpl: 
 export function parseSpec(text: string): Json {
   let data: unknown;
   const trimmed = text.trimStart();
+  // Swagger UI 페이지의 주소를 적은 경우가 흔하다. YAML 오류 대신 무엇이 왔는지 알린다.
+  if (/^<!doctype html|^<html|^<!--/i.test(trimmed)) throw new Error("HTML 페이지가 왔다. Swagger UI가 아니라 문서 자체의 주소를 적는다(보통 /v3/api-docs나 …/openapi.json)");
   if (trimmed.startsWith("{")) data = JSON.parse(trimmed);
   else data = parse(text);
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("OpenAPI 문서가 아니다");

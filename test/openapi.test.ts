@@ -50,6 +50,7 @@ describe("OpenAPI 문서", () => {
     expect(fromYaml[0]).toMatchObject({ method: "GET", path: "/a", id: "a", summary: "에이", tags: ["x"] });
     expect(() => parseSpec("hello: world\n")).toThrow(/openapi 키가 없다/);
     expect(() => parseSpec("[1, 2]")).toThrow(/OpenAPI 문서가 아니다/);
+    expect(() => parseSpec("\n<!-- static -->\n<!DOCTYPE html><html></html>")).toThrow(/HTML 페이지가 왔다/);
   });
 
   it("list는 머리말과 목록을 내고 필터로 좁힌다", async () => {
