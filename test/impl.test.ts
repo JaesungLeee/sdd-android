@@ -1,0 +1,467 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
+import { check } from "../src/commands/check.js";
+import { docChecklist, docComplete, docNew, docRevise } from "../src/commands/doc.js";
+import { gateAll, implementGate } from "../src/commands/gate.js";
+import {
+  failuresPath,
+  implAssign,
+  implAttempt,
+  implFinal,
+  implNext,
+  implReport,
+  implReset,
+  implShow,
+  implStart,
+  implVerify,
+  parseChecks,
+} from "../src/commands/impl.js";
+import { status } from "../src/commands/status.js";
+import { matchTasks, parseTasks, setChecked, splitUnits } from "../src/core/breakdown.js";
+import { checkpointPath, readCheckpoint } from "../src/core/checkpoint.js";
+import { docPath, loadDoc, openRepo, Refusal, type Repo } from "../src/core/repo.js";
+
+const BREAKDOWN = `# 작업 목록
+
+## 셋업
+
+- [ ] T001 모듈 골격 \`feature/login/build.gradle.kts\`
+
+## US1
+
+- [ ] T002 [P] [US1] [until:T004] 로그인 테스트 \`domain/src/test/LoginTest.kt\`
+- [ ] T003 [P] [US1] 사용자 모델 \`domain/src/main/model/User.kt\`
+- [ ] T004 [US1] 로그인 유스케이스 \`domain/src/main/usecase/\`
+
+## US2
+
+- [ ] T005 [US2] 화면 \`feature/login/src/main/LoginScreen.kt\`
+
+## 마무리
+
+- [ ] T006 배선 \`app/src/main/Nav.kt\`
+
+## 마지막 확인
+
+- [ ] FINAL 마지막 확인
+`;
+
+const TEMPLATES: Record<string, string> = {
+  spec: "# 스펙\n\n요구사항\n",
+  checklist: "# 체크리스트\n\n- [x] 하나\n",
+  blueprint: "# 설계\n\n설계 내용\n",
+  research: "# 리서치\n",
+  breakdown: BREAKDOWN,
+};
+
+let repo: Repo;
+let day = 1;
+const today = () => `2026-10-${String(day++).padStart(2, "0")}`;
+const F = "login";
+
+function body(): string {
+  return loadDoc(repo, "breakdown", F)?.body ?? "";
+}
+
+function checked(id: string): boolean {
+  return parseTasks(body()).find((task) => task.id === id)?.checked ?? false;
+}
+
+function buildChain(): void {
+  docNew(repo, "spec", F, { today: today() });
+  docChecklist(repo, F);
+  docComplete(repo, "spec", F, { today: today() });
+  docNew(repo, "blueprint", F, { today: today() });
+  docComplete(repo, "blueprint", F, { today: today() });
+  docNew(repo, "breakdown", F, { today: today() });
+  docComplete(repo, "breakdown", F, { today: today() });
+}
+
+function start(): void {
+  implStart(repo, F, { today: today() });
+  implAssign(repo, F, ["T001=structure", "T002=test", "T003=logic", "T004=logic", "T005=ui", "T006=structure"]);
+}
+
+/** T001을 끝내고 검증을 통과시킨다. */
+function finish(id: string, checks: string[] = ["build=pass", "lint=pass"]): void {
+  implReport(repo, F, id, { today: today(), status: "done", modules: ["m"], files: [] });
+  implVerify(repo, F, id, { today: today(), checks: parseChecks(checks) });
+}
+
+beforeEach(() => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-first-impl-"));
+  fs.mkdirSync(path.join(root, ".sdd-first", "templates"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".sdd-first", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  fs.writeFileSync(path.join(root, ".sdd-first", "manifest.json"), JSON.stringify({ version: "0.3.0", files: {} }));
+  for (const [name, text] of Object.entries(TEMPLATES)) fs.writeFileSync(path.join(root, ".sdd-first", "templates", `${name}.md`), text);
+  repo = openRepo(root);
+  day = 1;
+  buildChain();
+});
+
+describe("breakdown의 계산", () => {
+  it("체크를 올리고 내려도 다른 글자는 그대로다", () => {
+    const raised = setChecked(BREAKDOWN, ["T001", "FINAL"], true);
+    expect(raised).toContain("- [x] T001 모듈 골격");
+    expect(raised).toContain("- [x] FINAL 마지막 확인");
+    expect(setChecked(raised, ["T001"], false)).toBe(setChecked(BREAKDOWN, ["FINAL"], true));
+  });
+
+  it("단위는 스토리의 첫 작업 앞에서 나누고, 스토리 밖 작업은 다음 스토리에 들어간다", () => {
+    const units = splitUnits(parseTasks(BREAKDOWN)).map((unit) => [unit.name, unit.tasks.map((task) => task.id)]);
+    expect(units).toEqual([
+      ["US1", ["T001", "T002", "T003", "T004"]],
+      ["US2", ["T005"]],
+      ["tail", ["T006"]],
+    ]);
+  });
+
+  it("파일은 가장 긴 경로로 맞은 작업에 대응한다", () => {
+    const tasks = parseTasks(
+      "- [ ] T001 전체 `domain/`\n- [ ] T002 하나 `domain/src/main/usecase/`\n- [ ] T003 파일 `domain/src/main/usecase/Login.kt`\n- [ ] T004 같은 파일 `domain/src/main/usecase/Login.kt`\n- [ ] FINAL 끝\n",
+    );
+    expect(matchTasks(tasks, "domain/src/main/usecase/Login.kt").map((task) => task.id)).toEqual(["T003", "T004"]);
+    expect(matchTasks(tasks, "domain/src/main/usecase/Other.kt").map((task) => task.id)).toEqual(["T002"]);
+    expect(matchTasks(tasks, "./domain/src/test/X.kt").map((task) => task.id)).toEqual(["T001"]);
+    expect(matchTasks(tasks, "app/Main.kt")).toEqual([]);
+  });
+});
+
+describe("착수 게이트와 체크포인트", () => {
+  it("breakdown이 완료되어 있으면 통과하고 체크포인트에 버전을 적는다", () => {
+    const result = implStart(repo, F, { today: today() });
+    expect(result.action).toBe("pass");
+    expect(result.resumed).toBe(false);
+    expect(result.versions).toEqual({ spec: "1.0.0", blueprint: "1.0.0", breakdown: "1.0.0" });
+    expect(fs.existsSync(checkpointPath(repo, F))).toBe(true);
+    expect(fs.readFileSync(path.join(repo.root, ".sdd-first", "impl", ".gitignore"), "utf8")).toBe("*\n");
+    expect(gateAll(repo, "implement")[0]).toMatchObject({ stage: "implement", mode: "resume", confirmed: true });
+  });
+
+  it("breakdown이 없거나 draft이면 막는다", () => {
+    const G = "other";
+    docNew(repo, "spec", G, { today: today() });
+    docChecklist(repo, G);
+    docComplete(repo, "spec", G, { today: today() });
+    docNew(repo, "blueprint", G, { today: today() });
+    docComplete(repo, "blueprint", G, { today: today() });
+    expect(() => implStart(repo, G, { today: today() })).toThrow(/breakdown이 없다/);
+    expect(implementGate(repo, G)).toMatchObject({ action: "block", mode: "new" });
+    docNew(repo, "breakdown", G, { today: today() });
+    expect(() => implStart(repo, G, { today: today() })).toThrow(/중단/);
+    expect(implementGate(repo, G).reasons[0]?.verdict).toBe("upper-draft");
+  });
+
+  it("실행 도중 상위가 MINOR 개정되면 확인 필요이고, 승인하면 버전을 갱신한다", () => {
+    start();
+    const file = docPath(repo, "blueprint", F);
+    fs.writeFileSync(file, fs.readFileSync(file, "utf8") + "\n더 쓴 설계\n");
+    docRevise(repo, "blueprint", F, { today: today(), grade: "minor" });
+    expect(implementGate(repo, F)).toMatchObject({ action: "confirm", confirmed: false });
+    expect(() => implStart(repo, F, { today: today() })).toThrow(/확인 필요/);
+    // breakdown을 영향 없음으로 맞춘 뒤에는 다시 통과한다. 여기서는 승인만으로 간다.
+    const result = implStart(repo, F, { today: today(), acknowledged: true });
+    expect(result.checkpoint.started.decision).toBe("acknowledged");
+    expect(result.checkpoint.assignments.T001).toBe("structure");
+  });
+
+  it("배정은 모든 작업을 덮어야 하고 연결 표기가 있는 작업은 test여야 한다", () => {
+    implStart(repo, F, { today: today() });
+    expect(() => implAssign(repo, F, ["T001=structure"])).toThrow(/배정이 없는 작업/);
+    expect(() => implAssign(repo, F, ["T002=logic"])).toThrow(/test여야/);
+    expect(() => implAssign(repo, F, ["T001=screen"])).toThrow(/종류는/);
+    expect(() => implAssign(repo, F, ["T009=logic"])).toThrow(/없거나 폐기된/);
+    expect(implNext(repo, F).unassigned).toEqual(["T001", "T002", "T003", "T004", "T005", "T006"]);
+  });
+
+  it("이미 체크된 작업에도 종류가 있어야 한다. 뒤의 검증이 체크를 내릴 수 있다", () => {
+    const file = docPath(repo, "breakdown", F);
+    fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [ ] T001", "- [x] T001"));
+    implStart(repo, F, { today: today() });
+    expect(() => implAssign(repo, F, ["T002=test", "T003=logic", "T004=logic", "T005=ui", "T006=structure"])).toThrow(/T001/);
+    // 거부된 배정은 기록되지 않는다.
+    expect(implNext(repo, F).unassigned).toContain("T001");
+    implAssign(repo, F, ["T001=structure", "T002=test", "T003=logic", "T004=logic", "T005=ui", "T006=structure"]);
+    expect(implNext(repo, F).unassigned).toEqual([]);
+  });
+});
+
+describe("작업의 진행", () => {
+  beforeEach(start);
+
+  it("다음 작업은 문서 순서의 첫 미완료 작업이고 단위와 테스트 가능 여부를 함께 준다", () => {
+    const next = implNext(repo, F);
+    expect(next.task).toMatchObject({ id: "T001", kind: "structure", phase: "create" });
+    expect(next.unit).toBe("US1");
+    expect(next.unitEnd).toBe(false);
+    expect(readCheckpoint(repo, F)?.current).toEqual({ task: "T001", phase: "create" });
+  });
+
+  it("구현 보고만으로는 체크되지 않고, 검증이 다 모이면 체크된다", () => {
+    const report = implReport(repo, F, "T001", { today: today(), status: "done", modules: ["feature"], files: ["feature/login/build.gradle.kts"] });
+    expect(report.required).toEqual(["build", "lint"]);
+    expect(checked("T001")).toBe(false);
+
+    const partial = implVerify(repo, F, "T001", { today: today(), checks: { build: "pass" } });
+    expect(partial.missing).toEqual(["lint"]);
+    expect(checked("T001")).toBe(false);
+
+    const full = implVerify(repo, F, "T001", { today: today(), checks: { lint: "pass" } });
+    expect(full.raised).toEqual(["T001"]);
+    expect(checked("T001")).toBe(true);
+    expect(readCheckpoint(repo, F)?.current).toBeUndefined();
+    expect(loadDoc(repo, "breakdown", F)?.unrecorded).toBe(false);
+    expect(check(repo).ok).toBe(true);
+  });
+
+  it("테스트 작업은 검증 대기로 두었다가 연결된 구현 작업의 테스트가 통과하면 함께 체크된다", () => {
+    finish("T001");
+    const report = implReport(repo, F, "T002", { today: today(), status: "done" });
+    expect(report.waiting).toBe(true);
+    expect(checked("T002")).toBe(false);
+
+    finish("T003");
+    expect(checked("T003")).toBe(true);
+    expect(checked("T002")).toBe(false);
+
+    const next = implNext(repo, F);
+    expect(next.task?.id).toBe("T004");
+    expect(next.testable).toEqual(["T002"]);
+    expect(next.unitEnd).toBe(true);
+
+    implReport(repo, F, "T004", { today: today(), status: "done" });
+    expect(implReport(repo, F, "T004", { today: today(), status: "done" }).required).toEqual(["build", "lint", "test"]);
+    const failed = implVerify(repo, F, "T004", { today: today(), checks: parseChecks(["build=pass", "lint=pass", "test=fail"]) });
+    expect(failed.redo).toEqual([{ id: "T002", kind: "test", failure: "test" }]);
+    expect(checked("T004")).toBe(false);
+
+    implAttempt(repo, F, "T002", { today: today(), failure: "test", symptom: "assert 실패", note: "비교 연산자; 고침" });
+    const passed = implVerify(repo, F, "T004", { today: today(), checks: { test: "pass" } });
+    expect(passed.raised).toEqual(["T004", "T002"]);
+    expect(checked("T002")).toBe(true);
+    expect(readCheckpoint(repo, F)?.waiting).toEqual([]);
+    expect(readCheckpoint(repo, F)?.tasks.T002?.attempts?.test?.rounds[0]?.result).toBe("pass");
+  });
+
+  it("내려간 작업은 다시 만들지 않고 다시 검증한다. 테스트 작업이 내려가면 대기로 돌아가고 구현 작업의 게이트에 다시 든다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    finish("T005", ["build=pass", "lint=pass", "design=skip"]);
+    finish("T006");
+    expect(checked("T002") && checked("T004")).toBe(true);
+    implVerify(repo, F, undefined, { today: today(), unit: "US1", checks: { principles: "pass", design: "skip" } });
+    expect(readCheckpoint(repo, F)?.units.US1).toBeDefined();
+
+    // 마지막 확인의 테스트 실패가 테스트 파일을 가리킨다. 그 작업이 속한 단위의 검증 기록도 지워진다
+    const failed = implFinal(repo, F, { today: today(), result: "fail", failure: "test", symptom: "기대값", files: ["domain/src/test/LoginTest.kt"] });
+    expect(failed.lowered.sort()).toEqual(["T002", "T004"]);
+    expect(readCheckpoint(repo, F)?.units.US1).toBeUndefined();
+    expect(checked("T002") || checked("T004")).toBe(false);
+    expect(readCheckpoint(repo, F)?.waiting).toEqual(["T002"]);
+    expect(readCheckpoint(repo, F)?.tasks.T004?.status).toBe("done");
+
+    // 이어서 실행하면 구현 작업의 verify 단계부터이고, 게이트에 테스트가 다시 든다
+    const next = implNext(repo, F);
+    expect(next.task?.id).toBe("T004");
+    expect(next.task?.phase).toBe("verify");
+    expect(next.testable).toEqual(["T002"]);
+    expect(implVerify(repo, F, "T004", { today: today(), checks: parseChecks(["build=pass", "lint=pass"]) }).missing).toEqual(["test"]);
+    const again = implVerify(repo, F, "T004", { today: today(), checks: { test: "fail" }, files: ["domain/src/test/LoginTest.kt"] });
+    expect(again.redo).toEqual([{ id: "T002", kind: "test", failure: "test" }]);
+    expect(implVerify(repo, F, "T004", { today: today(), checks: { test: "pass" } }).raised).toEqual(["T004", "T002"]);
+    expect(readCheckpoint(repo, F)?.waiting).toEqual([]);
+  });
+
+  it("검증 대기인 테스트 작업은 직접 검증할 수 없다", () => {
+    finish("T001");
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    expect(() => implVerify(repo, F, "T002", { today: today(), checks: { build: "pass" } })).toThrow(/검증 대기/);
+  });
+
+  it("단위 검증의 실패는 파일로 작업을 찾아 체크를 내리고, 통과는 단위에 적힌다", () => {
+    finish("T001");
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T003");
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    expect(implNext(repo, F).task?.id).toBe("T005");
+    expect(implNext(repo, F).pendingUnit).toBe("US1");
+
+    const failed = implVerify(repo, F, undefined, {
+      today: today(),
+      unit: "US1",
+      checks: { principles: "fail" },
+      files: ["domain/src/main/model/User.kt", "app/Other.kt"],
+    });
+    expect(failed.lowered).toEqual(["T003"]);
+    expect(failed.redo).toEqual([{ id: "T003", kind: "logic", failure: "principles" }]);
+    expect(failed.unmatched).toEqual(["app/Other.kt"]);
+    expect(checked("T003")).toBe(false);
+    expect(checked("T004")).toBe(true);
+    expect(implNext(repo, F).task?.id).toBe("T003");
+
+    implAttempt(repo, F, "T003", { today: today(), failure: "principles", symptom: "계층 위반", note: "data 의존 제거" });
+    finish("T003");
+    const passed = implVerify(repo, F, undefined, { today: today(), unit: "US1", checks: { principles: "pass" } });
+    expect(passed.unit).toBe("US1");
+    expect(implNext(repo, F).pendingUnit).toBeUndefined();
+    expect(implShow(repo, F).units[0]).toMatchObject({ name: "US1", done: true, verified: true });
+  });
+
+  it("같은 실패의 네 번째 시도를 거부하고 사람에게 넘긴다. 통과해도 횟수는 그대로다", () => {
+    implReport(repo, F, "T001", { today: today(), status: "done" });
+    const attempt = (note: string) => implAttempt(repo, F, "T001", { today: today(), failure: "build", symptom: "컴파일 오류", note });
+    expect(attempt("import 누락").round).toBe(1);
+    implVerify(repo, F, "T001", { today: today(), checks: { build: "fail" } });
+    attempt("타입 불일치");
+    implVerify(repo, F, "T001", { today: today(), checks: { build: "pass" } });
+    // 빌드를 고친 수정이 다시 깨뜨려도 횟수는 이어진다.
+    implVerify(repo, F, "T001", { today: today(), checks: { build: "fail" } });
+    expect(attempt("null 안전성").remaining).toBe(0);
+    expect(() => attempt("또 다른 원인")).toThrow(/3회를 넘었다/);
+
+    const checkpoint = readCheckpoint(repo, F);
+    expect(checkpoint?.handed).toEqual(["T001"]);
+    expect(checkpoint?.tasks.T001?.attempts?.build?.rounds.map((round) => round.result)).toEqual(["fail", "pass", undefined]);
+    const failures = fs.readFileSync(failuresPath(repo, F), "utf8");
+    expect(failures).toContain("T001 · 빌드 · 사람에게 넘김");
+    expect(failures).toContain("1. import 누락 → 실패");
+    expect(failures).toContain("2. 타입 불일치 → 통과");
+    expect(failures).toContain("3. null 안전성 → 미검증");
+
+    expect(implNext(repo, F).task).toMatchObject({ id: "T001", handed: true });
+    expect(implReset(repo, F, "T001").cleared).toEqual(["build"]);
+    expect(readCheckpoint(repo, F)?.handed).toEqual([]);
+    expect(attempt("다시").round).toBe(1);
+  });
+
+  it("두 번 이상 시도한 끝에 치유된 실패를 기록한다", () => {
+    implReport(repo, F, "T001", { today: today(), status: "done" });
+    implAttempt(repo, F, "T001", { today: today(), failure: "lint", symptom: "줄 길이", note: "줄 나눔" });
+    implVerify(repo, F, "T001", { today: today(), checks: { lint: "fail" } });
+    implAttempt(repo, F, "T001", { today: today(), failure: "lint", note: "포맷터 실행" });
+    const result = implVerify(repo, F, "T001", { today: today(), checks: parseChecks(["build=pass", "lint=pass"]) });
+    expect(result.healed).toEqual(["lint"]);
+    expect(fs.readFileSync(failuresPath(repo, F), "utf8")).toContain("T001 · Lint · 치유됨");
+  });
+
+  it("한 번에 치유된 실패와 막힘은 기록하지 않는다", () => {
+    implReport(repo, F, "T001", { today: today(), status: "done" });
+    implAttempt(repo, F, "T001", { today: today(), failure: "build", symptom: "x", note: "y" });
+    implVerify(repo, F, "T001", { today: today(), checks: parseChecks(["build=pass", "lint=pass"]) });
+    expect(implReport(repo, F, "T003", { today: today(), status: "blocked" }).status).toBe("blocked");
+    expect(fs.existsSync(failuresPath(repo, F))).toBe(false);
+  });
+
+  it("범위를 넘어 사람에게 넘긴 실패를 기록한다", () => {
+    implReport(repo, F, "T001", { today: today(), status: "handed", failure: "test", symptom: "테스트가 틀렸다", files: ["domain/src/test/LoginTest.kt"] });
+    expect(readCheckpoint(repo, F)?.handed).toEqual(["T001"]);
+    expect(fs.readFileSync(failuresPath(repo, F), "utf8")).toContain("- **파일**: `domain/src/test/LoginTest.kt`");
+    expect(() => implReport(repo, F, "T001", { today: today(), status: "handed" })).toThrow(/--failure/);
+  });
+
+  it("UI 작업은 디자인 검사가 있어야 체크되고 건너뜀도 막지 않는다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    implReport(repo, F, "T005", { today: today(), status: "done" });
+    const partial = implVerify(repo, F, "T005", { today: today(), checks: parseChecks(["build=pass", "lint=pass"]) });
+    expect(partial.missing).toEqual(["design"]);
+    const skipped = implVerify(repo, F, "T005", { today: today(), checks: { design: "skip" } });
+    expect(skipped.raised).toEqual(["T005"]);
+  });
+
+  it("빌드와 테스트의 건너뜀은 체크를 올리지 못하고, 디자인과 Lint의 건너뜀은 올린다", () => {
+    implReport(repo, F, "T001", { today: today(), status: "done" });
+    const skipped = implVerify(repo, F, "T001", { today: today(), checks: parseChecks(["build=skip", "lint=skip"]) });
+    expect(skipped.raised).toEqual([]);
+    expect(skipped.blockedBySkip).toEqual(["build"]);
+    expect(checked("T001")).toBe(false);
+    expect(implVerify(repo, F, "T001", { today: today(), checks: { build: "pass" } }).raised).toEqual(["T001"]);
+  });
+
+  it("새 체크포인트는 이미 끝난 단위를 다시 검증하지 않는다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    fs.rmSync(checkpointPath(repo, F));
+    implStart(repo, F, { today: today() });
+    expect(readCheckpoint(repo, F)?.units).toEqual({ US1: { checks: { principles: "skip" } } });
+    implAssign(repo, F, ["T001=test", "T002=test", "T003=logic", "T004=logic", "T005=ui", "T006=structure"]);
+    expect(implNext(repo, F).pendingUnit).toBeUndefined();
+  });
+
+  it("마지막 확인은 통과면 FINAL을 올리고 체크포인트를 지우며, 실패면 대응 작업의 체크를 내린다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    expect(() => implFinal(repo, F, { today: today(), result: "pass" })).toThrow(/체크되지 않은 작업/);
+    finish("T005", ["build=pass", "lint=pass", "design=skip"]);
+    finish("T006");
+    expect(implNext(repo, F).final).toBe(true);
+
+    const failed = implFinal(repo, F, { today: today(), result: "fail", failure: "principles", symptom: "의존 방향", files: ["app/src/main/Nav.kt"] });
+    expect(failed.lowered).toEqual(["T006"]);
+    expect(checked("T006")).toBe(false);
+    expect(fs.readFileSync(failuresPath(repo, F), "utf8")).toContain("T006 · 원칙 · 마지막 확인에서 남음");
+    expect(implNext(repo, F).task?.id).toBe("T006");
+
+    finish("T006");
+    // 마지막 확인의 검사 결과를 모두 적어야 올라간다. 빌드·테스트는 건너뜀으로 안 되고, 실패는 pass로 적을 수 없다
+    expect(() => implFinal(repo, F, { today: today(), result: "pass" })).toThrow(/빠진 검사: 빌드, Lint, 테스트, 원칙/);
+    expect(() => implFinal(repo, F, { today: today(), result: "pass", checks: parseChecks(["build=skip", "lint=skip", "test=pass", "principles=skip"]) })).toThrow(/빠진 검사: 빌드\./);
+    expect(() => implFinal(repo, F, { today: today(), result: "pass", checks: parseChecks(["build=pass", "lint=fail", "test=pass", "principles=pass"]) })).toThrow(/실패한 검사가 있다: Lint/);
+    // Figma 줄이 있는 스토리의 ui 작업이 있으면 디자인(캡처)도 필요하다
+    const specFile = docPath(repo, "spec", F);
+    const specText = fs.readFileSync(specFile, "utf8");
+    fs.writeFileSync(specFile, `${specText}\n### US2. 화면\n\n**Figma**: [화면](https://www.figma.com/design/abc?node-id=1-2)\n`);
+    expect(() => implFinal(repo, F, { today: today(), result: "pass", checks: parseChecks(["build=pass", "lint=pass", "test=pass", "principles=pass"]) })).toThrow(/빠진 검사: 디자인.*캡처/);
+    fs.writeFileSync(specFile, specText);
+    const passed = implFinal(repo, F, { today: today(), result: "pass", checks: parseChecks(["build=pass", "lint=pass", "test=pass", "principles=pass", "design=skip"]) });
+    expect(passed.done).toBe(true);
+    expect(passed.checkpoint?.assignments.T006).toBe("structure");
+    expect(checked("FINAL")).toBe(true);
+    expect(fs.existsSync(checkpointPath(repo, F))).toBe(false);
+    expect(implNext).toBeDefined();
+    expect(status(repo, F).features[0]?.tasks).toEqual({ done: 6, total: 6, final: true, inProgress: false });
+    expect(implementGate(repo, F).mode).toBe("done");
+    expect(() => implStart(repo, F, { today: today() })).toThrow(/구현은 끝났다/);
+    expect(check(repo).ok).toBe(true);
+  });
+
+  it("breakdown을 개정해 작업이 더해지면 FINAL이 내려가고, check는 어긋난 FINAL을 오류로 본다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004", ["build=pass", "lint=pass", "test=pass"]);
+    finish("T005", ["build=pass", "lint=pass", "design=skip"]);
+    finish("T006");
+    implFinal(repo, F, { today: today(), result: "pass", checks: parseChecks(["build=pass", "lint=pass", "test=pass", "principles=pass"]) });
+
+    const file = docPath(repo, "breakdown", F);
+    fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("- [x] FINAL", "- [ ] T007 새 작업 `app/New.kt`\n- [x] FINAL"));
+    expect(check(repo).problems.map((problem) => problem.message)).toContain("마지막 확인 줄(FINAL)이 체크됐는데 체크되지 않은 작업이 있다");
+    docRevise(repo, "breakdown", F, { today: today(), grade: "minor" });
+    expect(checked("FINAL")).toBe(false);
+    expect(check(repo).ok).toBe(true);
+    expect(implementGate(repo, F).mode).toBe("new");
+  });
+
+  it("이어서 실행하면 체크된 작업을 건너뛰고 진행 중이던 단계에서 이어 간다", () => {
+    finish("T001");
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    implReport(repo, F, "T003", { today: today(), status: "done" });
+    const resumed = implStart(repo, F, { today: today() });
+    expect(resumed.resumed).toBe(true);
+    expect(resumed.confirmed).toBe(true);
+    expect(implNext(repo, F).task).toMatchObject({ id: "T003", kind: "logic", phase: "verify" });
+  });
+
+  it("검사 인자의 형식을 검사한다", () => {
+    expect(() => parseChecks(["build"])).toThrow(Refusal);
+    expect(() => parseChecks(["screen=pass"])).toThrow(Refusal);
+    expect(() => parseChecks([])).toThrow(Refusal);
+    expect(parseChecks(["build=pass", "test=skip"])).toEqual({ build: "pass", test: "skip" });
+  });
+});

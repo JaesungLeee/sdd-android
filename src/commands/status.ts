@@ -1,5 +1,7 @@
+import fs from "node:fs";
 import { judgeChain, type RelationResult } from "../core/chain.js";
-import { countTasks, parseTasks } from "../core/breakdown.js";
+import { countTasks, FINAL_ID, parseTasks } from "../core/breakdown.js";
+import { checkpointPath } from "../core/checkpoint.js";
 import type { DocKind } from "../core/hash.js";
 import { listFeatures, loadDoc, loadDocs, toStates, type LoadedDoc, type Repo } from "../core/repo.js";
 import { countChecks } from "./doc.js";
@@ -17,7 +19,8 @@ export interface FeatureStatus {
   name: string;
   docs: Partial<Record<DocKind, DocSummary>>;
   checklist?: { status?: string; checked: number; total: number };
-  tasks?: { done: number; total: number };
+  /** `final`은 마지막 확인 줄이 체크된 것, 곧 구현 완료다. `inProgress`는 체크포인트가 있는 것이다. */
+  tasks?: { done: number; total: number; final: boolean; inProgress: boolean };
   relations: RelationResult[];
 }
 
@@ -53,7 +56,14 @@ export function status(repo: Repo, only?: string): StatusResult {
     }
     const checklist = loadDoc(repo, "checklist", name);
     if (checklist) feature.checklist = { status: checklist.meta.status, ...countChecks(checklist.body) };
-    if (docs.breakdown) feature.tasks = countTasks(parseTasks(docs.breakdown.body));
+    if (docs.breakdown) {
+      const tasks = parseTasks(docs.breakdown.body);
+      feature.tasks = {
+        ...countTasks(tasks),
+        final: tasks.some((task) => task.id === FINAL_ID && task.checked),
+        inProgress: fs.existsSync(checkpointPath(repo, name)),
+      };
+    }
     features.push(feature);
   }
   return { project, features };
@@ -79,7 +89,10 @@ export function formatStatus(result: StatusResult): string {
       const { status: state, checked, total } = feature.checklist;
       lines.push(`  checklist: ${state ?? "상태 없음"} (${checked}/${total})`);
     }
-    if (feature.tasks) lines.push(`  작업: ${feature.tasks.done}/${feature.tasks.total}`);
+    if (feature.tasks) {
+      const state = feature.tasks.final ? " (구현 완료)" : feature.tasks.inProgress ? " (구현 중)" : "";
+      lines.push(`  작업: ${feature.tasks.done}/${feature.tasks.total}${state}`);
+    }
     for (const relation of feature.relations) {
       if (relation.verdict === "match") continue;
       const kind = relation.gate ? "게이트" : "보고";

@@ -1,6 +1,15 @@
+import { FINAL_ID, parseTasks } from "../core/breakdown.js";
 import { judgeChain, RELATIONS, type Action, type RelationResult, type Verdict } from "../core/chain.js";
+import { readCheckpoint } from "../core/checkpoint.js";
 import type { DocKind } from "../core/hash.js";
-import { isFeatureStage, listFeatures, loadDocs, toStates, type Repo, type Stage } from "../core/repo.js";
+import { isFeatureStage, isStage, listFeatures, loadDocs, toStates, type Repo, type Stage } from "../core/repo.js";
+
+/** 게이트를 판정하는 단계. `implement`는 문서를 만들지 않지만 breakdown을 입력으로 삼는 착수 게이트가 있다. */
+export type GateStage = Stage | "implement";
+
+export function isGateStage(value: string): value is GateStage {
+  return value === "implement" || isStage(value);
+}
 
 export interface GateReason {
   /** 문제가 있는 문서. */
@@ -12,10 +21,10 @@ export interface GateReason {
 }
 
 export interface GateResult {
-  stage: Stage;
+  stage: GateStage;
   feature?: string;
-  /** 이 단계의 산출물이 지금 어떤 상태인지. */
-  mode: "new" | "draft" | "revise" | "conflict";
+  /** 이 단계의 산출물이 지금 어떤 상태인지. `resume`과 `done`은 구현 단계의 것이다. */
+  mode: "new" | "draft" | "revise" | "conflict" | "resume" | "done";
   /** 단계를 시작해도 되는지. 가장 무거운 사유를 따른다. */
   action: "pass" | "confirm" | "block";
   /** 입력으로 삼는 상위 문서의 문제. */
@@ -79,8 +88,61 @@ export function stageGate(repo: Repo, stage: Stage, feature?: string): GateResul
   };
 }
 
+/**
+ * 구현 단계의 착수 게이트(PRD STG-007). 입력은 breakdown이고, breakdown이 완료되어 있고 자기 상위에 대해 통과여야 한다.
+ * 진행 중인 체크포인트가 있고 문서 버전이 확인한 때와 같으면 다시 묻지 않는다(`confirmed`).
+ */
+export function implementGate(repo: Repo, feature: string): GateResult & { confirmed: boolean } {
+  const docs = loadDocs(repo, feature);
+  const chain = judgeChain(toStates(docs));
+  const breakdown = docs.breakdown;
+  const reasons: GateReason[] = [];
+
+  if (!breakdown) reasons.push({ doc: "breakdown", verdict: "upper-missing", action: "block" });
+  else if (breakdown.meta.status !== "created") reasons.push({ doc: "breakdown", verdict: "upper-draft", action: "block" });
+  else {
+    if (breakdown.unrecorded) reasons.push({ doc: "breakdown", verdict: "unrecorded-change", action: "confirm" });
+    for (const result of chain) {
+      if (result.lower !== "breakdown" || !result.gate || result.action === "pass") continue;
+      reasons.push({ doc: "breakdown", against: result.upper, verdict: result.verdict, action: result.action });
+    }
+  }
+
+  let action: GateResult["action"] = "pass";
+  for (const reason of reasons) {
+    if (WEIGHT[reason.action] > WEIGHT[action]) action = reason.action as GateResult["action"];
+  }
+
+  const checkpoint = readCheckpoint(repo, feature);
+  const versions = currentVersions(docs);
+  const confirmed =
+    checkpoint !== undefined && action !== "block" && JSON.stringify(checkpoint.started.versions) === JSON.stringify(versions);
+  const done = breakdown !== undefined && parseTasks(breakdown.body).some((task) => task.id === FINAL_ID && task.checked);
+
+  return {
+    stage: "implement",
+    feature,
+    mode: done ? "done" : checkpoint ? "resume" : "new",
+    action: confirmed ? "pass" : action,
+    reasons,
+    own: [],
+    confirmed,
+  };
+}
+
+/** 착수 게이트를 확인한 때의 문서 버전. 체크포인트에 적어 두고 다시 부를 때 비교한다. */
+export function currentVersions(docs: ReturnType<typeof loadDocs>): Record<string, string> {
+  const versions: Record<string, string> = {};
+  for (const kind of ["spec", "blueprint", "breakdown"] as const) {
+    const version = docs[kind]?.meta.version;
+    if (version) versions[kind] = version;
+  }
+  return versions;
+}
+
 /** 스킬 본문에 주입할 판정. feature 단계는 모든 feature의 판정을 준다. */
-export function gateAll(repo: Repo, stage: Stage): GateResult[] {
+export function gateAll(repo: Repo, stage: GateStage): GateResult[] {
+  if (stage === "implement") return listFeatures(repo).map((feature) => implementGate(repo, feature));
   if (!isFeatureStage(stage)) return [stageGate(repo, stage)];
   return listFeatures(repo).map((feature) => stageGate(repo, stage, feature));
 }
@@ -99,7 +161,14 @@ const VERDICT_TEXT: Record<Verdict, string> = {
 };
 
 const ACTION_TEXT: Record<GateResult["action"], string> = { pass: "통과", confirm: "확인 필요", block: "중단" };
-const MODE_TEXT: Record<GateResult["mode"], string> = { new: "신규", draft: "작성 중", revise: "개정", conflict: "병합 충돌" };
+const MODE_TEXT: Record<GateResult["mode"], string> = {
+  new: "신규",
+  draft: "작성 중",
+  revise: "개정",
+  conflict: "병합 충돌",
+  resume: "진행 중",
+  done: "구현 완료",
+};
 
 export function verdictText(verdict: Verdict): string {
   return VERDICT_TEXT[verdict];
@@ -115,7 +184,8 @@ export function formatGate(results: GateResult[]): string {
   const lines: string[] = [];
   for (const result of results) {
     const name = result.feature ?? result.stage;
-    lines.push(`- ${name}: ${ACTION_TEXT[result.action]} (${MODE_TEXT[result.mode]})`);
+    const confirmed = "confirmed" in result && result.confirmed ? " — 체크포인트의 결정을 따른다" : "";
+    lines.push(`- ${name}: ${ACTION_TEXT[result.action]} (${MODE_TEXT[result.mode]})${confirmed}`);
     for (const reason of result.reasons) lines.push(`  - ${describeReason(reason)}`);
     for (const own of result.own) {
       if (own.verdict !== "match") lines.push(`  - 이 문서: ${own.upper}에 대해 ${VERDICT_TEXT[own.verdict]}`);

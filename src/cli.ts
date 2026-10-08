@@ -16,8 +16,30 @@ import {
   type RecordResult,
 } from "./commands/doc.js";
 import { check, formatCheck } from "./commands/check.js";
-import { formatGate, gateAll, verdictText } from "./commands/gate.js";
+import { formatGate, gateAll, isGateStage, verdictText, type GateStage } from "./commands/gate.js";
+import { figmaSetup, figmaShow, formatFigmaSetup, formatFigmaShow } from "./commands/figma.js";
 import { formatHookOutput, hookWrite } from "./commands/hook.js";
+import {
+  formatAssign,
+  formatAttempt,
+  formatFinal,
+  formatNext,
+  formatReport,
+  formatShow,
+  formatStart,
+  formatVerify,
+  implAssign,
+  implAttempt,
+  implFinal,
+  implNext,
+  implReport,
+  implReset,
+  implShow,
+  implStart,
+  implVerify,
+  parseChecks,
+} from "./commands/impl.js";
+import { isCheck, type Check } from "./core/checkpoint.js";
 import { loadAssets } from "./core/assets.js";
 import { addExtension, directives, formatAdd, formatDirectives, formatList, formatRemove, listExtensions, removeExtension, resolveBundle } from "./commands/extension.js";
 import { init, type InitOptions } from "./commands/init.js";
@@ -31,11 +53,11 @@ import { VERSION } from "./version.js";
 
 const USAGE = `sdd-first <명령>
 
-  init                             이 저장소에 설치한다 (--language, --prefix, --yes)
+  init                             이 저장소에 설치한다 (--language, --prefix, --yes, --extension <내장 확장>)
   upgrade                          설치된 파일을 이 버전으로 올린다
   status [feature]                 진행 상태와 버전 체인 판정
   check                            설치와 문서에 깨진 곳이 없는지 검사한다
-  gate <단계>                      그 단계의 착수 게이트 판정
+  gate <단계>                      그 단계의 착수 게이트 판정 (implement 포함)
   doc new <단계> [feature]         템플릿을 복사해 draft 문서를 만든다
   doc changes <단계> [feature]     기록된 해시와 비교해 바뀐 곳을 낸다
   doc complete <단계> [feature]    신규 문서의 완료를 기록한다
@@ -44,9 +66,19 @@ const USAGE = `sdd-first <명령>
   doc restore <단계> [feature]     병합 뒤 메타데이터와 해시를 HEAD 쪽으로 되돌린다 (--from)
   doc checklist <feature>          체크리스트의 상태를 기록한다
   extension list|add|remove        확장의 목록, 설치(이름이나 경로), 제거
+  figma show|setup                 Figma 서버 설정과 읽기 도구의 권한 (--server, --name)
   preset list|add|remove           preset의 목록, 설치, 제거
   directives <단계>                그 단계에 적용되는 확장 지시 파일
   hook write                       쓰기 hook (입력은 표준 입력의 JSON)
+  impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다
+  impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
+  impl next <feature>              다음 작업과 종류, 단계
+  impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
+  impl verify <feature> [작업]     검증 결과 (--check 종류=결과…, --files, --unit)
+  impl attempt <feature> <작업>    치유 직전에 시도를 센다 (--failure, --symptom, --note)
+  impl final <feature>             마지막 확인 (--result pass|fail, 통과면 --check 검사=pass|skip 모두, 실패면 --files, --failure, --symptom)
+  impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
+  impl show <feature>              체크포인트
 
 옵션: --json, --acknowledged, --grade <등급|항목=등급>, --depends <ID,ID>, --root <경로>, --version`;
 
@@ -57,9 +89,22 @@ const OPTIONS = {
   depends: { type: "string" },
   root: { type: "string" },
   from: { type: "string" },
+  status: { type: "string" },
+  modules: { type: "string" },
+  files: { type: "string" },
+  previews: { type: "string" },
+  check: { type: "string", multiple: true, default: [] as string[] },
+  unit: { type: "string" },
+  failure: { type: "string" },
+  symptom: { type: "string" },
+  note: { type: "string" },
+  result: { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
+  extension: { type: "string", multiple: true },
+  server: { type: "string" },
+  name: { type: "string" },
   version: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;
@@ -108,6 +153,33 @@ function requireStage(value: string | undefined): Stage {
   if (!value || !isStage(value)) {
     throw new Refusal(`단계 이름이 필요하다: constitution, prd, spec, blueprint, breakdown (받은 값: ${value ?? "없음"})`);
   }
+  return value;
+}
+
+function requireGateStage(value: string | undefined): GateStage {
+  if (!value || !isGateStage(value)) {
+    throw new Refusal(`단계 이름이 필요하다: constitution, prd, spec, blueprint, breakdown, implement (받은 값: ${value ?? "없음"})`);
+  }
+  return value;
+}
+
+function requireFeatureArg(value: string | undefined): string {
+  if (!value) throw new Refusal("feature 이름이 필요하다");
+  return value;
+}
+
+function requireTaskArg(value: string | undefined): string {
+  if (!value) throw new Refusal("작업 ID가 필요하다");
+  return value;
+}
+
+function splitList(value: string | undefined): string[] | undefined {
+  return value === undefined ? undefined : value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function parseFailure(value: string | undefined): Check | undefined {
+  if (value === undefined) return undefined;
+  if (!isCheck(value)) throw new Refusal(`실패 종류는 build, lint, test, design, principles 가운데 하나다: ${value}`);
   return value;
 }
 
@@ -166,8 +238,74 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
     return { text: formatCheck(result), data: result, exitCode: result.ok ? 0 : 1 };
   }
   if (command === "gate") {
-    const result = gateAll(repo, requireStage(rest[0]));
+    const result = gateAll(repo, requireGateStage(rest[0]));
     return { text: formatGate(result), data: result };
+  }
+  if (command === "impl") {
+    const [action, featureArg, taskArg] = rest;
+    const feature = requireFeatureArg(featureArg);
+    const today = write.today;
+    switch (action) {
+      case "start": {
+        const result = implStart(repo, feature, write);
+        return { text: formatStart(result), data: result };
+      }
+      case "assign": {
+        const result = implAssign(repo, feature, rest.slice(2));
+        return { text: formatAssign(result), data: result };
+      }
+      case "next": {
+        const result = implNext(repo, feature);
+        return { text: formatNext(result), data: result };
+      }
+      case "report": {
+        const status = values.status;
+        if (status !== "done" && status !== "blocked" && status !== "handed") throw new Refusal("--status는 done, blocked, handed 가운데 하나다");
+        const result = implReport(repo, feature, requireTaskArg(taskArg), {
+          today,
+          status,
+          modules: splitList(values.modules),
+          files: splitList(values.files),
+          previews: splitList(values.previews),
+          failure: parseFailure(values.failure),
+          symptom: values.symptom,
+          note: values.note,
+        });
+        return { text: formatReport(result), data: result };
+      }
+      case "verify": {
+        const result = implVerify(repo, feature, taskArg, { today, checks: parseChecks(values.check), files: splitList(values.files), unit: values.unit });
+        return { text: formatVerify(result), data: result };
+      }
+      case "attempt": {
+        const failure = parseFailure(values.failure);
+        if (!failure) throw new Refusal("--failure가 필요하다");
+        if (!values.note) throw new Refusal("--note에 짚은 원인과 시도를 적는다");
+        const result = implAttempt(repo, feature, requireTaskArg(taskArg), { today, failure, symptom: values.symptom, note: values.note });
+        return { text: formatAttempt(result), data: result };
+      }
+      case "final": {
+        if (values.result !== "pass" && values.result !== "fail") throw new Refusal("--result는 pass나 fail이다");
+        const result = implFinal(repo, feature, {
+          today,
+          result: values.result,
+          checks: parseChecks(values.check),
+          files: splitList(values.files),
+          failure: parseFailure(values.failure),
+          symptom: values.symptom,
+        });
+        return { text: formatFinal(result), data: result };
+      }
+      case "reset": {
+        const result = implReset(repo, feature, requireTaskArg(taskArg));
+        return { text: `${result.task}의 시도 횟수를 초기화했다.`, data: result };
+      }
+      case "show": {
+        const result = implShow(repo, feature);
+        return { text: formatShow(result), data: result };
+      }
+    }
+    throw new Refusal("impl 명령은 start, assign, next, report, verify, attempt, final, reset, show 가운데 하나다");
   }
   if (command === "extension" || command === "preset") {
     const assets = loadAssets(SELF);
@@ -186,6 +324,17 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
       return { text: formatRemove(result), data: result };
     }
     throw new Refusal(`${command} 명령은 list, add <이름|경로>, remove <이름> 가운데 하나다`);
+  }
+  if (command === "figma") {
+    if (rest[0] === "show") {
+      const result = figmaShow(repo);
+      return { text: formatFigmaShow(result), data: result };
+    }
+    if (rest[0] === "setup") {
+      const result = figmaSetup(repo, { server: values.server, name: values.name });
+      return { text: formatFigmaSetup(result), data: result };
+    }
+    throw new Refusal("figma 명령은 show나 setup이다");
   }
   if (command === "directives") {
     if (!rest[0]) throw new Refusal("단계 이름이 필요하다");
@@ -266,6 +415,7 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
   const base: InitOptions = {
     target: path.resolve(values.root ?? process.cwd()),
     language: values.language,
+    ...(values.extension !== undefined ? { extensions: values.extension } : {}),
     prefix: values.prefix ?? "",
     assets: loadAssets(SELF),
     bundlePath: SELF,
@@ -279,6 +429,7 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     try {
       options = await promptInit(base, {
         prefixGiven: values.prefix !== undefined,
+        extensionsGiven: values.extension !== undefined,
         ask: (question) => terminal.question(question),
         print: (text) => console.log(text),
       });
@@ -293,10 +444,12 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     `sdd-first ${VERSION}을 설치했다.`,
     ...result.files.map((file) => `- ${file}`),
     ...result.backedUp.map((moved) => `옮겼다: ${moved.from} → ${moved.to}`),
+    result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: sdd-first extension add android",
     "",
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
+    ...(result.extensions.includes("android") ? ["Figma를 쓰면 sdd-first figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
 }

@@ -393,7 +393,9 @@ describe("번들", () => {
     const run = (cwd: string, ...args: string[]) =>
       spawnSync(process.execPath, [path.join(pkg, "sdd-first.mjs"), ...args], { cwd, env, encoding: "utf8" });
 
-    expect(run(target, "init").stdout).toContain("설치했다");
+    const installed = run(target, "init", "--extension", "android").stdout;
+    expect(installed).toContain("설치했다");
+    expect(installed).toContain("함께 설치한 확장: android");
     const sub = path.join(target, "app", "src");
     fs.mkdirSync(sub, { recursive: true });
 
@@ -410,7 +412,8 @@ describe("번들", () => {
 
     // 번들에 실린 원본으로 preset을 설치하고 제거한다. 패키지의 assets 디렉터리는 필요 없다.
     fs.rmSync(path.join(pkg, "assets"), { recursive: true });
-    expect(run(sub, "extension", "list").stdout).toContain("없다");
+    // init --extension android가 내장 android를 함께 설치했다.
+    expect(run(sub, "extension", "list").stdout).toContain("android 0.1.0 [extension] 설치됨 (내장)");
     const preset = tempDir("preset");
     fs.mkdirSync(path.join(preset, "templates"), { recursive: true });
     fs.writeFileSync(path.join(preset, "extension.yaml"), "name: acme\nkind: preset\nversion: 1.0.0\n");
@@ -420,6 +423,16 @@ describe("번들", () => {
     expect(run(sub, "preset", "remove", "acme").stdout).toContain("되살렸다");
     expect(fs.readFileSync(path.join(target, ".sdd-first", "templates", "spec.md"), "utf8")).toContain("# 스펙");
     expect(run(sub, "directives", "spec").stdout).toContain("확장 지시가 없다");
+
+    // 구현 단계의 스킬이 설치되어 있고, Figma 설정 명령이 번들에서 돈다.
+    expect(run(sub, "figma", "show").stdout).toContain("mcp__figma-desktop__get_metadata");
+    expect(run(sub, "figma", "setup", "--server", "remote", "--name", "figma").stdout).toContain("mcp__figma__get_screenshot");
+    expect(run(sub, "check").stderr + run(sub, "check").stdout).not.toContain("Figma 설정이 없다");
+    const orchestrator = fs.readFileSync(path.join(target, ".claude", "skills", "impl-orchestrator", "SKILL.md"), "utf8");
+    expect(orchestrator).toContain("Skill(create-logic)");
+    expect(orchestrator).not.toContain("{{");
+    expect(run(sub, "gate", "implement").stdout).toContain("login: 중단");
+    expect(run(sub, "directives", "create-logic").stdout).toContain("확장 지시가 없다");
 
     // PATH에 node가 없는 셸에서도 실행 스크립트가 node를 찾아 판정을 낸다.
     const fakeHome = tempDir("home");
@@ -432,7 +445,7 @@ describe("번들", () => {
     });
     expect(bare.status).toBe(0);
     expect(bare.stdout).toContain("login: 중단");
-  });
+  }, 30000);
 });
 
 describe("실린 스킬과 템플릿", () => {
@@ -476,6 +489,39 @@ describe("실린 스킬과 템플릿", () => {
     }
     const analyze = fs.readFileSync(path.join(skillsDir, "analyze", "SKILL.md"), "utf8");
     expect(analyze).toContain("context: fork");
+  });
+
+  it("내장 확장 android의 스킬이 합성되고, 일꾼은 격리 실행이며 검증은 읽기 전용에 모델을 명시한다", () => {
+    const dir = path.join(assets, "ko", "extensions", "android", "skills");
+    const names = fs.readdirSync(dir).sort();
+    expect(names).toEqual(["create-logic", "create-structure", "create-test", "create-ui", "design-inspector", "heal-build", "heal-test", "impl-orchestrator", "verify-build", "verify-principles", "verify-ui"]);
+    for (const name of names) {
+      const text = fs.readFileSync(path.join(dir, name, "SKILL.md"), "utf8");
+      expect(text, name).not.toContain("{{>");
+      expect(text, name).toContain(`name: {{skill:${name}}}`);
+      expect(text, name).toContain(`.sdd-first/bin/sdd-first" directives ${name}`);
+      expect(text, name).not.toContain("hooks:");
+      if (name === "impl-orchestrator") {
+        expect(text).not.toContain("context: fork");
+        expect(text).toContain('.sdd-first/bin/sdd-first" gate implement');
+        for (const worker of names.filter((other) => other !== name)) expect(text).toContain(`Skill({{skill:${worker}}})`);
+      } else {
+        expect(text, name).toContain("context: fork");
+      }
+      if (name.startsWith("create-")) {
+        expect(text, name).toContain('.sdd-first/bin/sdd-first" gate implement');
+        expect(text, name).toContain("## 범위");
+        expect(text, name).toContain("## 보고의 형식");
+      }
+      if (name === "create-ui" || name === "verify-ui" || name === "design-inspector") {
+        expect(text, name).toContain('.sdd-first/bin/sdd-first" figma show');
+      }
+      if (name.startsWith("verify-")) {
+        expect(text, name).toContain("agent: Explore");
+        expect(text, name).toMatch(/^model: /m);
+        expect(text, name).not.toMatch(/^\s*sdd-first impl /m);
+      }
+    }
   });
 
   it("문서를 쓰는 단계마다 같은 이름의 템플릿이 있고, 템플릿의 자리표시자는 항목으로 읽히지 않는다", () => {

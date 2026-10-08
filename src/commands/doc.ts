@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { FINAL_ID, liveTasks, parseTasks, setChecked } from "../core/breakdown.js";
 import { judgeChain, judgeRelation, RELATIONS, type RelationResult } from "../core/chain.js";
 import { hasConflictMarker, parseDoc, type Meta } from "../core/frontmatter.js";
 import { BODY, diffHashes, hasItems, isUnchanged, OUTSIDE, sha256, type DocKind, type HashDiff } from "../core/hash.js";
@@ -346,11 +347,20 @@ export function docRevise(
   meta.updated = options.today;
   if (items) meta.revisions = [...(meta.revisions ?? []), { version, date: options.today, items }];
 
-  writeDoc(repo, stage, feature, meta, doc.body);
+  // 개정으로 체크되지 않은 작업이 생겼으면 마지막 확인 줄을 내린다. feature의 구현 완료는 이 줄이 체크된 것이다(PRD STG-005).
+  const body = stage === "breakdown" ? lowerFinal(doc.body) : doc.body;
+  writeDoc(repo, stage, feature, meta, body);
   writeHashes(repo, stage, feature, { version, hashes: doc.current });
   if (checklist && feature) stampChecklist(repo, feature, checklist, version);
 
   return { version, grade, stale: staleDocs(repo, stage, feature) };
+}
+
+function lowerFinal(body: string): string {
+  const tasks = parseTasks(body);
+  const open = liveTasks(tasks).some((task) => !task.checked);
+  const final = tasks.find((task) => task.id === FINAL_ID);
+  return open && final?.checked ? setChecked(body, [FINAL_ID], false) : body;
 }
 
 /** 인자의 항목이 CLI가 계산한 바뀐 항목과 정확히 같아야 한다. 에이전트가 항목을 빠뜨릴 수 없다. */

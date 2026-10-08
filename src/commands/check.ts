@@ -1,14 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import { parseTasks, validateTasks } from "../core/breakdown.js";
+import { FINAL_ID, liveTasks, parseTasks, validateTasks } from "../core/breakdown.js";
 import { RELATIONS } from "../core/chain.js";
 import { BODY, hasItems, OUTSIDE, type DocKind } from "../core/hash.js";
 import { ITEM_ID_PATTERN, splitItems } from "../core/items.js";
+import { LOCAL_CONFIG_FILE, readLocalConfig } from "../core/local-config.js";
 import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
 import { duplicateItems } from "./doc.js";
 import { knownStages } from "./extension.js";
+import { figmaStories } from "./impl.js";
 import { bundleFromDir } from "../core/assets.js";
 import { MANIFEST_FILE, readBundle } from "../core/extension.js";
 
@@ -53,7 +55,13 @@ export function check(repo: Repo, nodeVersion: string = process.versions.node): 
     checkBases(repo, docs, add);
     if (docs.spec) checkChecklist(repo, feature, docs.spec, add);
     if (docs.breakdown && !docs.breakdown.parsed.error) {
-      for (const message of validateTasks(parseTasks(docs.breakdown.body))) add("error", rel(repo, docs.breakdown.path), message);
+      const tasks = parseTasks(docs.breakdown.body);
+      const where = rel(repo, docs.breakdown.path);
+      for (const message of validateTasks(tasks)) add("error", where, message);
+      // 마지막 확인 줄은 모든 작업이 체크됐을 때만 체크된다. 작업이 더해지면 CLI가 함께 내린다.
+      if (tasks.some((task) => task.id === FINAL_ID && task.checked) && liveTasks(tasks).some((task) => !task.checked)) {
+        add("error", where, "마지막 확인 줄(FINAL)이 체크됐는데 체크되지 않은 작업이 있다");
+      }
     }
   }
 
@@ -83,6 +91,14 @@ function checkInstall(repo: Repo, add: Add): void {
   }
   // 확장의 선언이 있는지와, 지시의 대상 단계가 설치된 스킬인지.
   const stages = knownStages(repo, manifest);
+  // spec에 Figma 줄이 있는 feature가 있으면 Figma 설정이 있어야 한다. 없으면 기본값으로 동작하지만 사람마다 다른 값이라 알린다(PRD SYS-006).
+  // Figma를 쓰지 않는 저장소는 조용하다.
+  if (!readLocalConfig(repo)?.figma) {
+    const withFigma = listFeatures(repo).filter((feature) => figmaStories(loadDoc(repo, "spec", feature)?.body ?? "").size > 0);
+    if (withFigma.length > 0) {
+      add("warn", `.sdd-first/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. sdd-first figma setup으로 정한다`);
+    }
+  }
   for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
     const dir = path.join(repo.root, ".sdd-first", "extensions", name);
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {

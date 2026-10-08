@@ -93,6 +93,97 @@ export function validateTasks(tasks: Task[]): string[] {
 
 /** 작업 목록의 완료 수. 폐기된 작업과 마지막 확인 줄은 세지 않는다. */
 export function countTasks(tasks: Task[]): { done: number; total: number } {
-  const live = tasks.filter((task) => task.id !== FINAL_ID && !task.dropped);
+  const live = liveTasks(tasks);
   return { done: live.filter((task) => task.checked).length, total: live.length };
+}
+
+/** 실행할 작업. 폐기된 작업과 마지막 확인 줄을 뺀 것이다. */
+export function liveTasks(tasks: Task[]): Task[] {
+  return tasks.filter((task) => task.id !== FINAL_ID && !task.dropped);
+}
+
+/**
+ * 작업 줄의 체크를 올리거나 내린 본문. 그 밖의 글자는 그대로다.
+ * 체크는 해시에 들어가지 않으므로(정규화의 uncheck) 이 변경은 미기록 변경이 아니다.
+ */
+export function setChecked(body: string, ids: readonly string[], checked: boolean): string {
+  if (ids.length === 0) return body;
+  const wanted = new Set(ids);
+  const mark = checked ? "x" : " ";
+  return body
+    .split("\n")
+    .map((line) => {
+      const match = TASK_LINE.exec(line);
+      if (!match || !wanted.has(match[2] as string)) return line;
+      return line.replace(/^(\s*- )\[[ xX]\]/, `$1[${mark}]`);
+    })
+    .join("\n");
+}
+
+/** 멈춤 단위. 스토리마다 하나이고, 마지막 스토리 뒤의 작업은 `tail` 하나다. */
+export interface Unit {
+  name: string;
+  tasks: Task[];
+}
+
+export const TAIL_UNIT = "tail";
+
+/**
+ * 작업을 멈춤 단위로 나눈다(구현 단계 스킬 구성 §2 「자동 진행」).
+ * 각 스토리의 첫 작업 앞에서 나누므로, 스토리 밖의 작업은 다음 스토리의 단위에 들어간다.
+ * 마지막 스토리 뒤에 남는 작업은 `tail`이다. 스토리가 하나도 없으면 전체가 `tail`이다.
+ */
+export function splitUnits(tasks: Task[]): Unit[] {
+  const live = liveTasks(tasks);
+  const units: Unit[] = [];
+  let pending: Task[] = [];
+  let current: Unit | undefined;
+  for (const task of live) {
+    if (!task.story) {
+      pending.push(task);
+      continue;
+    }
+    if (task.story !== current?.name) {
+      current = { name: task.story, tasks: pending };
+      pending = [];
+      units.push(current);
+    }
+    current.tasks.push(task);
+  }
+  if (pending.length > 0) units.push({ name: TAIL_UNIT, tasks: pending });
+  return units;
+}
+
+/** 작업이 속한 단위의 이름. */
+export function unitOf(units: Unit[], id: string): Unit | undefined {
+  return units.find((unit) => unit.tasks.some((task) => task.id === id));
+}
+
+function normalizePath(file: string): string {
+  return file.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+}
+
+/** 파일이 작업이 지정한 경로 안에 있는지. `/`로 끝나는 경로는 그 디렉터리 아래 전체다. */
+export function pathCovers(taskPath: string, file: string): boolean {
+  const target = normalizePath(file);
+  if (taskPath.endsWith("/")) return target.startsWith(normalizePath(taskPath) + "/") || target === normalizePath(taskPath);
+  return normalizePath(taskPath) === target;
+}
+
+/**
+ * 파일에 대응하는 작업. 여러 작업의 경로에 걸치면 가장 긴 경로로 맞은 작업을 고르고, 그래도 여럿이면 모두 돌려준다.
+ * 검증 보고의 파일로 다시 고칠 작업을 찾는 데 쓴다(구현 단계 스킬 구성 §2 「완료의 인정」).
+ */
+export function matchTasks(tasks: Task[], file: string): Task[] {
+  let best = -1;
+  let found: Task[] = [];
+  for (const task of liveTasks(tasks)) {
+    const longest = Math.max(-1, ...task.paths.filter((taskPath) => pathCovers(taskPath, file)).map((taskPath) => normalizePath(taskPath).length));
+    if (longest < 0) continue;
+    if (longest > best) {
+      best = longest;
+      found = [task];
+    } else if (longest === best) found.push(task);
+  }
+  return found;
 }
