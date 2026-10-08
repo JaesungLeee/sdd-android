@@ -5,7 +5,7 @@ import path from "node:path";
 import type { Assets } from "../core/assets.js";
 import { bundleSkills, planBundle, readBundle, satisfiesRequirement, type Bundle } from "../core/extension.js";
 import { hashContent, manifestPath, writeManifest, type Manifest } from "../core/manifest.js";
-import { LAUNCHER } from "../core/launcher.js";
+import { LAUNCHER, LAUNCHER_PATH, markExecutable } from "../core/launcher.js";
 import { openRepo, Refusal } from "../core/repo.js";
 import { applyPrefix, skillName } from "../core/skilltext.js";
 import { addExtension } from "./extension.js";
@@ -107,7 +107,7 @@ export function coreFiles(options: Pick<InitOptions, "assets" | "language" | "pr
 
   const files = new Map<string, string | Buffer>();
   files.set(".mob-sdd/bin/mob-sdd.mjs", fs.readFileSync(options.bundlePath));
-  files.set(".mob-sdd/bin/mob-sdd", LAUNCHER);
+  files.set(LAUNCHER_PATH, LAUNCHER);
   files.set(".mob-sdd/.gitignore", "config.local.yaml\n");
   // 실행 스크립트가 CRLF로 체크아웃되면 sh가 실행하지 못한다. git의 줄바꿈 변환 설정과 무관하게 LF로 둔다.
   files.set(".mob-sdd/.gitattributes", "bin/mob-sdd text eol=lf\n");
@@ -198,6 +198,7 @@ export function init(options: InitOptions): InitResult {
     const file = path.join(target, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
+    if (rel === LAUNCHER_PATH) markExecutable(file);
     manifest.files[rel] = { sha256: hashContent(content), source: "core" };
   }
   fs.writeFileSync(

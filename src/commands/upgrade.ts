@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Assets } from "../core/assets.js";
 import { readBundle } from "../core/extension.js";
+import { LAUNCHER_PATH, markExecutable } from "../core/launcher.js";
 import { hashContent, readManifest, writeManifest, type Manifest } from "../core/manifest.js";
 import { openRepo, Refusal } from "../core/repo.js";
 import { compareVersions, isVersion } from "../core/version.js";
@@ -107,6 +108,8 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
   };
+  // 0.4 전에 설치한 저장소의 실행 스크립트는 실행 비트가 없다. 바뀌지 않았어도 준다.
+  if (fs.existsSync(path.join(target, LAUNCHER_PATH))) markExecutable(path.join(target, LAUNCHER_PATH));
   const currentHash = (rel: string) => {
     const file = path.join(target, rel);
     return fs.existsSync(file) ? hashContent(fs.readFileSync(file)) : undefined;

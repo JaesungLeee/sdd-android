@@ -3,8 +3,8 @@
 ## 실행하는 방법
 
 - 설치와 갱신은 npm 패키지로 실행한다: `npx mob-sdd init`, `npx mob-sdd@latest upgrade`.
-- 그 밖의 명령은 저장소에 설치된 번들이 한다. `npx mob-sdd status`처럼 불러도 패키지가 저장소의 번들에 넘기므로, 설치된 버전과 같은 판정을 받는다. 네트워크 없이 `.mob-sdd/bin/mob-sdd status`로 직접 불러도 된다.
-- 스킬은 `.mob-sdd/bin/mob-sdd` 스크립트를 통해 CLI를 부른다. 이 스크립트는 고치지 않는다.
+- 그 밖의 명령은 저장소에 설치된 번들이 한다. `npx mob-sdd status`처럼 불러도 패키지가 저장소의 번들에 넘기므로, 설치된 버전과 같은 판정을 받는다. 네트워크 없이 `sh .mob-sdd/bin/mob-sdd status`로 직접 불러도 된다. 설치가 실행 비트를 주지만 복제한 곳에서는 git 설정에 따라 없을 수 있으므로 `sh`를 붙이는 쪽이 어디서나 된다.
+- 스킬은 `sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd"` 형태로 CLI를 부른다. 이 스크립트는 고치지 않는다.
 
 ## 명령
 

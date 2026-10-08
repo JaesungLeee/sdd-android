@@ -74,6 +74,12 @@ describe("위키 확장", () => {
     expect(warnings(check(repo))).toEqual(["지시의 대상 단계가 설치되어 있지 않다: create-ui"]);
   });
 
+  it("실행 스크립트는 실행 비트를 갖는다", () => {
+    const target = gitRepo();
+    setup(target, CORE, []);
+    if (process.platform !== "win32") expect(fs.statSync(path.join(target, ".mob-sdd/bin/mob-sdd")).mode & 0o111).not.toBe(0);
+  });
+
   it("init은 추적하는 파일이 있는 저장소를 알린다", () => {
     expect(setup(gitRepo(), CORE, []).result.existingCode).toBe(false);
     expect(setup(gitRepo(true), CORE, []).result.existingCode).toBe(true);
