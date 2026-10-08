@@ -55,6 +55,7 @@ feature는 `docs/specs/` 아래의 디렉터리 하나다. `/spec 로그인`처�
 |---|---|
 | `android` | Kotlin, Gradle, Jetpack Compose 프로젝트의 구현 단계. `/impl-orchestrator` |
 | `wiki` | 코드베이스의 서술을 담는 위키. `/wiki-ingest`, `/wiki-lint`. 단계들이 읽기 전용 힌트로 읽는다 |
+| `openapi` | blueprint가 서버의 OpenAPI 문서를 조회해 인터페이스 계약의 근거로 삼는다 |
 
 ## 사람이 치는 명령
 
@@ -82,6 +83,7 @@ npx mob-sdd figma setup --server desktop --name figma-desktop
 - [CLI와 설정 파일](guide/cli.md): 명령 전체와 `.mob-sdd/`의 파일
 - [구현 단계](guide/implementation.md): `android` extension의 스킬과 흐름
 - [위키](guide/wiki.md): `wiki` extension의 지식 계층, 수집과 점검
+- [OpenAPI 대조](guide/openapi.md): `openapi` extension의 출처 설정과 조회
 - [Figma 설정](guide/figma.md): 서버 선택, 권한, 캡처 환경
 - [확장 만들기](guide/extensions.md): extension과 preset의 형식
 

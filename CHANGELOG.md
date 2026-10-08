@@ -2,6 +2,14 @@
 
 `upgrade`가 설치된 버전부터 새 버전까지의 항목을 보여 준다. 제목은 `## 버전` 형태로 쓴다.
 
+## 0.4.0
+
+- 내장 확장 `wiki`: 지식 계층의 위키(`docs/wiki/`). 스킬 `wiki-ingest`(수집)와 `wiki-lint`(점검). constitution, blueprint, `android`의 `create-*`와 `heal-*`에 위키를 읽는 지시를 더한다. 두 스킬은 위키 아래만 쓰며 `hook write --scope wiki`가 그 밖의 문서 쓰기를 막는다.
+- 위키의 계산 명령 `wiki index|record|lint|sources|category add`. 낡음은 원본의 내용 해시로 판정한다. `status`가 위키가 있으면 페이지, 낡음 후보, 미수집 원본의 수를 한 줄 더한다.
+- 내장 확장 `openapi`: blueprint가 서버의 OpenAPI 문서를 조회해 계약의 근거로 삼는다. 출처는 `config.yaml`의 `openapi.sources`. 조회 스크립트는 `run openapi openapi.mjs list|show`.
+- `run <확장> <스크립트> [인자…]`: 확장의 `scripts/` 아래 `.mjs`를 실행 스크립트가 찾은 `node`로 돌린다.
+- `check`가 `openapi.sources`의 형식을 보고, 지시의 대상으로 내장 확장의 스킬 이름을 안다. `init`이 기존 코드가 있는 저장소에서 위키를 권한다.
+
 ## 0.3.0
 
 - 이름을 `mob-sdd`로 바꿨다. 명령 `mob-sdd`, 설치 디렉터리 `.mob-sdd/`, 환경 변수 `MOB_SDD_ROOT`. 이전 이름으로 설치한 저장소는 없다(공개 전).

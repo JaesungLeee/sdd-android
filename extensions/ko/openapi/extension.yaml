@@ -1,0 +1,7 @@
+name: openapi
+kind: extension
+version: 0.1.0
+requires: ">=0.4.0"
+description: "OpenAPI 대조. blueprint가 서버의 OpenAPI 문서를 조회해 인터페이스 계약의 근거로 삼는다. 설정의 openapi.sources에 출처를 적는다"
+directives:
+  blueprint: directives/blueprint.md

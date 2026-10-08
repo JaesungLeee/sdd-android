@@ -8,6 +8,8 @@ import { LOCAL_CONFIG_FILE, readLocalConfig } from "../core/local-config.js";
 import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
+import { validateSources } from "../extensions/openapi/config.js";
+import { parse } from "yaml";
 import { duplicateItems } from "./doc.js";
 import { knownStages } from "./extension.js";
 import { figmaStories } from "./impl.js";
@@ -99,6 +101,7 @@ function checkInstall(repo: Repo, add: Add, assets?: Assets): void {
       add("warn", `.mob-sdd/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. mob-sdd figma setup으로 정한다`);
     }
   }
+  checkOpenApi(repo, add);
   for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
     const dir = path.join(repo.root, ".mob-sdd", "extensions", name);
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
@@ -108,6 +111,25 @@ function checkInstall(repo: Repo, add: Add, assets?: Assets): void {
     for (const stage of Object.keys(readBundle(bundleFromDir(dir)).manifest.directives)) {
       if (!stages.has(stage)) add("warn", `.mob-sdd/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
     }
+  }
+}
+
+/** `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다(구현 설계 「0.4 구현의 진행」). */
+function checkOpenApi(repo: Repo, add: Add): void {
+  const where = ".mob-sdd/config.yaml";
+  let raw: unknown;
+  try {
+    raw = (parse(fs.readFileSync(path.join(repo.root, where), "utf8")) as { openapi?: unknown } | null)?.openapi;
+  } catch {
+    return;
+  }
+  if (raw === undefined) return;
+  try {
+    for (const source of validateSources(raw)) {
+      if (source.path && !fs.existsSync(path.join(repo.root, source.path))) add("error", where, `openapi 출처 ${source.name}의 파일이 없다: ${source.path}`);
+    }
+  } catch (error) {
+    add("error", where, error instanceof Error ? error.message : String(error));
   }
 }
 

@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildSync } from "esbuild";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INCLUDE = /^[ \t]*\{\{> ([a-z0-9][a-z0-9-]*)\}\}[ \t]*$/gm;
@@ -101,6 +102,28 @@ function walk(dir, prefix = "") {
   return files;
 }
 
+/** 내장 확장의 스크립트 원본. 확장 이름에서 `src/extensions/` 아래의 진입 파일로. */
+const SCRIPTS = { openapi: "openapi/openapi.ts" };
+
+const bundled = new Map();
+
+/** 스크립트를 의존성과 함께 ESM 파일 하나로 묶는다. 설치된 저장소에는 node_modules가 없다. */
+function bundleScript(entry) {
+  if (!bundled.has(entry)) {
+    const result = buildSync({
+      entryPoints: [entry],
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      target: "node22",
+      write: false,
+      banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+    });
+    bundled.set(entry, result.outputFiles[0].text);
+  }
+  return bundled.get(entry);
+}
+
 /**
  * 스킬, 템플릿, 내장 확장을 `outDir`에 내고, 같은 내용을 `ko/skills/prd/SKILL.md` 꼴의 키로 모아 돌려준다.
  * 돌려준 것은 번들 안에 넣는다. 디렉터리는 검토용이다.
@@ -134,6 +157,11 @@ export function buildAssets(outDir) {
     for (const [rel, text] of Object.entries(walk(path.join(ROOT, "extensions", language)))) {
       const composed = /^[^/]+\/skills\/[^/]+\/SKILL\.md$/.test(rel) ? composeSkill(text, fragments) : text;
       emit(`${language}/extensions/${rel}`, composed);
+    }
+    // 확장 스크립트는 의존성(yaml)과 함께 파일 하나로 묶어 싣는다. 언어와 무관한 파일이라 언어마다 같은 것을 낸다.
+    for (const [extension, entry] of Object.entries(SCRIPTS)) {
+      if (!fs.existsSync(path.join(ROOT, "extensions", language, extension))) continue;
+      emit(`${language}/extensions/${extension}/scripts/${path.basename(entry, ".ts")}.mjs`, bundleScript(path.join(ROOT, "src", "extensions", entry)));
     }
     structures[language] = structure;
   }

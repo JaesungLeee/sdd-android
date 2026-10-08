@@ -18,6 +18,7 @@
 | `check` | 설치 점검과 문서의 형식·일관성 검사. 문제가 있으면 0이 아닌 코드로 끝난다. CI에 둔다 |
 | `extension list\|add\|remove`, `preset list\|add\|remove` | 확장의 목록, 설치(내장 이름이나 로컬 경로), 제거 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
+| `run <확장> <스크립트> [인자…]` | 확장의 `scripts/` 아래 `.mjs`를 실행한다. 스킬이 부르지만 사람이 쳐도 된다. [OpenAPI 대조](openapi.md) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.
 
@@ -76,6 +77,8 @@ wiki:                 # 위키 갈래 가운데 사용자가 더한 것. 기본 
     domain: 도메인 용어와 업무 규칙
 ```
 
+`openapi.sources`는 [OpenAPI 대조](openapi.md)에 있다.
+
 ### `config.local.yaml`
 
 ```yaml
@@ -112,3 +115,4 @@ figma:
 - spec: 완료된 spec의 checklist가 `pass`이고 지금의 본문을 검증한 것인지.
 - breakdown: 작업 줄의 형식, 작업마다 경로가 있는지, `until`이 가리키는 작업이 있고 테스트 작업이 그보다 앞에 있는지, 마지막 확인 줄의 상태.
 - Figma: spec에 Figma 줄이 있는 feature가 있는데 개인 설정이 없으면 경고.
+- OpenAPI: `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다.

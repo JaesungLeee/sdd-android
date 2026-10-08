@@ -46,6 +46,7 @@ import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
+import { runScript } from "./commands/run.js";
 import { formatIndex, formatLint, formatRecord as formatWikiRecord, formatSources, wikiCategoryAdd, wikiIndex, wikiLint, wikiRecord, wikiSources } from "./commands/wiki.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
@@ -80,6 +81,7 @@ const USAGE = `mob-sdd <명령>
   impl final <feature>             마지막 확인 (--result pass|fail, 통과면 --check 검사=pass|skip 모두, 실패면 --files, --failure, --symptom)
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
+  run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (인자는 그대로 넘긴다)
   wiki index                       위키 색인을 다시 만든다
   wiki record <페이지>…            페이지의 원본 해시와 commit을 적고 색인을 다시 만든다
   wiki lint                        위키 점검의 계산 부분 (형식, 깨진 링크, 원본 없음, 낡음 후보, 고아, 색인)
@@ -501,6 +503,16 @@ async function main(): Promise<void> {
   try {
     if (delegate(argv)) return;
     const first = argv.find((arg) => !arg.startsWith("-"));
+    // 스크립트의 인자는 이 CLI의 옵션이 아니다. 옵션 해석 전에 그대로 넘긴다.
+    if (first === "run") {
+      const at = argv.indexOf("run");
+      const rootFlag = argv.indexOf("--root");
+      const explicitRoot = rootFlag >= 0 && rootFlag < at ? argv[rootFlag + 1] : undefined;
+      const [extension, script, ...args] = argv.slice(at + 1);
+      const result = runScript(openRepo(resolveRoot(explicitRoot)), extension, script, args);
+      process.exitCode = result.status;
+      return;
+    }
     const wantsInfo = argv.includes("--help") || argv.includes("-h") || argv.includes("--version");
     const { text, data, exitCode }: { text: string; data: unknown; exitCode?: number } =
       first === "init" && !wantsInfo ? await runInit(argv) : run(argv);
