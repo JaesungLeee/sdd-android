@@ -20,13 +20,13 @@ breakdown의 작업 하나를 구현한다. 맡는 것은 도메인과 데이터
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" gate implement`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate implement`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate implement`를 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate implement`를 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives create-logic`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives create-logic`
 
 {{> directives}}
 

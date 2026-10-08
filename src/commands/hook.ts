@@ -20,7 +20,7 @@ export function hookWrite(repo: Repo, file: string): HookDecision {
   const reasons = gate.reasons.filter((reason) => reason.action === "block").map(describeReason).join(", ");
   return {
     allow: false,
-    reason: `sdd-first: 중단. ${reasons}. 그 문서의 단계를 먼저 다시 실행한다. 다시 시도하거나 셸 명령으로 써서 피해 가지 말고, 막힌 사유를 사용자에게 알린다.`,
+    reason: `mob-sdd: 중단. ${reasons}. 그 문서의 단계를 먼저 다시 실행한다. 다시 시도하거나 셸 명령으로 써서 피해 가지 말고, 막힌 사유를 사용자에게 알린다.`,
   };
 }
 

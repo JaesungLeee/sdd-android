@@ -91,11 +91,11 @@ function finish(id: string, checks: string[] = ["build=pass", "lint=pass"]): voi
 }
 
 beforeEach(() => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-first-impl-"));
-  fs.mkdirSync(path.join(root, ".sdd-first", "templates"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".sdd-first", "config.yaml"), "language: ko\ndocs_dir: docs\n");
-  fs.writeFileSync(path.join(root, ".sdd-first", "manifest.json"), JSON.stringify({ version: "0.3.0", files: {} }));
-  for (const [name, text] of Object.entries(TEMPLATES)) fs.writeFileSync(path.join(root, ".sdd-first", "templates", `${name}.md`), text);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-impl-"));
+  fs.mkdirSync(path.join(root, ".mob-sdd", "templates"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  fs.writeFileSync(path.join(root, ".mob-sdd", "manifest.json"), JSON.stringify({ version: "0.3.0", files: {} }));
+  for (const [name, text] of Object.entries(TEMPLATES)) fs.writeFileSync(path.join(root, ".mob-sdd", "templates", `${name}.md`), text);
   repo = openRepo(root);
   day = 1;
   buildChain();
@@ -136,7 +136,7 @@ describe("착수 게이트와 체크포인트", () => {
     expect(result.resumed).toBe(false);
     expect(result.versions).toEqual({ spec: "1.0.0", blueprint: "1.0.0", breakdown: "1.0.0" });
     expect(fs.existsSync(checkpointPath(repo, F))).toBe(true);
-    expect(fs.readFileSync(path.join(repo.root, ".sdd-first", "impl", ".gitignore"), "utf8")).toBe("*\n");
+    expect(fs.readFileSync(path.join(repo.root, ".mob-sdd", "impl", ".gitignore"), "utf8")).toBe("*\n");
     expect(gateAll(repo, "implement")[0]).toMatchObject({ stage: "implement", mode: "resume", confirmed: true });
   });
 

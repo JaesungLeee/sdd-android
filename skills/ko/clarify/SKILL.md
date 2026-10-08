@@ -19,18 +19,18 @@ spec의 품질 체크리스트는 spec을 쓴 에이전트가 형식과 완성�
 
 ## 위치
 
-- **읽는 것**: `docs/specs/{feature}/spec.md`, 있으면 `docs/prd.md`와 `docs/constitution.md`. 산출물 디렉터리는 `.sdd-first/config.yaml`의 `docs_dir`을 따른다.
+- **읽는 것**: `docs/specs/{feature}/spec.md`, 있으면 `docs/prd.md`와 `docs/constitution.md`. 산출물 디렉터리는 `.mob-sdd/config.yaml`의 `docs_dir`을 따른다.
 - **쓰는 것**: 없다.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" gate spec`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate spec`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate spec`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate spec`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives clarify`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives clarify`
 
 {{> directives}}
 

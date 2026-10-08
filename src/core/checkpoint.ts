@@ -62,7 +62,7 @@ export const MAX_ROUNDS = 3;
 const IMPL_DIR = "impl";
 
 export function implDir(repo: Repo, feature?: string): string {
-  const dir = path.join(repo.root, ".sdd-first", IMPL_DIR);
+  const dir = path.join(repo.root, ".mob-sdd", IMPL_DIR);
   return feature ? path.join(dir, feature) : dir;
 }
 

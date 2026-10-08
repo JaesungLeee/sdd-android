@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
 ---
 
 # prd 단계
@@ -23,19 +23,19 @@ hooks:
 
 ## 위치
 
-- **산출물**: `docs/prd.md`. 산출물 디렉터리는 `.sdd-first/config.yaml`의 `docs_dir`을 따른다.
-- **템플릿**: `.sdd-first/templates/prd.md`. 직접 복사하지 않고 `sdd-first doc new prd`로 만든다.
+- **산출물**: `docs/prd.md`. 산출물 디렉터리는 `.mob-sdd/config.yaml`의 `docs_dir`을 따른다.
+- **템플릿**: `.mob-sdd/templates/prd.md`. 직접 복사하지 않고 `mob-sdd doc new prd`로 만든다.
 - **하위 문서**: `docs/specs/{feature}/spec.md`. spec은 이 PRD의 항목 ID를 의존 항목으로 적는다.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" gate prd`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate prd`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate prd`를 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate prd`를 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives prd`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives prd`
 
 {{> directives}}
 
@@ -65,7 +65,7 @@ hooks:
 
 ## 새로 쓰기
 
-1. `sdd-first doc new prd`를 부른다. 템플릿이 `docs/prd.md`로 복사된다.
+1. `mob-sdd doc new prd`를 부른다. 템플릿이 `docs/prd.md`로 복사된다.
 2. 입력에서 내용을 뽑아 자리표시자를 채운다. 장의 순서와 제목은 바꾸지 않는다.
     - **1장 개요**: 배경, 해결하려는 문제, 한 줄 정의, 핵심 원칙, 용어. 용어는 한 항목에 한 용어를 두고 한 줄 정의와 제약을 적는다. 특정 항목에서만 성립하는 동작은 3장으로 보낸다.
     - **2장 목표 / 비목표**: 만드는 것과 만들지 않는 것의 경계를 확정하고 목표마다 ID를 준다. 비목표는 "안 함"으로 끝내지 않고 대체 수단을 밝힌다.
@@ -74,7 +74,7 @@ hooks:
     - **조건부 섹션**: 「UI 용어」는 UI가 있는 제품에서만 쓴다. 「항목을 가로지르는 규칙」은 쓸 내용이 있을 때만 쓴다. 쓰지 않는 섹션은 제목까지 지운다.
     - 다 채운 뒤 템플릿의 주석(`<!-- … -->`)과 남은 예시 블록을 지운다.
 3. 「미정 항목」의 절차를 따른다.
-4. 「끝내기 전 확인」을 통과하면 `sdd-first doc complete prd`를 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다. 이 명령을 부르기 전의 문서는 완료되지 않은 것이며, spec 단계의 근거가 되지 못한다.
+4. 「끝내기 전 확인」을 통과하면 `mob-sdd doc complete prd`를 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다. 이 명령을 부르기 전의 문서는 완료되지 않은 것이며, spec 단계의 근거가 되지 못한다.
 5. 「보고」를 따른다.
 
 ## 개정
@@ -84,14 +84,14 @@ hooks:
     - 새 항목에는 그 접두사에서 지금까지 쓴 가장 큰 번호의 다음 번호를 준다. 2장과 3장에 함께 더한다.
     - 범위에서 빼는 항목은 3장에서 지우고 2장에서 비목표로 옮긴다.
 3. 고치면서 `TBD:`가 생겼거나 사용자가 남은 미정 항목을 확정하려 하면 「미정 항목」의 절차를 따른다.
-4. `sdd-first doc changes prd`를 부른다. 바뀐 항목, 새 항목, 지워진 항목이 나온다. 항목 밖(1장, 2장, 4장, 미정 항목)이 바뀌었으면 `*`로 나온다.
+4. `mob-sdd doc changes prd`를 부른다. 바뀐 항목, 새 항목, 지워진 항목이 나온다. 항목 밖(1장, 2장, 4장, 미정 항목)이 바뀌었으면 `*`로 나온다.
     - 바뀐 곳이 없다고 나오면 기록할 개정이 없다. 그 사실을 보고하고 끝낸다.
     - 고치려 하지 않은 항목이 나오면 그 항목을 원래대로 되돌릴지 사용자에게 묻는다.
 5. 나온 항목마다 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다.
 6. 「끝내기 전 확인」을 통과하면 승인된 등급으로 개정을 기록한다. 등급은 `doc changes`가 낸 항목마다 하나씩, 빠짐없이 준다.
 
     ```bash
-    sdd-first doc revise prd --grade SYS-001=minor --grade SCR-004=major --grade '*=patch'
+    mob-sdd doc revise prd --grade SYS-001=minor --grade SCR-004=major --grade '*=patch'
     ```
 
 7. 「보고」를 따른다.

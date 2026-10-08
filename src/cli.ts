@@ -51,7 +51,7 @@ import { readManifest } from "./core/manifest.js";
 import { isGrade, type Grade } from "./core/version.js";
 import { VERSION } from "./version.js";
 
-const USAGE = `sdd-first <명령>
+const USAGE = `mob-sdd <명령>
 
   init                             이 저장소에 설치한다 (--language, --prefix, --yes, --extension <내장 확장>)
   upgrade                          설치된 파일을 이 버전으로 올린다
@@ -113,7 +113,7 @@ const SELF = fileURLToPath(import.meta.url);
 
 function isInstalledBundle(): boolean {
   const binDir = path.dirname(SELF);
-  return path.basename(binDir) === "bin" && path.basename(path.dirname(binDir)) === ".sdd-first";
+  return path.basename(binDir) === "bin" && path.basename(path.dirname(binDir)) === ".mob-sdd";
 }
 
 /**
@@ -124,14 +124,14 @@ function delegate(argv: string[]): boolean {
   const command = argv.find((arg) => !arg.startsWith("-"));
   if (isInstalledBundle() || command === "init" || command === "upgrade" || argv.length === 0) return false;
   const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 ? argv[rootFlag + 1] : (process.env.SDD_FIRST_ROOT ?? findRoot(process.cwd()));
+  const root = rootFlag >= 0 ? argv[rootFlag + 1] : (process.env.MOB_SDD_ROOT ?? findRoot(process.cwd()));
   if (!root) return false;
-  const bundle = path.join(path.resolve(root), ".sdd-first", "bin", "sdd-first.mjs");
+  const bundle = path.join(path.resolve(root), ".mob-sdd", "bin", "mob-sdd.mjs");
   if (!fs.existsSync(bundle) || fs.realpathSync(bundle) === fs.realpathSync(SELF)) return false;
 
   const installed = readManifest(path.resolve(root))?.version;
   if (installed && installed !== VERSION && VERSION !== "0.0.0-dev") {
-    console.error(`저장소에 설치된 버전은 ${installed}다(실행한 버전 ${VERSION}). 올리려면 npx sdd-first@latest upgrade`);
+    console.error(`저장소에 설치된 버전은 ${installed}다(실행한 버전 ${VERSION}). 올리려면 npx mob-sdd@latest upgrade`);
   }
   const result = spawnSync(process.execPath, [bundle, ...argv], { stdio: "inherit" });
   process.exitCode = result.status ?? 2;
@@ -141,11 +141,11 @@ function delegate(argv: string[]): boolean {
 /** CLI는 작업 디렉터리가 아니라 자기 파일의 위치로 저장소 루트를 정한다(PRD CLI-003). */
 function resolveRoot(explicit: string | undefined): string {
   if (explicit) return path.resolve(explicit);
-  if (process.env.SDD_FIRST_ROOT) return path.resolve(process.env.SDD_FIRST_ROOT);
+  if (process.env.MOB_SDD_ROOT) return path.resolve(process.env.MOB_SDD_ROOT);
 
   if (isInstalledBundle()) return path.dirname(path.dirname(path.dirname(SELF)));
   const found = findRoot(process.cwd());
-  if (!found) throw new Refusal("sdd-first가 설치된 저장소를 찾지 못했다");
+  if (!found) throw new Refusal("mob-sdd가 설치된 저장소를 찾지 못했다");
   return found;
 }
 
@@ -213,7 +213,7 @@ function run(argv: string[]): { text: string; data: unknown; exitCode?: number }
 
   if (command === "upgrade") {
     // 저장소의 번들은 자기 자신을 새 버전으로 바꿀 수 없다. 새 버전의 패키지로 실행해야 한다.
-    if (isInstalledBundle()) throw new Refusal("upgrade는 새 버전의 패키지로 실행한다: npx sdd-first@latest upgrade");
+    if (isInstalledBundle()) throw new Refusal("upgrade는 새 버전의 패키지로 실행한다: npx mob-sdd@latest upgrade");
     const changelogFile = path.join(path.dirname(SELF), "CHANGELOG.md");
     const result = upgrade({
       target: resolveRoot(values.root),
@@ -441,15 +441,15 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
 
   const result = init(options);
   const lines = [
-    `sdd-first ${VERSION}을 설치했다.`,
+    `mob-sdd ${VERSION}을 설치했다.`,
     ...result.files.map((file) => `- ${file}`),
     ...result.backedUp.map((moved) => `옮겼다: ${moved.from} → ${moved.to}`),
-    result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: sdd-first extension add android",
+    result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: mob-sdd extension add android",
     "",
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
-    ...(result.extensions.includes("android") ? ["Figma를 쓰면 sdd-first figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
+    ...(result.extensions.includes("android") ? ["Figma를 쓰면 mob-sdd figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
 }

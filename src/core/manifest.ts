@@ -18,14 +18,14 @@ export interface InstalledExtension {
 }
 
 export interface Manifest {
-  /** 설치된 sdd-first의 버전. */
+  /** 설치된 mob-sdd의 버전. */
   version: string;
   files: Record<string, ManifestEntry>;
   extensions?: Record<string, InstalledExtension>;
 }
 
 export function manifestPath(root: string): string {
-  return path.join(root, ".sdd-first", "manifest.json");
+  return path.join(root, ".mob-sdd", "manifest.json");
 }
 
 /** 설치 파일의 해시. 줄바꿈 변환 설정이 달라도 같은 값이 나오게 줄바꿈만 통일한다. */

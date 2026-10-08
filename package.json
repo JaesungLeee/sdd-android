@@ -1,11 +1,11 @@
 {
-  "name": "sdd-first",
+  "name": "mob-sdd",
   "version": "0.3.0",
   "description": "문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD 워크플로 CLI",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "sdd-first": "dist/sdd-first.mjs"
+    "mob-sdd": "dist/mob-sdd.mjs"
   },
   "files": [
     "dist"

@@ -22,7 +22,7 @@ const ANDROID: Record<string, string> = {
 };
 
 function tempDir(name: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `sdd-first-${name}-`));
+  return fs.mkdtempSync(path.join(os.tmpdir(), `mob-sdd-${name}-`));
 }
 function writeTree(dir: string, files: Record<string, string>): string {
   for (const [rel, text] of Object.entries(files)) {
@@ -40,7 +40,7 @@ function gitRepo(): string {
 
 let bundle: string;
 beforeEach(() => {
-  bundle = path.join(tempDir("pkg"), "sdd-first.mjs");
+  bundle = path.join(tempDir("pkg"), "mob-sdd.mjs");
   fs.writeFileSync(bundle, "// bundle\n");
 });
 
@@ -57,7 +57,7 @@ describe("init과 android 확장", () => {
     expect(result.skills).toEqual(["spec", "create-ui"]);
     expect(fs.readFileSync(path.join(target, ".claude", "skills", "create-ui", "SKILL.md"), "utf8")).toContain("`/spec` 뒤");
     expect(readManifest(target)?.extensions?.android).toMatchObject({ kind: "extension", origin: "builtin" });
-    expect(result.files).toContain(".sdd-first/extensions/android/extension.yaml");
+    expect(result.files).toContain(".mob-sdd/extensions/android/extension.yaml");
   });
 
   it("내장에 없는 이름과 이 버전이 요건을 못 채우는 확장은 거부한다", () => {
@@ -69,7 +69,7 @@ describe("init과 android 확장", () => {
     const target = gitRepo();
     writeTree(target, { ".claude/skills/create-ui/SKILL.md": "# 기존\n" });
     expect(() => init(options(target, { ...CORE, ...ANDROID }, { extensions: ["android"] }))).toThrow(/create-ui/);
-    expect(fs.existsSync(path.join(target, ".sdd-first"))).toBe(false);
+    expect(fs.existsSync(path.join(target, ".mob-sdd"))).toBe(false);
   });
 
   it("묻는 흐름에서 구현 단계의 확장을 묻고 기본은 없음이다", async () => {
@@ -127,7 +127,7 @@ describe("Figma 설정", () => {
   it("setup이 개인 설정 파일 둘을 쓰고, 다른 내용은 보존하며, 두 번째에는 더할 것이 없다", () => {
     fs.mkdirSync(path.join(repo.root, ".claude"), { recursive: true });
     fs.writeFileSync(path.join(repo.root, SETTINGS_LOCAL), JSON.stringify({ permissions: { allow: ["Bash(ls *)"], deny: ["Bash(rm *)"] }, other: 1 }));
-    fs.writeFileSync(path.join(repo.root, ".sdd-first", "config.local.yaml"), "wiki:\n  branch: x\n");
+    fs.writeFileSync(path.join(repo.root, ".mob-sdd", "config.local.yaml"), "wiki:\n  branch: x\n");
 
     const result = figmaSetup(repo, { server: "remote", name: "plugin:figma:figma" });
     expect(result.config).toEqual({ server: "remote", desktop_name: "figma-desktop", remote_name: "plugin:figma:figma" });
@@ -155,7 +155,7 @@ describe("Figma 설정", () => {
   it("서버와 이름의 형식을 검사한다", () => {
     expect(() => figmaSetup(repo, { server: "cloud" })).toThrow(Refusal);
     expect(() => figmaSetup(repo, { name: "bad name" })).toThrow(Refusal);
-    fs.writeFileSync(path.join(repo.root, ".sdd-first", "config.local.yaml"), "figma:\n  server: nope\n");
+    fs.writeFileSync(path.join(repo.root, ".mob-sdd", "config.local.yaml"), "figma:\n  server: nope\n");
     expect(figmaConfig(readLocalConfig(repo)).server).toBe("desktop");
   });
 });

@@ -10,7 +10,7 @@ model: sonnet
 
 # verify-ui
 
-구현된 UI를 디자인과 대조한다. **고치지 않는다.** 이 스킬은 쓰기 도구가 없는 에이전트로 돈다. 셸로 코드를 쓰는 것도 하지 않는다. 캡처 파일을 `.sdd-first/impl/{feature}/captures/` 아래에 받는 것만 예외다.
+구현된 UI를 디자인과 대조한다. **고치지 않는다.** 이 스킬은 쓰기 도구가 없는 에이전트로 돈다. 셸로 코드를 쓰는 것도 하지 않는다. 캡처 파일을 `.mob-sdd/impl/{feature}/captures/` 아래에 받는 것만 예외다.
 
 대조는 두 가지다. 어느 것을 할지는 인자의 `대조:`가 정한다.
 
@@ -25,19 +25,19 @@ model: sonnet
 
 ## Figma 서버
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" figma show`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" figma show`
 
 위에 적힌 도구 이름을 그대로 쓴다. 도구 목록에 지연 로드 상태로만 있으면 ToolSearch로 불러온 뒤 쓴다. 읽기 도구만 쓴다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives verify-ui`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives verify-ui`
 
 {{> directives}}
 
 ## 판정 규칙
 
-- **독립적으로 다시 읽는다.** `{{skill:create-ui}}`의 보고나 `.sdd-first/impl/{feature}/design.md`를 근거로 삼지 않는다. Figma 노드를 직접 다시 연다.
+- **독립적으로 다시 읽는다.** `{{skill:create-ui}}`의 보고나 `.mob-sdd/impl/{feature}/design.md`를 근거로 삼지 않는다. Figma 노드를 직접 다시 연다.
 - **항목별로 대조한다.** 구성요소, 문구, 색상 토큰, 타이포, 배치 순서와 간격, 상태 표현. 픽셀 비교는 하지 않는다.
 - **심각도를 매기지 않는다.** 어긋난 것은 모두 차이 목록에 올리고, 하나라도 있으면 `fail`이다.
 - **열지 못한 노드는 미검증이다.** 통과와 섞지 않는다. 권한 오류와 한도 초과는 "열리지 않는 노드"와 구분해 오류 문구를 그대로 적는다. 응답 없음으로 중단된 호출(`sent no response or progress`)은 한 번 더 부른다. 서버가 첫 호출의 일을 이어 가서 두 번째는 바로 돌아오는 때가 많다.
@@ -59,7 +59,7 @@ model: sonnet
 
 1. **기기**: `adb devices`로 연결된 기기를 본다. 없으면 `emulator -list-avds`로 이미 만들어진 가상 기기를 찾아 화면 없이 띄운다(`emulator -avd {이름} -no-window -no-audio &`, `adb wait-for-device`, 부팅 완료는 `adb shell getprop sys.boot_completed`가 `1`). 가상 기기가 없으면 만들지 않는다. 기기도 가상 기기도 없으면 캡처의 대조는 `skip`(기기 없음)이고 끝낸다.
 2. **빌드와 설치**: 인자의 앱 모듈을 디버그로 빌드해 설치한다(`./gradlew :{앱 모듈}:installDebug`). flavor가 있어 `installDebug`가 모호하면 인자의 애플리케이션 ID에 맞는 디버그 variant 하나를 고른다(`installProdDebug`처럼). 프리뷰 화면은 `ui-tooling`을 디버그 의존성으로 넣은 빌드에만 있다. 같은 애플리케이션 ID의 다른 빌드가 설치되어 있어 서명이 달라 설치가 실패하면, 기존 앱을 지우지 않고 `skip`(설치 실패)으로 적는다.
-3. **띄우기와 캡처**: 프리뷰마다 `adb shell am start -n {애플리케이션 ID}/androidx.compose.ui.tooling.PreviewActivity --es composable {프리뷰 전체 이름}`으로 띄우고 잠시 기다린 뒤 `adb exec-out screencap -p > .sdd-first/impl/{feature}/captures/{프리뷰 함수 이름}.png`로 받는다. 디렉터리는 `mkdir -p`로 만든다. 캡처가 빈 화면이면 프리뷰가 그려지기 전이다. 조금 더 기다려 같은 파일에 다시 받는다.
+3. **띄우기와 캡처**: 프리뷰마다 `adb shell am start -n {애플리케이션 ID}/androidx.compose.ui.tooling.PreviewActivity --es composable {프리뷰 전체 이름}`으로 띄우고 잠시 기다린 뒤 `adb exec-out screencap -p > .mob-sdd/impl/{feature}/captures/{프리뷰 함수 이름}.png`로 받는다. 디렉터리는 `mkdir -p`로 만든다. 캡처가 빈 화면이면 프리뷰가 그려지기 전이다. 조금 더 기다려 같은 파일에 다시 받는다.
 4. **기대 이미지**: 상태마다 대응하는 Figma 노드의 `get_screenshot`을 받는다.
 5. **대조**: 캡처에는 상태 표시줄과 내비게이션 바, 제조사의 화면 요소가 함께 찍힌다. 이 영역은 뺀다. 기기에 따라 프리뷰가 상태 표시줄 아래에서 시작하기도 하고 맨 위부터 그려지기도 한다. 구성요소의 유무와 순서, 상태 표현, 문구, 눈에 띄는 색과 크기의 차이를 본다. 픽셀 단위의 차이는 보지 않는다.
 6. 띄운 가상 기기는 끝나면 `adb emu kill`로 끈다. 연결되어 있던 실기기는 건드리지 않는다.

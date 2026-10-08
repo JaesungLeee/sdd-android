@@ -185,7 +185,7 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
 
 export function formatUpgrade(result: UpgradeResult): string {
   const lines: string[] = [];
-  lines.push(result.from === result.to ? `sdd-first ${result.to}: 설치된 파일을 점검했다.` : `sdd-first ${result.from} → ${result.to}`);
+  lines.push(result.from === result.to ? `mob-sdd ${result.to}: 설치된 파일을 점검했다.` : `mob-sdd ${result.from} → ${result.to}`);
   if (result.changes) lines.push("", result.changes, "");
   const section = (title: string, items: string[]) => {
     if (items.length === 0) return;

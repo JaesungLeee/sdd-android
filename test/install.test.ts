@@ -33,7 +33,7 @@ const TEMPLATES: Record<string, string> = {
 };
 
 function tempDir(name: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `sdd-first-${name}-`));
+  return fs.mkdtempSync(path.join(os.tmpdir(), `mob-sdd-${name}-`));
 }
 
 /** 패키지의 dist 디렉터리 모양을 흉내 낸다. */
@@ -146,7 +146,7 @@ describe("init", () => {
   beforeEach(() => {
     pkg = tempDir("pkg");
     makeAssets(pkg);
-    bundle = path.join(pkg, "sdd-first.mjs");
+    bundle = path.join(pkg, "mob-sdd.mjs");
     fs.writeFileSync(bundle, "// bundle\n");
     home = tempDir("home");
   });
@@ -156,13 +156,13 @@ describe("init", () => {
     const result = init(options(target));
     expect(result.skills).toEqual(["blueprint", "spec"]);
     expect(result.files).toContain(".claude/skills/spec/SKILL.md");
-    expect(result.files).toContain(".sdd-first/bin/sdd-first.mjs");
-    expect(fs.readFileSync(path.join(target, ".sdd-first", "config.yaml"), "utf8")).toContain('prefix: ""');
+    expect(result.files).toContain(".mob-sdd/bin/mob-sdd.mjs");
+    expect(fs.readFileSync(path.join(target, ".mob-sdd", "config.yaml"), "utf8")).toContain('prefix: ""');
 
     const manifest = readManifest(target);
     expect(manifest?.version).toBe("0.1.0");
     expect(Object.keys(manifest?.files ?? {})).toEqual([...Object.keys(manifest?.files ?? {})].sort());
-    expect(manifest?.files[".sdd-first/templates/prd.md"]?.source).toBe("core");
+    expect(manifest?.files[".mob-sdd/templates/prd.md"]?.source).toBe("core");
   });
 
   it("접두사를 붙이면 스킬의 이름과 서로를 가리키는 이름이 모두 바뀐다", () => {
@@ -186,7 +186,7 @@ describe("init", () => {
 
     expect(() => init(options(target))).toThrow(/\.claude\/skills\/spec\/SKILL\.md/);
     expect(fs.readFileSync(existing, "utf8")).toBe("내 스킬\n");
-    expect(fs.existsSync(path.join(target, ".sdd-first"))).toBe(false);
+    expect(fs.existsSync(path.join(target, ".mob-sdd"))).toBe(false);
   });
 
   it("사용자 홈의 스킬과 이름이 같으면 멈춘다", () => {
@@ -208,8 +208,8 @@ describe("init", () => {
     fs.writeFileSync(existing, "내 스킬\n");
 
     const result = init({ ...options(target), backup: true, today: "2026-10-04" });
-    expect(result.backedUp).toEqual([{ from: ".claude/skills/spec", to: ".sdd-first/backup/2026-10-04/skills/spec" }]);
-    expect(fs.readFileSync(path.join(target, ".sdd-first/backup/2026-10-04/skills/spec/SKILL.md"), "utf8")).toBe("내 스킬\n");
+    expect(result.backedUp).toEqual([{ from: ".claude/skills/spec", to: ".mob-sdd/backup/2026-10-04/skills/spec" }]);
+    expect(fs.readFileSync(path.join(target, ".mob-sdd/backup/2026-10-04/skills/spec/SKILL.md"), "utf8")).toBe("내 스킬\n");
     expect(fs.readFileSync(existing, "utf8")).toContain("name: spec");
   });
 
@@ -294,7 +294,7 @@ describe("check", () => {
 
   beforeEach(() => {
     const pkg = tempDir("pkg");
-    const bundle = path.join(pkg, "sdd-first.mjs");
+    const bundle = path.join(pkg, "mob-sdd.mjs");
     fs.writeFileSync(bundle, "// bundle\n");
     target = gitRepo();
     init({ target, language: "ko", prefix: "", assets: assetsFromDir(makeAssets(pkg)), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
@@ -324,12 +324,12 @@ describe("check", () => {
 
   it("설치한 파일이 바뀌면 경고하고, 없어지면 오류로 알린다", () => {
     fs.appendFileSync(path.join(target, ".claude", "skills", "spec", "SKILL.md"), "고침\n");
-    fs.rmSync(path.join(target, ".sdd-first", "templates", "prd.md"));
+    fs.rmSync(path.join(target, ".mob-sdd", "templates", "prd.md"));
     const result = check(openRepo(target));
     expect(result.ok).toBe(false);
     expect(result.problems).toEqual([
       { level: "warn", where: ".claude/skills/spec/SKILL.md", message: "설치한 뒤 바뀐 파일이다" },
-      { level: "error", where: ".sdd-first/templates/prd.md", message: "설치된 파일이 없다" },
+      { level: "error", where: ".mob-sdd/templates/prd.md", message: "설치된 파일이 없다" },
     ]);
   });
 
@@ -385,13 +385,13 @@ describe("번들", () => {
   it("빌드한 번들로 설치하고, 설치된 번들이 하위 디렉터리에서 판정을 낸다", () => {
     execFileSync(process.execPath, [path.join(PROJECT, "scripts", "build.mjs")], { cwd: PROJECT });
     const pkg = tempDir("dist");
-    fs.copyFileSync(path.join(PROJECT, "dist", "sdd-first.mjs"), path.join(pkg, "sdd-first.mjs"));
+    fs.copyFileSync(path.join(PROJECT, "dist", "mob-sdd.mjs"), path.join(pkg, "mob-sdd.mjs"));
     makeAssets(pkg);
 
     const target = gitRepo();
     const env = { ...process.env, HOME: tempDir("home") };
     const run = (cwd: string, ...args: string[]) =>
-      spawnSync(process.execPath, [path.join(pkg, "sdd-first.mjs"), ...args], { cwd, env, encoding: "utf8" });
+      spawnSync(process.execPath, [path.join(pkg, "mob-sdd.mjs"), ...args], { cwd, env, encoding: "utf8" });
 
     const installed = run(target, "init", "--extension", "android").stdout;
     expect(installed).toContain("설치했다");
@@ -419,9 +419,9 @@ describe("번들", () => {
     fs.writeFileSync(path.join(preset, "extension.yaml"), "name: acme\nkind: preset\nversion: 1.0.0\n");
     fs.writeFileSync(path.join(preset, "templates", "spec.md"), "# acme\n");
     expect(run(sub, "preset", "add", preset).stdout).toContain("설치했다");
-    expect(fs.readFileSync(path.join(target, ".sdd-first", "templates", "spec.md"), "utf8")).toBe("# acme\n");
+    expect(fs.readFileSync(path.join(target, ".mob-sdd", "templates", "spec.md"), "utf8")).toBe("# acme\n");
     expect(run(sub, "preset", "remove", "acme").stdout).toContain("되살렸다");
-    expect(fs.readFileSync(path.join(target, ".sdd-first", "templates", "spec.md"), "utf8")).toContain("# 스펙");
+    expect(fs.readFileSync(path.join(target, ".mob-sdd", "templates", "spec.md"), "utf8")).toContain("# 스펙");
     expect(run(sub, "directives", "spec").stdout).toContain("확장 지시가 없다");
 
     // 구현 단계의 스킬이 설치되어 있고, Figma 설정 명령이 번들에서 돈다.
@@ -438,7 +438,7 @@ describe("번들", () => {
     const fakeHome = tempDir("home");
     fs.mkdirSync(path.join(fakeHome, ".local", "bin"), { recursive: true });
     fs.symlinkSync(process.execPath, path.join(fakeHome, ".local", "bin", "node"));
-    const bare = spawnSync("/bin/sh", [path.join(target, ".sdd-first", "bin", "sdd-first"), "gate", "blueprint"], {
+    const bare = spawnSync("/bin/sh", [path.join(target, ".mob-sdd", "bin", "mob-sdd"), "gate", "blueprint"], {
       cwd: sub,
       env: { PATH: "/usr/bin:/bin", HOME: fakeHome },
       encoding: "utf8",
@@ -465,8 +465,8 @@ describe("실린 스킬과 템플릿", () => {
       expect(text, name).not.toContain("{{>");
       expect(text, name).toContain(`name: {{skill:${name}}}`);
       expect(text, name).toContain("allowed-tools: Bash(sh *)");
-      expect(text, name).not.toContain("sdd-first.mjs");
-      expect(text, name).toContain(`.sdd-first/bin/sdd-first" directives ${name}`);
+      expect(text, name).not.toContain("mob-sdd.mjs");
+      expect(text, name).toContain(`.mob-sdd/bin/mob-sdd" directives ${name}`);
       expect(text, name).toContain("## 확장 지시");
     }
   });
@@ -475,7 +475,7 @@ describe("실린 스킬과 템플릿", () => {
     for (const name of DOC_STAGES) {
       const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
       expect(text, name).toContain("hook write");
-      expect(text, name).toContain(`.sdd-first/bin/sdd-first" gate ${name}`);
+      expect(text, name).toContain(`.mob-sdd/bin/mob-sdd" gate ${name}`);
     }
   });
 
@@ -485,7 +485,7 @@ describe("실린 스킬과 템플릿", () => {
       // hook은 스킬이 끝난 뒤에도 세션에 남아, 같은 세션의 다음 단계가 쓰는 것까지 막는다.
       expect(text, name).not.toContain("hooks:");
       expect(text, name).toContain("## 읽기 전용");
-      expect(text, name).not.toMatch(/^\s*sdd-first doc (new|complete|revise|confirm|checklist)/m);
+      expect(text, name).not.toMatch(/^\s*mob-sdd doc (new|complete|revise|confirm|checklist)/m);
     }
     const analyze = fs.readFileSync(path.join(skillsDir, "analyze", "SKILL.md"), "utf8");
     expect(analyze).toContain("context: fork");
@@ -499,27 +499,27 @@ describe("실린 스킬과 템플릿", () => {
       const text = fs.readFileSync(path.join(dir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("{{>");
       expect(text, name).toContain(`name: {{skill:${name}}}`);
-      expect(text, name).toContain(`.sdd-first/bin/sdd-first" directives ${name}`);
+      expect(text, name).toContain(`.mob-sdd/bin/mob-sdd" directives ${name}`);
       expect(text, name).not.toContain("hooks:");
       if (name === "impl-orchestrator") {
         expect(text).not.toContain("context: fork");
-        expect(text).toContain('.sdd-first/bin/sdd-first" gate implement');
+        expect(text).toContain('.mob-sdd/bin/mob-sdd" gate implement');
         for (const worker of names.filter((other) => other !== name)) expect(text).toContain(`Skill({{skill:${worker}}})`);
       } else {
         expect(text, name).toContain("context: fork");
       }
       if (name.startsWith("create-")) {
-        expect(text, name).toContain('.sdd-first/bin/sdd-first" gate implement');
+        expect(text, name).toContain('.mob-sdd/bin/mob-sdd" gate implement');
         expect(text, name).toContain("## 범위");
         expect(text, name).toContain("## 보고의 형식");
       }
       if (name === "create-ui" || name === "verify-ui" || name === "design-inspector") {
-        expect(text, name).toContain('.sdd-first/bin/sdd-first" figma show');
+        expect(text, name).toContain('.mob-sdd/bin/mob-sdd" figma show');
       }
       if (name.startsWith("verify-")) {
         expect(text, name).toContain("agent: Explore");
         expect(text, name).toMatch(/^model: /m);
-        expect(text, name).not.toMatch(/^\s*sdd-first impl /m);
+        expect(text, name).not.toMatch(/^\s*mob-sdd impl /m);
       }
     }
   });
@@ -545,7 +545,7 @@ describe("실린 스킬과 템플릿", () => {
 
   it("스킬이 가리키는 스킬은 접두사를 붙여 설치된다", () => {
     const pkg = tempDir("pkg");
-    const bundle = path.join(pkg, "sdd-first.mjs");
+    const bundle = path.join(pkg, "mob-sdd.mjs");
     fs.writeFileSync(bundle, "// bundle\n");
     const target = gitRepo();
     init({ target, language: "ko", prefix: "sdd", assets: assetsFromDir(assets), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
@@ -562,15 +562,15 @@ describe("upgrade", () => {
   const skill = () => path.join(target, ".claude", "skills", "sdd-spec", "SKILL.md");
   const asset = (...parts: string[]) => path.join(pkg, "assets", "ko", ...parts);
   const run = (version = "0.2.0") =>
-    upgrade({ target, assets: assetsFromDir(path.join(pkg, "assets")), bundlePath: path.join(pkg, "sdd-first.mjs"), version });
+    upgrade({ target, assets: assetsFromDir(path.join(pkg, "assets")), bundlePath: path.join(pkg, "mob-sdd.mjs"), version });
 
   beforeEach(() => {
     pkg = tempDir("pkg");
-    fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 1\n");
+    fs.writeFileSync(path.join(pkg, "mob-sdd.mjs"), "// bundle 1\n");
     target = gitRepo();
-    init({ target, language: "ko", prefix: "sdd", assets: assetsFromDir(makeAssets(pkg)), bundlePath: path.join(pkg, "sdd-first.mjs"), version: "0.1.0", homeDir: tempDir("home") });
+    init({ target, language: "ko", prefix: "sdd", assets: assetsFromDir(makeAssets(pkg)), bundlePath: path.join(pkg, "mob-sdd.mjs"), version: "0.1.0", homeDir: tempDir("home") });
     // 새 버전의 패키지: 번들과 spec 스킬이 바뀌고, 템플릿 하나가 빠지고 하나가 생긴다.
-    fs.writeFileSync(path.join(pkg, "sdd-first.mjs"), "// bundle 2\n");
+    fs.writeFileSync(path.join(pkg, "mob-sdd.mjs"), "// bundle 2\n");
     fs.writeFileSync(asset("skills", "spec", "SKILL.md"), SKILLS.spec + "새 문단. `/{{skill:blueprint}}`\n");
     fs.rmSync(asset("templates", "research.md"));
     fs.writeFileSync(asset("templates", "wiki.md"), "# 위키\n");
@@ -579,27 +579,27 @@ describe("upgrade", () => {
   it("고치지 않은 파일은 새 버전으로 바꾸고 설정의 접두사를 그대로 쓴다", () => {
     const result = run();
     expect(result).toMatchObject({ from: "0.1.0", to: "0.2.0" });
-    expect(result.replaced).toEqual([".sdd-first/bin/sdd-first.mjs", ".claude/skills/sdd-spec/SKILL.md"]);
-    expect(result.added).toEqual([".sdd-first/templates/wiki.md"]);
-    expect(result.removed).toEqual([".sdd-first/templates/research.md"]);
+    expect(result.replaced).toEqual([".mob-sdd/bin/mob-sdd.mjs", ".claude/skills/sdd-spec/SKILL.md"]);
+    expect(result.added).toEqual([".mob-sdd/templates/wiki.md"]);
+    expect(result.removed).toEqual([".mob-sdd/templates/research.md"]);
     expect(fs.readFileSync(skill(), "utf8")).toContain("새 문단. `/sdd-blueprint`");
-    expect(fs.existsSync(path.join(target, ".sdd-first", "templates", "research.md"))).toBe(false);
+    expect(fs.existsSync(path.join(target, ".mob-sdd", "templates", "research.md"))).toBe(false);
 
     const manifest = readManifest(target);
     expect(manifest?.version).toBe("0.2.0");
-    expect(manifest?.files[".sdd-first/templates/research.md"]).toBeUndefined();
+    expect(manifest?.files[".mob-sdd/templates/research.md"]).toBeUndefined();
     expect(check(openRepo(target)).ok).toBe(true);
   });
 
   it("고친 파일은 그대로 두고 새 버전을 옆에 둔다", () => {
     fs.appendFileSync(skill(), "내가 더한 줄\n");
-    fs.appendFileSync(path.join(target, ".sdd-first", "templates", "research.md"), "내 메모\n");
+    fs.appendFileSync(path.join(target, ".mob-sdd", "templates", "research.md"), "내 메모\n");
     const result = run();
     expect(result.kept).toEqual([{ file: ".claude/skills/sdd-spec/SKILL.md", next: ".claude/skills/sdd-spec/SKILL.md.new" }]);
-    expect(result.orphaned).toEqual([".sdd-first/templates/research.md"]);
+    expect(result.orphaned).toEqual([".mob-sdd/templates/research.md"]);
     expect(fs.readFileSync(skill(), "utf8")).toContain("내가 더한 줄");
     expect(fs.readFileSync(`${skill()}.new`, "utf8")).toContain("새 문단");
-    expect(fs.existsSync(path.join(target, ".sdd-first", "templates", "research.md"))).toBe(true);
+    expect(fs.existsSync(path.join(target, ".mob-sdd", "templates", "research.md"))).toBe(true);
   });
 
   it("고쳤지만 새 버전에서 바뀌지 않은 파일에는 아무것도 두지 않는다", () => {
@@ -615,11 +615,11 @@ describe("upgrade", () => {
     const repo = openRepo(target);
     docNew(repo, "prd", undefined, { today: "2026-10-05" });
     const prd = fs.readFileSync(docPath(repo, "prd"), "utf8");
-    const config = fs.readFileSync(path.join(target, ".sdd-first", "config.yaml"), "utf8");
+    const config = fs.readFileSync(path.join(target, ".mob-sdd", "config.yaml"), "utf8");
 
     expect(run().restored).toEqual([".claude/skills/sdd-spec/SKILL.md"]);
     expect(fs.readFileSync(docPath(repo, "prd"), "utf8")).toBe(prd);
-    expect(fs.readFileSync(path.join(target, ".sdd-first", "config.yaml"), "utf8")).toBe(config);
+    expect(fs.readFileSync(path.join(target, ".mob-sdd", "config.yaml"), "utf8")).toBe(config);
   });
 
   it("두 번 올리면 두 번째에는 바뀌는 것이 없다", () => {
@@ -630,7 +630,7 @@ describe("upgrade", () => {
 
   it("설치 기록이 없거나 낮은 버전으로는 올리지 않는다", () => {
     expect(() => run("0.0.9")).toThrow(/낮은 버전/);
-    fs.rmSync(path.join(target, ".sdd-first", "manifest.json"));
+    fs.rmSync(path.join(target, ".mob-sdd", "manifest.json"));
     expect(() => run()).toThrow(/init/);
   });
 

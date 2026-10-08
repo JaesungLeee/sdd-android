@@ -1,14 +1,14 @@
 ---
 name: {{skill:design-inspector}}
 description: "구현 단계의 디자인 분석 스킬. spec의 Figma 노드를 열어 구성요소, 구조, 토큰과 치수, 문구, 상태를 뽑아 feature의 분석 파일에 적는다"
-argument-hint: "feature: 이름, 노드: [화면 이름](URL) · …, 출력: .sdd-first/impl/{feature}/design.md"
+argument-hint: "feature: 이름, 노드: [화면 이름](URL) · …, 출력: .mob-sdd/impl/{feature}/design.md"
 allowed-tools: Bash(sh *)
 context: fork
 ---
 
 # design-inspector
 
-feature의 Figma 노드를 한 번 열어 구현에 필요한 값을 뽑는다. 결과는 `.sdd-first/impl/{feature}/design.md` 하나에 적는다. 이 파일은 `{{skill:create-ui}}`만 읽는다. `{{skill:verify-ui}}`는 읽지 않고 Figma를 직접 다시 연다. 같은 출처로 구현하고 판정하면 분석의 오류가 검증을 그대로 통과하기 때문이다.
+feature의 Figma 노드를 한 번 열어 구현에 필요한 값을 뽑는다. 결과는 `.mob-sdd/impl/{feature}/design.md` 하나에 적는다. 이 파일은 `{{skill:create-ui}}`만 읽는다. `{{skill:verify-ui}}`는 읽지 않고 Figma를 직접 다시 연다. 같은 출처로 구현하고 판정하면 분석의 오류가 검증을 그대로 통과하기 때문이다.
 
 {{> impl-input}}
 
@@ -24,13 +24,13 @@ feature의 Figma 노드를 한 번 열어 구현에 필요한 값을 뽑는다. 
 
 ## Figma 서버
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" figma show`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" figma show`
 
-위에 적힌 도구 이름을 그대로 쓴다. 도구 목록에 그 이름이 지연 로드 상태로만 있으면 ToolSearch로 불러온 뒤 쓴다. "권한이 없는 도구"가 적혀 있으면 호출이 거부될 수 있다. 거부되면 그 사실과 `sdd-first figma setup`을 보고에 적고 끝낸다.
+위에 적힌 도구 이름을 그대로 쓴다. 도구 목록에 그 이름이 지연 로드 상태로만 있으면 ToolSearch로 불러온 뒤 쓴다. "권한이 없는 도구"가 적혀 있으면 호출이 거부될 수 있다. 거부되면 그 사실과 `mob-sdd figma setup`을 보고에 적고 끝낸다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives design-inspector`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives design-inspector`
 
 {{> directives}}
 

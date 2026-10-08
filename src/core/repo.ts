@@ -42,7 +42,7 @@ export interface Repo {
   config: Config;
 }
 
-const STATE_DIR = ".sdd-first";
+const STATE_DIR = ".mob-sdd";
 
 export function findRoot(start: string): string | undefined {
   let dir = path.resolve(start);
@@ -56,7 +56,7 @@ export function findRoot(start: string): string | undefined {
 
 export function openRepo(root: string): Repo {
   const file = path.join(root, STATE_DIR, "config.yaml");
-  if (!fs.existsSync(file)) throw new Refusal(`sdd-first가 설치되지 않은 저장소다: ${root}`);
+  if (!fs.existsSync(file)) throw new Refusal(`mob-sdd가 설치되지 않은 저장소다: ${root}`);
   const data = (parse(fs.readFileSync(file, "utf8")) ?? {}) as Partial<Config>;
   return {
     root,

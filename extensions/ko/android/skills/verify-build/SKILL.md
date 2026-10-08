@@ -22,7 +22,7 @@ model: sonnet
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives verify-build`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives verify-build`
 
 {{> directives}}
 

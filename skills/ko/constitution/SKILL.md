@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
 ---
 
 # constitution 단계
@@ -25,19 +25,19 @@ hooks:
 
 ## 위치
 
-- **산출물**: `docs/constitution.md`. 산출물 디렉터리는 `.sdd-first/config.yaml`의 `docs_dir`을 따른다.
-- **템플릿**: `.sdd-first/templates/constitution.md`. 직접 복사하지 않고 `sdd-first doc new constitution`으로 만든다.
+- **산출물**: `docs/constitution.md`. 산출물 디렉터리는 `.mob-sdd/config.yaml`의 `docs_dir`을 따른다.
+- **템플릿**: `.mob-sdd/templates/constitution.md`. 직접 복사하지 않고 `mob-sdd doc new constitution`으로 만든다.
 - **하위 문서**: `docs/specs/{feature}/blueprint.md`. blueprint는 기준으로 삼은 헌법의 버전을 적는다.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" gate constitution`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate constitution`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate constitution`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate constitution`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives constitution`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives constitution`
 
 {{> directives}}
 
@@ -85,14 +85,14 @@ hooks:
 
 ## 새로 쓰기
 
-1. `sdd-first doc new constitution`을 부른다. 템플릿이 `docs/constitution.md`로 복사된다.
+1. `mob-sdd doc new constitution`을 부른다. 템플릿이 `docs/constitution.md`로 복사된다.
 2. 「원칙의 후보」에 따라 후보를 모아 보여 주고 사용자의 선택을 받는다.
 3. 선택된 원칙으로 자리표시자를 채운다.
     - **핵심 원칙**: 원칙마다 ID, 이름, 규칙, 근거를 쓴다.
     - **추가 섹션**: 원칙으로 쓰기에는 구체적인 제약(기술 스택, 보안 요구, 개발 절차)이 있을 때만 둔다. 없으면 제목까지 지운다.
     - **거버넌스**: 개정 절차, 준수 확인의 방법, 예외의 처리를 쓴다. 입력에 없으면 사용자에게 묻는다.
     - 다 채운 뒤 템플릿의 주석(`<!-- … -->`)을 지운다.
-4. 「끝내기 전 확인」을 통과하면 `sdd-first doc complete constitution`을 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다.
+4. 「끝내기 전 확인」을 통과하면 `mob-sdd doc complete constitution`을 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다.
 5. 「보고」를 따른다.
 
 ## 개정
@@ -101,14 +101,14 @@ hooks:
 2. 입력이 지목한 부분만 고친다. 지목하지 않은 원칙의 문장을 다듬지 않는다.
     - 새 원칙에는 지금까지 쓴 가장 큰 번호의 다음 번호를 준다. 새 원칙도 「원칙의 후보」의 승인을 거친다.
     - 원칙을 없애면 그 항목을 지운다. 번호는 비워 둔다.
-3. `sdd-first doc changes constitution`을 부른다. 바뀐 원칙, 새 원칙, 지워진 원칙이 나온다. 원칙 밖(추가 섹션, 거버넌스)이 바뀌었으면 `*`로 나온다.
+3. `mob-sdd doc changes constitution`을 부른다. 바뀐 원칙, 새 원칙, 지워진 원칙이 나온다. 원칙 밖(추가 섹션, 거버넌스)이 바뀌었으면 `*`로 나온다.
     - 바뀐 곳이 없다고 나오면 기록할 개정이 없다. 그 사실을 보고하고 끝낸다.
     - 고치려 하지 않은 원칙이 나오면 원래대로 되돌릴지 사용자에게 묻는다.
 4. 나온 항목마다 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다.
 5. 「끝내기 전 확인」을 통과하면 승인된 등급으로 개정을 기록한다. 등급은 `doc changes`가 낸 항목마다 하나씩, 빠짐없이 준다.
 
     ```bash
-    sdd-first doc revise constitution --grade P-002=major --grade P-006=minor --grade '*=patch'
+    mob-sdd doc revise constitution --grade P-002=major --grade P-006=minor --grade '*=patch'
     ```
 
 6. 「보고」를 따른다.

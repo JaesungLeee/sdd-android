@@ -1,9 +1,9 @@
 ## CLI
 
-아래에서 `sdd-first <명령>`이라고 적은 것은 모두 다음 형태로 부른다. 어느 디렉터리에서 불러도 된다.
+아래에서 `mob-sdd <명령>`이라고 적은 것은 모두 다음 형태로 부른다. 어느 디렉터리에서 불러도 된다.
 
 ```bash
-sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" <명령>
+sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" <명령>
 ```
 
 - 문서 맨 위의 frontmatter(`version`, `status`, `based_on`, `revisions`, 날짜)는 CLI만 고친다. 직접 쓰거나 고치지 않는다. 본문에 버전이나 날짜를 다시 적지도 않는다.

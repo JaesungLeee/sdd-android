@@ -81,7 +81,7 @@ function rel(repo: Repo, file: string): string {
 function checkInstall(repo: Repo, add: Add): void {
   const manifest = readManifest(repo.root);
   if (!manifest) {
-    add("error", ".sdd-first/manifest.json", "설치 기록이 없다");
+    add("error", ".mob-sdd/manifest.json", "설치 기록이 없다");
     return;
   }
   for (const [file, entry] of Object.entries(manifest.files)) {
@@ -96,17 +96,17 @@ function checkInstall(repo: Repo, add: Add): void {
   if (!readLocalConfig(repo)?.figma) {
     const withFigma = listFeatures(repo).filter((feature) => figmaStories(loadDoc(repo, "spec", feature)?.body ?? "").size > 0);
     if (withFigma.length > 0) {
-      add("warn", `.sdd-first/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. sdd-first figma setup으로 정한다`);
+      add("warn", `.mob-sdd/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. mob-sdd figma setup으로 정한다`);
     }
   }
   for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
-    const dir = path.join(repo.root, ".sdd-first", "extensions", name);
+    const dir = path.join(repo.root, ".mob-sdd", "extensions", name);
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
-      add("error", `.sdd-first/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
+      add("error", `.mob-sdd/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
       continue;
     }
     for (const stage of Object.keys(readBundle(bundleFromDir(dir)).manifest.directives)) {
-      if (!stages.has(stage)) add("warn", `.sdd-first/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
+      if (!stages.has(stage)) add("warn", `.mob-sdd/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
     }
   }
 }

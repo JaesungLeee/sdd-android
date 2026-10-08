@@ -1,7 +1,7 @@
 ---
 name: {{skill:create-ui}}
 description: "구현 단계의 구현 스킬. breakdown의 UI 작업 하나를 받아 Jetpack Compose 화면, 상태(Contract), 디자인 토큰, 공용 컴포넌트를 작업이 지정한 경로 안에 만들고 화면과 상태마다 프리뷰를 둔다"
-argument-hint: "feature: 이름, 작업: T005, 경로: …, 스토리: US1, 노드: [화면 이름](URL) 또는 없음, 분석: .sdd-first/impl/{feature}/design.md 또는 없음, 차이: (되돌림일 때 차이 목록)"
+argument-hint: "feature: 이름, 작업: T005, 경로: …, 스토리: US1, 노드: [화면 이름](URL) 또는 없음, 분석: .mob-sdd/impl/{feature}/design.md 또는 없음, 차이: (되돌림일 때 차이 목록)"
 allowed-tools: Bash(sh *), Bash(./gradlew *)
 context: fork
 ---
@@ -20,19 +20,19 @@ breakdown의 UI 작업 하나를 구현한다. 맡는 것은 화면(Composable),
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" gate implement`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate implement`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `sdd-first gate implement`를 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate implement`를 직접 불러 확인한다.
 
 ## Figma 서버
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" figma show`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" figma show`
 
 위에 적힌 도구 이름을 그대로 쓴다. 도구 목록에 지연 로드 상태로만 있으면 ToolSearch로 불러온 뒤 쓴다. 읽기 도구만 쓴다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-first/bin/sdd-first" directives create-ui`
+!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives create-ui`
 
 {{> directives}}
 
