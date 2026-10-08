@@ -1,6 +1,6 @@
 {
   "name": "sdd-first",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD 워크플로 CLI",
   "license": "Apache-2.0",
   "type": "module",
