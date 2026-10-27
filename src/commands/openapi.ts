@@ -26,11 +26,27 @@ export function listSources(repo: Repo): SourceConfig[] {
   }
 }
 
-function writeSources(repo: Repo, sources: SourceConfig[]): void {
+/**
+ * 출처 하나를 넣거나(같은 이름이면 바꾸거나) 뺀다. 목록을 통째로 다시 쓰지 않고 그 항목만 고친다.
+ * 목록 안의 주석과 다른 항목에 붙은 주석이 남는다.
+ */
+function writeSource(repo: Repo, change: { put: SourceConfig } | { remove: string }, current: SourceConfig[]): void {
   const file = configFile(repo);
   const doc = parseDocument(fs.readFileSync(file, "utf8"));
-  if (sources.length === 0) doc.deleteIn(["openapi"]);
-  else doc.setIn(["openapi", "sources"], sources);
+  const name = "put" in change ? change.put.name : change.remove;
+  const index = current.findIndex((item) => item.name === name);
+  if ("remove" in change) {
+    if (current.length === 1) doc.deleteIn(["openapi"]);
+    else doc.deleteIn(["openapi", "sources", index]);
+  } else if (index < 0) {
+    if (current.length === 0) doc.setIn(["openapi", "sources"], [change.put]);
+    else doc.addIn(["openapi", "sources"], change.put);
+  } else {
+    const at = ["openapi", "sources", index];
+    const [keep, drop] = change.put.url !== undefined ? (["url", "path"] as const) : (["path", "url"] as const);
+    doc.setIn([...at, keep], change.put[keep]);
+    doc.deleteIn([...at, drop]);
+  }
   fs.writeFileSync(file, doc.toString());
 }
 
@@ -68,6 +84,7 @@ async function resolveUrl(url: string, fetchImpl: Fetch): Promise<{ url: string;
   if (!isHtml(text)) return { url };
   const found = await discoverDocument(url, fetchImpl);
   if (!found) return { url, note: "Swagger UI 페이지인데 그 페이지가 읽는 문서를 찾지 못했다. 문서 자체의 주소(보통 /v3/api-docs나 …-json)를 적는다" };
+  if (found.inline) return { url, note: "문서가 페이지의 스크립트 안에 들어 있어 따로 된 주소가 없다. 페이지 주소를 그대로 저장했다" };
   return { url: found.url, resolvedFrom: url };
 }
 
@@ -91,13 +108,13 @@ export async function addSource(repo: Repo, name: string | undefined, options: A
 
   const current = listSources(repo);
   const replaced = current.some((item) => item.name === name);
-  const next = [...current.filter((item) => item.name !== name), source];
+  const next = replaced ? current.map((item) => (item.name === name ? source : item)) : [...current, source];
   try {
     validateSources({ sources: next });
   } catch (error) {
     throw new Refusal(error instanceof Error ? error.message : String(error));
   }
-  writeSources(repo, next);
+  writeSource(repo, { put: source }, current);
   return { source, replaced, ...(resolvedFrom ? { resolvedFrom } : {}), ...(note ? { note } : {}), sources: next };
 }
 
@@ -107,7 +124,7 @@ export function removeSource(repo: Repo, name: string | undefined): { removed: S
   const removed = current.find((item) => item.name === name);
   if (!removed) throw new Refusal(`그런 출처가 없다: ${name} (있는 것: ${current.map((item) => item.name).join(", ") || "없음"})`);
   const next = current.filter((item) => item.name !== name);
-  writeSources(repo, next);
+  writeSource(repo, { remove: name }, current);
   return { removed, sources: next };
 }
 

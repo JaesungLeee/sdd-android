@@ -19,7 +19,7 @@ const SCRIPT_NAME = /^[A-Za-z0-9_.-]+\.mjs$/;
  * 확장마다 명령을 더하는 것이 아니라 실행기 하나다. `scripts/` 아래의 `.mjs`만 실행하고 인자는 그대로 넘긴다.
  */
 export function runScript(repo: Repo, extension: string | undefined, script: string | undefined, args: string[], options: { capture?: boolean } = {}): RunResult {
-  if (!extension || !EXTENSION_NAME.test(extension)) throw new Refusal(`확장 이름이 필요하다: run <확장> <스크립트> [인자…]`);
+  if (!extension || !EXTENSION_NAME.test(extension)) throw new Refusal(`확장 이름이 필요하다: run <확장> <스크립트> [인자…] (받은 값: ${extension || "없음"})`);
   const dir = path.join(repo.root, ".mob-sdd", "extensions", extension);
   if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) throw new Refusal(`설치된 확장이 아니다: ${extension}`);
   if (!script || !SCRIPT_NAME.test(script)) throw new Refusal(`scripts/ 아래의 .mjs 파일 이름이 필요하다 (받은 값: ${script ?? "없음"})`);

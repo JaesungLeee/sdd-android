@@ -151,11 +151,29 @@ describe("openapi 출처 설정", () => {
     const text = fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
     expect(text).toContain("# 설정");
     expect(text).toContain("domain: 도메인 # 주석");
-    expect(text).toContain("openapi:\n  sources:\n    - name: local\n      path: openapi.json\n    - name: mino\n      url: https://y\n");
+    expect(text).toContain("openapi:\n  sources:\n    - name: mino\n      url: https://y\n    - name: local\n      path: openapi.json\n");
     expect(check(openRepo(root)).problems.filter((p) => p.where === ".mob-sdd/config.yaml")).toEqual([]);
     expect(removeSource(repo, "local").sources).toEqual([{ name: "mino", url: "https://y" }]);
     expect(removeSource(repo, "mino").sources).toEqual([]);
     expect(fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("openapi");
+  });
+
+  it("목록 안의 주석과 다른 항목의 주석을 남기고, 바꾼 항목은 제자리에서 url과 path를 맞바꾼다", async () => {
+    const root = tempRepo("openapi:\n  sources:\n    # 첫 출처\n    - name: a\n      url: https://a.io/x.json # a의 주석\n    - name: b\n      url: https://b.io/x.json\n# 끝\n");
+    const repo = openRepo(root);
+    fs.writeFileSync(path.join(root, "b.yaml"), "{}");
+    const json = fakeFetch(JSON.stringify(SPEC));
+    const read = () => fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
+    await addSource(repo, "c", { url: "https://c.io/x.json", fetchImpl: json });
+    expect(read()).toContain("    # 첫 출처\n    - name: a\n      url: https://a.io/x.json # a의 주석\n    - name: b\n");
+    expect(read()).toContain("    - name: c\n      url: https://c.io/x.json\n");
+    await addSource(repo, "b", { path: "b.yaml" });
+    expect(listSources(repo)).toEqual([{ name: "a", url: "https://a.io/x.json" }, { name: "b", path: "b.yaml" }, { name: "c", url: "https://c.io/x.json" }]);
+    removeSource(repo, "c");
+    expect(read()).toContain("# 첫 출처");
+    expect(read()).toContain("# a의 주석");
+    expect(read()).toContain("# 끝");
+    expect(listSources(repo).map((s) => s.name)).toEqual(["a", "b"]);
   });
 
   it("형식과 없는 파일, 없는 이름을 거부하고 깨진 설정은 고치라고 알린다", async () => {
@@ -226,6 +244,16 @@ describe("Swagger UI 페이지의 주소", () => {
     expect(offline.source.url).toBe("https://o.io/x");
     expect(offline.note).toContain("fetch failed");
   });
+
+  it("문서가 페이지 안에 들어 있으면 스크립트 주소가 아니라 페이지 주소를 저장한다", async () => {
+    const repo = openRepo(tempRepo(""));
+    const added = await addSource(repo, "i", { url: "https://i.io/api", fetchImpl: inline });
+    expect(added.source.url).toBe("https://i.io/api");
+    expect(added.resolvedFrom).toBeUndefined();
+    expect(added.note).toContain("페이지 주소를 그대로 저장했다");
+    const loaded = await loadSource(repo.root, added.source, inline, now);
+    expect(loaded.error).toBeUndefined();
+  });
 });
 
 describe("run", () => {
@@ -244,6 +272,7 @@ describe("run", () => {
     expect(() => runScript(repo, "sample", "../other.mjs", [])).toThrow(Refusal);
     expect(() => runScript(repo, "sample", "echo.js", [])).toThrow(/\.mjs/);
     expect(() => runScript(repo, "sample", "none.mjs", [])).toThrow(/스크립트가 없다/);
-    expect(() => runScript(repo, undefined, "echo.mjs", [])).toThrow(/확장 이름/);
+    expect(() => runScript(repo, undefined, "echo.mjs", [])).toThrow(/확장 이름.*받은 값: 없음/);
+    expect(() => runScript(repo, "Bad_Name", "echo.mjs", [])).toThrow(/받은 값: Bad_Name/);
   });
 });

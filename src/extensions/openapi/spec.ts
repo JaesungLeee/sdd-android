@@ -29,6 +29,8 @@ export function isHtml(text: string): boolean {
 export interface Discovered {
   /** 문서를 읽은 주소. 페이지 안에 든 문서면 그 스크립트의 주소다. */
   url: string;
+  /** 문서가 페이지의 스크립트 안에 들어 있다. 그 스크립트는 문서가 아니라 설정에 적을 주소가 못 된다. */
+  inline?: boolean;
   text: string;
   doc: Json;
 }
@@ -122,7 +124,7 @@ export async function discoverDocument(pageUrl: string, fetchImpl: Fetch): Promi
   const inline = init ? inlineSwaggerDoc(init) : undefined;
   if (inline) {
     try {
-      return { url: `${page}/swagger-ui-init.js`, text: inline, doc: parseSpec(inline) };
+      return { url: `${page}/swagger-ui-init.js`, inline: true, text: inline, doc: parseSpec(inline) };
     } catch {
       return undefined;
     }
