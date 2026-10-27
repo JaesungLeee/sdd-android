@@ -83,7 +83,7 @@ const USAGE = `mob-sdd <명령>
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
   openapi list|add|remove          OpenAPI 출처의 목록, 추가(--url이나 --path), 제거. config.yaml의 openapi.sources를 쓴다
-  run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (인자는 그대로 넘긴다)
+  run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (뒤의 인자는 --root까지 그대로 넘긴다)
   wiki index                       위키 색인을 다시 만든다
   wiki record <페이지>…            페이지의 원본 해시와 commit을 적고 색인을 다시 만든다
   wiki lint                        위키 점검의 계산 부분 (형식, 깨진 링크, 원본 없음, 낡음 후보, 고아, 색인)
@@ -125,6 +125,30 @@ const OPTIONS = {
 
 const SELF = fileURLToPath(import.meta.url);
 
+/**
+ * 첫 명령의 위치와 그 앞의 `--root`. 값을 받는 옵션(`--root X`)의 값은 명령이 아니다.
+ * `run` 뒤는 스크립트의 인자라 보지 않는다.
+ */
+function locateCommand(argv: string[]): { index: number; root?: string } {
+  let root: string | undefined;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] as string;
+    if (!arg.startsWith("-")) return { index: i, ...(root !== undefined ? { root } : {}) };
+    if (!arg.startsWith("--")) continue;
+    const eq = arg.indexOf("=");
+    const flag = arg.slice(2, eq < 0 ? undefined : eq);
+    const inline = eq < 0 ? undefined : arg.slice(eq + 1);
+    const option = (OPTIONS as Record<string, { type: string }>)[flag];
+    if (option?.type !== "string" || inline !== undefined) {
+      if (flag === "root" && inline !== undefined) root = inline;
+      continue;
+    }
+    if (flag === "root") root = argv[i + 1];
+    i += 1;
+  }
+  return { index: -1, ...(root !== undefined ? { root } : {}) };
+}
+
 function isInstalledBundle(): boolean {
   const binDir = path.dirname(SELF);
   return path.basename(binDir) === "bin" && path.basename(path.dirname(binDir)) === ".mob-sdd";
@@ -135,10 +159,10 @@ function isInstalledBundle(): boolean {
  * 판정은 언제나 저장소의 번들이 해야 팀원 사이에 결과가 어긋나지 않는다.
  */
 function delegate(argv: string[]): boolean {
-  const command = argv.find((arg) => !arg.startsWith("-"));
+  const located = locateCommand(argv);
+  const command = located.index >= 0 ? argv[located.index] : undefined;
   if (isInstalledBundle() || command === "init" || command === "upgrade" || argv.length === 0) return false;
-  const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 ? argv[rootFlag + 1] : (process.env.MOB_SDD_ROOT ?? findRoot(process.cwd()));
+  const root = located.root ?? process.env.MOB_SDD_ROOT ?? findRoot(process.cwd());
   if (!root) return false;
   const bundle = path.join(path.resolve(root), ".mob-sdd", "bin", "mob-sdd.mjs");
   if (!fs.existsSync(bundle) || fs.realpathSync(bundle) === fs.realpathSync(SELF)) return false;
@@ -529,14 +553,12 @@ async function main(): Promise<void> {
   const json = argv.includes("--json");
   try {
     if (delegate(argv)) return;
-    const first = argv.find((arg) => !arg.startsWith("-"));
-    // 스크립트의 인자는 이 CLI의 옵션이 아니다. 옵션 해석 전에 그대로 넘긴다.
+    const located = locateCommand(argv);
+    const first = located.index >= 0 ? argv[located.index] : undefined;
+    // 스크립트의 인자는 이 CLI의 옵션이 아니다. 옵션 해석 전에 그대로 넘긴다. `run` 뒤의 `--root`도 스크립트의 것이다.
     if (first === "run") {
-      const at = argv.indexOf("run");
-      const rootFlag = argv.indexOf("--root");
-      const explicitRoot = rootFlag >= 0 && rootFlag < at ? argv[rootFlag + 1] : undefined;
-      const [extension, script, ...args] = argv.slice(at + 1);
-      const result = runScript(openRepo(resolveRoot(explicitRoot)), extension, script, args);
+      const [extension, script, ...args] = argv.slice(located.index + 1);
+      const result = runScript(openRepo(resolveRoot(located.root)), extension, script, args);
       process.exitCode = result.status;
       return;
     }

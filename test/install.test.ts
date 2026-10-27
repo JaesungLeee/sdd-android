@@ -434,6 +434,13 @@ describe("번들", () => {
     expect(run(sub, "gate", "implement").stdout).toContain("login: 중단");
     expect(run(sub, "directives", "create-logic").stdout).toContain("확장 지시가 없다");
 
+    // 저장소 밖에서 `run` 앞의 --root를 공백과 = 두 형태로 받는다. 그 값을 명령으로 읽지 않는다.
+    const outside = tempDir("outside");
+    for (const args of [["--root", target], [`--root=${target}`]]) {
+      const ran = run(outside, ...args, "run", "nope", "x.mjs");
+      expect(ran.stderr, args.join(" ")).toContain("설치된 확장이 아니다: nope");
+    }
+
     // PATH에 node가 없는 셸에서도 실행 스크립트가 node를 찾아 판정을 낸다.
     const fakeHome = tempDir("home");
     fs.mkdirSync(path.join(fakeHome, ".local", "bin"), { recursive: true });
