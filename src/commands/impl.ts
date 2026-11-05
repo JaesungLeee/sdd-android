@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -14,6 +15,7 @@ import {
 } from "../core/breakdown.js";
 import {
   emptyCheckpoint,
+  implDir,
   isCheck,
   isCheckResult,
   isKind,
@@ -29,6 +31,7 @@ import {
   type Phase,
   type TaskRecord,
 } from "../core/checkpoint.js";
+import { commandFor, isMachineCheck, NO_COMMAND, requireImplChecks, type MachineCheck } from "../core/impl-config.js";
 import { assertFeatureName, docPath, loadDoc, loadDocs, Refusal, writeDoc, writeFile, type LoadedDoc, type Repo } from "../core/repo.js";
 import { currentVersions, describeReason, implementGate, type GateResult } from "./gate.js";
 
@@ -133,6 +136,8 @@ function lower(repo: Repo, context: Context, ids: string[]): string[] {
   const lowered = [...expanded].filter((id) => context.tasks.some((task) => task.id === id && task.checked));
   const final = finalChecked(context) ? [FINAL_ID] : [];
   writeChecks(repo, context, [...lowered, ...final], false);
+  // 다시 고칠 코드가 생겼으니 마지막 확인에서 돌린 결과는 더 이상 지금의 코드가 아니다.
+  if (lowered.length > 0) delete context.checkpoint.final;
   for (const id of lowered) {
     const rec = record(context, id);
     delete rec.checks;
@@ -233,6 +238,8 @@ export interface StartResult extends GateResult {
  */
 export function implStart(repo: Repo, feature: string, options: StartOptions): StartResult {
   requireBreakdown(repo, feature);
+  // 검사 명령이 없으면 첫 검증에서 막힌다. 코드를 쓰기 전에 드러나야 한다.
+  requireImplChecks(repo);
   const gate = implementGate(repo, feature);
   if (gate.mode === "done") throw new Refusal("마지막 확인 줄이 체크되어 있다. 이 feature의 구현은 끝났다. 작업을 더하려면 breakdown을 개정한다.");
   const reasons = gate.reasons.filter((reason) => reason.action === gate.action).map(describeReason).join(", ");
@@ -420,6 +427,7 @@ export function implReport(repo: Repo, feature: string, id: string, options: Rep
   }
 
   rec.status = "done";
+  delete checkpoint.final;
   if (options.modules) rec.modules = options.modules;
   if (options.files) rec.files = options.files;
   if (options.previews) rec.previews = options.previews;
@@ -475,8 +483,24 @@ export function parseChecks(values: string[]): Partial<Record<Check, CheckResult
     }
     checks[kind] = result;
   }
-  if (Object.keys(checks).length === 0) throw new Refusal("검사 결과가 필요하다: --check build=pass");
   return checks;
+}
+
+/**
+ * 인자로 받은 검사 결과 가운데 받을 수 없는 것을 거부한다. 빌드, Lint, 테스트의 통과는 `impl check`가 명령을 돌려 적은 것만 쓴다.
+ * 실패는 받는다(다른 작업의 파일을 지목할 때). 빌드와 테스트의 건너뜀도 받는다(환경 문제로 멈출 때). 체크를 올리지 못하기 때문이다.
+ * Lint의 건너뜀은 체크를 올리므로 받지 않는다. Lint가 없는 프로젝트는 설정에 `lint: none`으로 적는다.
+ */
+export function assertClaims(checks: Partial<Record<Check, CheckResult>>): void {
+  for (const [kind, result] of Object.entries(checks) as [Check, CheckResult][]) {
+    if (!isMachineCheck(kind)) continue;
+    if (result === "pass") {
+      throw new Refusal(`${CHECK_TEXT[kind]}의 통과는 인자로 적을 수 없다. impl check가 명령을 돌려 종료 코드로 적는다.`);
+    }
+    if (result === "skip" && kind === "lint") {
+      throw new Refusal("Lint의 건너뜀은 인자로 적을 수 없다. Lint 도구가 없는 프로젝트면 사용자가 mob-sdd impl setup --lint none으로 설정한다.");
+    }
+  }
 }
 
 function fillRound(rec: TaskRecord, kind: Check, result: CheckResult): void {
@@ -505,15 +529,20 @@ export function implVerify(repo: Repo, feature: string, id: string | undefined, 
     throw new Refusal(`${id}는 검증 대기인 테스트 작업이다. 연결된 구현 작업 ${task.until}의 테스트 게이트에서 함께 판정한다.`);
   }
   const rec = record(context, id);
-  rec.checks = { ...rec.checks, ...options.checks };
+  assertClaims(options.checks);
+  // impl check가 돌린 결과를 가져오고, 인자는 그 위에 얹는다(실패의 지목, 환경 문제의 건너뜀).
+  const incoming = { ...rec.runs, ...options.checks };
+  if (Object.keys(incoming).length === 0) throw new Refusal(`검사 결과가 없다. 빌드와 Lint, 테스트는 impl check ${context.feature} ${id}로 돌리고, 디자인은 --check design=결과로 적는다.`);
+  delete rec.runs;
+  rec.checks = { ...rec.checks, ...incoming };
   const gateTests = testsOn(context, id);
-  for (const [kind, result] of Object.entries(options.checks) as [Check, CheckResult][]) {
+  for (const [kind, result] of Object.entries(incoming) as [Check, CheckResult][]) {
     fillRound(rec, kind, result);
     if (kind === "test") for (const test of gateTests) fillRound(record(context, test.id), kind, result);
   }
 
   const result: VerifyResult = { task: id, checks: rec.checks, raised: [], lowered: [], redo: [], unmatched: [], missing: [], healed: [], blockedBySkip: [] };
-  const failed = (Object.entries(options.checks) as [Check, CheckResult][]).filter(([, value]) => value === "fail").map(([kind]) => kind);
+  const failed = (Object.entries(incoming) as [Check, CheckResult][]).filter(([, value]) => value === "fail").map(([kind]) => kind);
 
   if (failed.length > 0) {
     const { matched, unmatched } = matchFiles(context, options.files ?? []);
@@ -552,6 +581,8 @@ function verifyUnit(repo: Repo, context: Context, options: VerifyOptions): Verif
   if (!context.units.some((unit) => unit.name === name)) {
     throw new Refusal(`없는 단위다: ${name}. 단위는 ${context.units.map((unit) => unit.name).join(", ")}이다.`);
   }
+  assertClaims(options.checks);
+  if (Object.keys(options.checks).length === 0) throw new Refusal("단위 검증의 결과가 필요하다: --check principles=결과");
   const unit = (context.checkpoint.units[name] ??= {});
   unit.checks = { ...unit.checks, ...options.checks };
   const result: VerifyResult = { unit: name, checks: unit.checks, raised: [], lowered: [], redo: [], unmatched: [], missing: [], healed: [], blockedBySkip: [] };
@@ -568,6 +599,150 @@ function verifyUnit(repo: Repo, context: Context, options: VerifyOptions): Verif
   }
   save(repo, context);
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// check
+
+/** 명령 하나를 셸로 돌려 출력을 로그에 붙이고 종료 코드를 돌려준다. 시험에서는 바꿔 끼운다. */
+export type Exec = (command: string, cwd: string, log: number) => number;
+
+const shellExec: Exec = (command, cwd, log) => {
+  const result = spawnSync("sh", ["-c", command], { cwd, stdio: ["ignore", log, log] });
+  if (result.error) {
+    fs.writeSync(log, `실행하지 못했다: ${result.error.message}\n`);
+    return 127;
+  }
+  // 신호로 끝났으면 status가 없다. 통과가 아니다.
+  return result.status ?? 1;
+};
+
+export interface CheckOptions {
+  exec?: Exec;
+}
+
+export interface CheckRun {
+  kind: MachineCheck;
+  result: CheckResult;
+  commands: string[];
+  /** 저장소 루트 기준의 로그 경로. 건너뛴 검사는 없다. */
+  log?: string;
+  /** 실패일 때 로그에서 추린 줄. */
+  summary: string[];
+}
+
+export interface CheckRunResult {
+  feature: string;
+  task?: string;
+  final: boolean;
+  runs: CheckRun[];
+}
+
+const TEST_CLASS = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const LOG_SIGNAL = /^e: |error:|FAILED|What went wrong|Exception|AssertionError|expected/i;
+
+/** 테스트 작업의 경로에서 테스트 클래스를 뽑아 `--tests` 인자를 만든다. 디렉터리처럼 클래스를 알 수 없는 경로가 있으면 모듈의 테스트 전체다. */
+function testFilter(tasks: Task[]): string {
+  const classes: string[] = [];
+  for (const task of tasks) {
+    for (const file of task.paths) {
+      const match = /^(.+)\.(kt|java)$/.exec(path.posix.basename(file));
+      if (!match || !TEST_CLASS.test(match[1] as string)) return "";
+      classes.push(match[1] as string);
+    }
+  }
+  return [...new Set(classes)].map((name) => `--tests '*${name}'`).join(" ");
+}
+
+function render(template: string, module: string, tests: string): string {
+  return template.replaceAll("{module}", module).replaceAll("{tests}", tests).replace(/\s+/g, " ").trim();
+}
+
+function summarize(text: string): string[] {
+  const lines = text.split("\n").filter((line) => line.trim() !== "");
+  const signal = lines.filter((line) => LOG_SIGNAL.test(line)).slice(0, 20);
+  return signal.length > 0 ? signal : lines.slice(-15);
+}
+
+function runCheck(repo: Repo, feature: string, label: string, kind: MachineCheck, spec: ReturnType<typeof requireImplChecks>[MachineCheck], modules: string[], tests: string, exec: Exec): CheckRun {
+  if (spec === NO_COMMAND) return { kind, result: "skip", commands: [], summary: [] };
+  const commands = [...new Set(modules.map((module) => render(commandFor(spec, module), module, tests)))];
+  const dir = path.join(implDir(repo, feature), "logs");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${label}-${kind}.log`);
+  const log = fs.openSync(file, "w");
+  let failed = false;
+  try {
+    for (const command of commands) {
+      fs.writeSync(log, `$ ${command}\n`);
+      const code = exec(command, repo.root, log);
+      fs.writeSync(log, `\n[종료 코드 ${code}]\n`);
+      if (code !== 0) failed = true;
+    }
+  } finally {
+    fs.closeSync(log);
+  }
+  return {
+    kind,
+    result: failed ? "fail" : "pass",
+    commands,
+    log: path.relative(repo.root, file),
+    summary: failed ? summarize(fs.readFileSync(file, "utf8")) : [],
+  };
+}
+
+/** 작업들이 보고한 모듈. 순서를 지키고 겹침을 없앤다. */
+function modulesOf(context: Context, ids: string[]): string[] {
+  return [...new Set(ids.flatMap((id) => context.checkpoint.tasks[id]?.modules ?? []))];
+}
+
+/**
+ * 기계 검사(빌드, Lint, 테스트)를 CLI가 돌린다. 명령은 설정의 `impl.checks`이고 판정은 종료 코드다.
+ * 작업을 주면 그 작업의 검사를 돌려 다음 `impl verify`가 가져가게 적는다. `--final`이면 feature가 바꾼 모든 모듈에 테스트 전체를 돌려 마지막 확인에 적는다.
+ * 빌드가 실패하면 테스트는 돌리지 않는다. 테스트 소스의 컴파일이 같은 이유로 실패할 뿐이다.
+ */
+export function implCheck(repo: Repo, feature: string, id: string | undefined, options: CheckOptions = {}): CheckRunResult {
+  const checks = requireImplChecks(repo);
+  const context = load(repo, feature);
+  const exec = options.exec ?? shellExec;
+  const runs: CheckRun[] = [];
+  const run = (label: string, kind: MachineCheck, modules: string[], tests = "") => {
+    const done = runCheck(repo, feature, label, kind, checks[kind], modules, tests, exec);
+    runs.push(done);
+    return done;
+  };
+
+  if (id === undefined) {
+    const open = liveTasks(context.tasks).filter((task) => !task.checked).map((task) => task.id);
+    if (open.length > 0) throw new Refusal(`체크되지 않은 작업이 있어 마지막 확인을 돌리지 않는다: ${open.join(", ")}`);
+    const modules = modulesOf(context, liveTasks(context.tasks).map((task) => task.id));
+    if (modules.length === 0) throw new Refusal("작업들이 보고한 모듈이 없다. 구현 보고(impl report --modules)에 모듈이 적혀야 검사를 돌릴 수 있다.");
+    const build = run("final", "build", modules);
+    run("final", "lint", modules);
+    if (build.result !== "fail") run("final", "test", modules);
+    context.checkpoint.final = { runs: Object.fromEntries(runs.map((done) => [done.kind, done.result])) };
+    save(repo, context);
+    return { feature, final: true, runs };
+  }
+
+  findTask(context, id);
+  if (context.checkpoint.waiting.includes(id)) {
+    throw new Refusal(`${id}는 검증 대기인 테스트 작업이다. 연결된 구현 작업의 검사에서 함께 돌린다.`);
+  }
+  const rec = record(context, id);
+  const modules = rec.modules ?? [];
+  if (modules.length === 0) throw new Refusal(`${id}가 보고한 모듈이 없다. impl report ${feature} ${id} --modules로 바꾼 모듈을 적은 뒤 돌린다.`);
+  const build = run(id, "build", modules);
+  run(id, "lint", modules);
+  const tests = testsOn(context, id);
+  if (tests.length > 0 && build.result !== "fail") {
+    const testModules = modulesOf(context, tests.map((test) => test.id));
+    run(id, "test", testModules.length > 0 ? testModules : modules, testFilter(tests));
+  }
+  rec.runs = Object.fromEntries(runs.map((done) => [done.kind, done.result]));
+  delete context.checkpoint.final;
+  save(repo, context);
+  return { feature, task: id, final: false, runs };
 }
 
 // ---------------------------------------------------------------------------
@@ -668,13 +843,16 @@ export function implFinal(repo: Repo, feature: string, options: FinalOptions): F
   if (options.result === "pass") {
     const open = liveTasks(context.tasks).filter((task) => !task.checked).map((task) => task.id);
     if (open.length > 0) throw new Refusal(`체크되지 않은 작업이 있어 마지막 확인을 올릴 수 없다: ${open.join(", ")}`);
-    const checks = options.checks ?? {};
+    assertClaims(options.checks ?? {});
+    // 빌드, Lint, 테스트는 impl check --final이 돌린 결과다. 인자로는 원칙과 디자인을 적는다.
+    const checks = { ...context.checkpoint.final?.runs, ...options.checks };
     const failed = (Object.entries(checks) as [Check, CheckResult][]).filter(([, value]) => value === "fail").map(([kind]) => CHECK_TEXT[kind]);
     if (failed.length > 0) throw new Refusal(`실패한 검사가 있다: ${failed.join(", ")}. 통과로 올릴 수 없고 --result fail --failure로 적는다.`);
     const missing = finalChecks(repo, context).filter((kind) => !satisfied(kind, checks[kind]));
     if (missing.length > 0) {
+      const machine = missing.some((kind) => isMachineCheck(kind)) ? ` 빌드, Lint, 테스트는 impl check ${feature} --final로 돌린다. 빌드와 테스트는 건너뜀으로 올릴 수 없다.` : "";
       const hint = missing.includes("design") ? " 디자인은 verify-ui의 캡처의 대조다(Figma 노드가 있는 ui 작업이 있다)." : "";
-      throw new Refusal(`마지막 확인에 빠진 검사: ${missing.map((kind) => CHECK_TEXT[kind]).join(", ")}. 돌린 결과를 --check {검사}=pass|skip으로 모두 적는다. 빌드와 테스트는 건너뜀으로 올릴 수 없다.${hint}`);
+      throw new Refusal(`마지막 확인에 빠진 검사: ${missing.map((kind) => CHECK_TEXT[kind]).join(", ")}. 원칙과 디자인은 돌린 결과를 --check {검사}=pass|skip으로 적는다.${machine}${hint}`);
     }
     writeChecks(repo, context, [FINAL_ID], true);
     const checkpoint = context.checkpoint;
@@ -686,6 +864,7 @@ export function implFinal(repo: Repo, feature: string, options: FinalOptions): F
   const { matched, unmatched } = matchFiles(context, options.files ?? []);
   const lowered = lower(repo, context, [...matched.keys()]);
   if (matched.size === 0) recordFailure(repo, context, undefined, options.failure, "final", options.today, options.files ?? [], options.symptom);
+  delete context.checkpoint.final;
   for (const [id, files] of matched) recordFailure(repo, context, id, options.failure, "final", options.today, files, options.symptom);
   delete context.checkpoint.current;
   save(repo, context);
@@ -794,6 +973,24 @@ export function formatVerify(result: VerifyResult): string {
   const notYet = result.missing.filter((kind) => !result.blockedBySkip.includes(kind));
   if (notYet.length > 0) lines.push(`아직 돌리지 않은 검사: ${notYet.map((kind) => CHECK_TEXT[kind]).join(", ")}`);
   if (result.healed.length > 0) lines.push(`두 번 이상 시도한 끝에 치유된 실패를 failures.md에 적었다: ${result.healed.map((kind) => CHECK_TEXT[kind]).join(", ")}`);
+  return lines.join("\n");
+}
+
+export function formatCheck(result: CheckRunResult): string {
+  const lines = [`${result.final ? "마지막 확인" : result.task}: CLI가 검사를 돌렸다`];
+  for (const run of result.runs) {
+    if (run.result === "skip") {
+      lines.push(`- ${CHECK_TEXT[run.kind]}: 건너뜀 (설정이 none이다)`);
+      continue;
+    }
+    lines.push(`- ${CHECK_TEXT[run.kind]}: ${RESULT_TEXT[run.result]} (명령 ${run.commands.length}개, 로그 ${run.log})`);
+    for (const line of run.summary) lines.push(`    ${line}`);
+  }
+  lines.push(
+    result.final
+      ? `다음: 원칙과 디자인을 돌린 뒤 impl final ${result.feature} --result pass|fail로 적는다. 이 결과는 인자로 다시 적지 않는다.`
+      : `다음: impl verify ${result.feature} ${result.task}로 판정을 적는다. 이 결과는 인자로 다시 적지 않는다. 실패를 다른 작업의 파일로 지목하려면 --check {검사}=fail --files를 더한다.`,
+  );
   return lines.join("\n");
 }
 

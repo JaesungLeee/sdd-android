@@ -9,6 +9,7 @@ import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
 import { validateSources } from "../extensions/openapi/config.js";
+import { validateImplChecks } from "../core/impl-config.js";
 import { parse } from "yaml";
 import { duplicateItems } from "./doc.js";
 import { knownStages } from "./extension.js";
@@ -102,6 +103,7 @@ function checkInstall(repo: Repo, add: Add, assets?: Assets): void {
     }
   }
   checkOpenApi(repo, add);
+  checkImpl(repo, add, "android" in (manifest.extensions ?? {}));
   for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
     const dir = path.join(repo.root, ".mob-sdd", "extensions", name);
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
@@ -128,6 +130,23 @@ function checkOpenApi(repo: Repo, add: Add): void {
     for (const source of validateSources(raw)) {
       if (source.path && !fs.existsSync(path.join(repo.root, source.path))) add("error", where, `openapi 출처 ${source.name}의 파일이 없다: ${source.path}`);
     }
+  } catch (error) {
+    add("error", where, error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** `impl.checks`의 형식. 구현 단계(android)가 설치되어 있는데 없으면 알린다. 명령은 돌리지 않는다. */
+function checkImpl(repo: Repo, add: Add, installed: boolean): void {
+  const where = ".mob-sdd/config.yaml";
+  let raw: unknown;
+  try {
+    raw = (parse(fs.readFileSync(path.join(repo.root, where), "utf8")) as { impl?: unknown } | null)?.impl;
+  } catch {
+    return;
+  }
+  try {
+    const { checks, missing } = validateImplChecks(raw);
+    if (!checks && installed) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. mob-sdd impl setup으로 정한다. 없으면 impl start가 거부한다`);
   } catch (error) {
     add("error", where, error instanceof Error ? error.message : String(error));
   }

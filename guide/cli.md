@@ -19,6 +19,7 @@
 | `extension list\|add\|remove`, `preset list\|add\|remove` | 확장의 목록, 설치(내장 이름이나 로컬 경로), 제거 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
 | `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
+| `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`. [구현 단계](implementation.md#기계-검사) |
 | `run <확장> <스크립트> [인자…]` | 확장의 `scripts/` 아래 `.mjs`를 실행한다. 스킬이 부르지만 사람이 쳐도 된다. [OpenAPI 대조](openapi.md) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.
@@ -35,6 +36,7 @@
 | `doc restore <단계> [feature] [--from <커밋>]` | 단계 스킬 | 병합 뒤 메타데이터와 해시를 `HEAD` 쪽으로 되돌린다 |
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
+| `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 테스트를 CLI가 돌려 종료 코드로 적는다 |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
 | `wiki index\|record\|lint\|sources\|category add` | `wiki-ingest`, `wiki-lint` | 위키의 색인, 원본 해시 기록, 점검 계산, 미수집 원본, 갈래 추가 |
 
@@ -60,7 +62,7 @@
 | `templates/*.md` | 한다 | 된다. 고친 파일은 `upgrade`가 보존한다 |
 | `hashes/` | 한다 | 아니다. 문서의 본문 해시 |
 | `extensions/{이름}/` | 한다 | 확장의 스킬이 아닌 파일(선언, 지시, 스크립트) |
-| `impl/{feature}/` | 안 한다 | 아니다. 구현 단계의 체크포인트, 디자인 분석, 캡처 |
+| `impl/{feature}/` | 안 한다 | 아니다. 구현 단계의 체크포인트, 기계 검사의 로그, 디자인 분석, 캡처 |
 | `backup/{날짜}/` | 한다 | `init`에서 백업을 고른 경우에만 생긴다 |
 | `.gitignore`, `.gitattributes` | 한다 | 아니다. `config.local.yaml`을 무시하고 실행 스크립트를 LF로 고정한다 |
 
@@ -78,7 +80,7 @@ wiki:                 # 위키 갈래 가운데 사용자가 더한 것. 기본 
     domain: 도메인 용어와 업무 규칙
 ```
 
-`openapi.sources`는 [OpenAPI 대조](openapi.md)에 있다.
+`openapi.sources`는 [OpenAPI 대조](openapi.md)에, `impl.checks`는 [구현 단계](implementation.md#기계-검사)에 있다.
 
 ### `config.local.yaml`
 
@@ -117,3 +119,4 @@ figma:
 - breakdown: 작업 줄의 형식, 작업마다 경로가 있는지, `until`이 가리키는 작업이 있고 테스트 작업이 그보다 앞에 있는지, 마지막 확인 줄의 상태.
 - Figma: spec에 Figma 줄이 있는 feature가 있는데 개인 설정이 없으면 경고.
 - OpenAPI: `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다.
+- 구현 단계: `impl.checks`의 형식. `android`가 설치됐는데 없으면 경고. 명령은 돌리지 않는다.

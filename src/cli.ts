@@ -22,6 +22,7 @@ import { formatHookOutput, hookWrite, hookWriteScoped, isHookScope } from "./com
 import {
   formatAssign,
   formatAttempt,
+  formatCheck as formatImplCheck,
   formatFinal,
   formatNext,
   formatReport,
@@ -30,6 +31,7 @@ import {
   formatVerify,
   implAssign,
   implAttempt,
+  implCheck,
   implFinal,
   implNext,
   implReport,
@@ -40,6 +42,7 @@ import {
   parseChecks,
 } from "./commands/impl.js";
 import { isCheck, type Check } from "./core/checkpoint.js";
+import { implSetup, MACHINE_CHECKS } from "./core/impl-config.js";
 import { loadAssets } from "./core/assets.js";
 import { addExtension, directives, formatAdd, formatDirectives, formatList, formatRemove, listExtensions, removeExtension, resolveBundle } from "./commands/extension.js";
 import { init, type InitOptions } from "./commands/init.js";
@@ -77,9 +80,11 @@ const USAGE = `mob-sdd <명령>
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
   impl next <feature>              다음 작업과 종류, 단계
   impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
-  impl verify <feature> [작업]     검증 결과 (--check 종류=결과…, --files, --unit)
+  impl setup                       기계 검사의 명령을 config.yaml에 적는다 (--build, --lint <명령|none>, --test)
+  impl check <feature> [작업]      CLI가 빌드, Lint, 테스트를 돌려 종료 코드로 적는다 (--final이면 마지막 확인)
+  impl verify <feature> [작업]     검증 결과를 판정한다. 빌드·Lint·테스트는 impl check의 결과를 쓴다 (--check 디자인·원칙=결과, 실패 지목, --files, --unit)
   impl attempt <feature> <작업>    치유 직전에 시도를 센다 (--failure, --symptom, --note)
-  impl final <feature>             마지막 확인 (--result pass|fail, 통과면 --check 검사=pass|skip 모두, 실패면 --files, --failure, --symptom)
+  impl final <feature>             마지막 확인 (--result pass|fail, 통과면 impl check --final 뒤에 --check 원칙·디자인=pass|skip, 실패면 --files, --failure, --symptom)
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
   openapi list|add|remove          OpenAPI 출처의 목록, 추가(--url이나 --path), 제거. config.yaml의 openapi.sources를 쓴다
@@ -109,6 +114,10 @@ const OPTIONS = {
   symptom: { type: "string" },
   note: { type: "string" },
   result: { type: "string" },
+  final: { type: "boolean", default: false },
+  build: { type: "string" },
+  lint: { type: "string" },
+  test: { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
@@ -281,6 +290,11 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
   }
   if (command === "impl") {
     const [action, featureArg, taskArg] = rest;
+    if (action === "setup") {
+      const result = implSetup(repo, { build: values.build, lint: values.lint, test: values.test });
+      const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
+      return { text: ["구현 단계의 검사 명령 (.mob-sdd/config.yaml의 impl.checks):", ...lines].join("\n"), data: result };
+    }
     const feature = requireFeatureArg(featureArg);
     const today = write.today;
     switch (action) {
@@ -310,6 +324,12 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
           note: values.note,
         });
         return { text: formatReport(result), data: result };
+      }
+      case "check": {
+        if (values.final && taskArg) throw new Refusal("--final은 작업 없이 feature 전체를 돌린다");
+        if (!values.final && !taskArg) throw new Refusal("작업 ID가 필요하다. 마지막 확인이면 --final");
+        const result = implCheck(repo, feature, values.final ? undefined : taskArg);
+        return { text: formatImplCheck(result), data: result };
       }
       case "verify": {
         const result = implVerify(repo, feature, taskArg, { today, checks: parseChecks(values.check), files: splitList(values.files), unit: values.unit });
@@ -343,7 +363,7 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
         return { text: formatShow(result), data: result };
       }
     }
-    throw new Refusal("impl 명령은 start, assign, next, report, verify, attempt, final, reset, show 가운데 하나다");
+    throw new Refusal("impl 명령은 setup, start, assign, next, report, check, verify, attempt, final, reset, show 가운데 하나다");
   }
   if (command === "extension" || command === "preset") {
     const assets = loadAssets(SELF);

@@ -5,6 +5,7 @@
 ```sh
 npx mob-sdd init --extension android     # 처음 설치할 때
 npx mob-sdd extension add android        # 이미 설치된 저장소에 더할 때
+npx mob-sdd impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 명령. Lint가 없으면 --lint none
 ```
 
 스택 전제는 Kotlin, Gradle, Jetpack Compose까지다. 아키텍처 패턴(MVI, MVVM 등), DI, 모듈 구조 같은 프로젝트 고유의 규약은 스킬에 없다. constitution에 적어야 구현이 따르고 검증이 잡는다.
@@ -19,7 +20,7 @@ npx mob-sdd extension add android        # 이미 설치된 저장소에 더할 
 | | `create-logic` | 도메인과 데이터 계층 |
 | | `create-ui` | 화면, 상태, 디자인 토큰, 공용 컴포넌트. 화면과 상태마다 프리뷰를 만든다 |
 | | `create-structure` | 모듈 골격, 빌드 구성, 화면 전환과 DI의 배선 |
-| 검증 | `verify-build` | 바꾼 모듈의 빌드, Lint, 테스트 |
+| 검증 | `verify-build` | CLI가 돌린 빌드, Lint, 테스트의 실패를 읽어 분류한다 |
 | | `verify-ui` | 코드의 값과 Figma의 대조, 기기 캡처와 Figma 스크린샷의 대조 |
 | | `verify-principles` | constitution 위반과 작업에 없는 변경 |
 | 치유 | `heal-build` | 빌드와 Lint 실패. import, 타입, null 안전성 같은 기계적 수정만 한다 |
@@ -45,11 +46,41 @@ npx mob-sdd extension add android        # 이미 설치된 저장소에 더할 
 2. **배정**: 체크되지 않은 모든 작업에 종류(`test`, `logic`, `ui`, `structure`)를 하나씩 정해 체크포인트에 기록하고 배정표를 보여 준다. 승인은 묻지 않는다. 어느 종류에도 맞지 않거나 두 종류에 걸치는 작업이 있으면 시작하지 않고 breakdown 개정을 안내한다.
 3. **디자인 분석**: spec에 Figma 줄이 있으면 `design-inspector`를 한 번 부른다. 열리지 않는 노드와 화면이 아닌 노드는 이때 한꺼번에 묻는다.
 4. **작업**: 다음 작업을 받아 종류에 맞는 `create-*`를 부른다.
-5. **작업 검증**: `verify-build`를 부른다. `ui` 작업이면 `verify-ui`의 값의 대조도 부른다. 테스트 작업은 검증 대기로 두고 넘어간다.
+5. **작업 검증**: `verify-build`를 부른다. 빌드, Lint, 테스트는 CLI가 `impl check`로 직접 돌려 종료 코드로 적는다(「기계 검사」). `ui` 작업이면 `verify-ui`의 값의 대조도 부른다. 테스트 작업은 검증 대기로 두고 넘어간다.
 6. **치유**: 실패하면 `heal-*`를 부르거나, 디자인 불일치와 원칙 위반은 차이 목록과 함께 `create-*`로 되돌린다. 다시 검증한다.
 7. **체크**: 검증을 통과한 작업을 CLI가 breakdown에 체크한다.
 8. **단위 검증**: 스토리가 끝나면 `verify-principles`를 돌리고, UI 작업이 있었으면 캡처의 대조를 돌린다. 실패하면 해당 작업의 체크를 내리고 6으로 간다. 통과하면 멈춘다.
-9. **마지막 확인**: 모든 작업이 끝나면 feature 전체에 빌드, Lint, 테스트, 원칙 감사, 캡처의 대조를 돌린다. 여기서는 고치지 않는다. 실패가 있으면 대응하는 작업의 체크를 내리고 끝낸다. 없으면 마지막 확인 줄(`FINAL`)을 체크하고 체크포인트를 지운다.
+9. **마지막 확인**: 모든 작업이 끝나면 feature 전체에 빌드, Lint, 테스트(`impl check --final`), 원칙 감사, 캡처의 대조를 돌린다. 여기서는 고치지 않는다. 실패가 있으면 대응하는 작업의 체크를 내리고 끝낸다. 없으면 마지막 확인 줄(`FINAL`)을 체크하고 체크포인트를 지운다.
+
+## 기계 검사
+
+빌드, Lint, 테스트의 통과와 실패는 CLI가 정한다. 에이전트가 "통과했다"고 보고하는 것만으로는 체크가 오르지 않는다.
+
+- 명령은 `.mob-sdd/config.yaml`의 `impl.checks`에 있다. 커밋하는 설정이라 팀이 같은 검사를 돌린다. `impl setup`이 적고, 손으로 고쳐도 된다.
+
+```yaml
+impl:
+  checks:
+    build: "./gradlew {module}:compileDebugKotlin"
+    lint: "./gradlew {module}:detekt"                  # Lint 도구가 없으면 none
+    test: "./gradlew {module}:testDebugUnitTest {tests}"
+    # 모듈마다 다른 명령: "*"가 기본이다
+    # build:
+    #   "*": "./gradlew {module}:compileDebugKotlin"
+    #   ":core:domain": "./gradlew {module}:compileKotlin"
+```
+
+- `{module}`은 구현 보고(`impl report --modules`)의 모듈이고, 모듈마다 한 번씩 돈다. `{tests}`는 그 작업에 연결된 테스트 작업의 클래스(`--tests '*LoginTest'`)다. 테스트 작업의 경로가 디렉터리면 모듈의 테스트 전체이고, 마지막 확인에서는 비어 있다.
+- `impl check {feature} {작업}`이 빌드, Lint, 연결된 테스트를 돌린다. 빌드가 실패하면 테스트는 돌지 않는다. 출력은 `.mob-sdd/impl/{feature}/logs/`에 남는다. 결과는 다음 `impl verify`가 가져가 판정한다.
+- `impl verify`와 `impl final`은 빌드, Lint, 테스트의 통과를 인자로 받지 않는다. 받는 것은 실패의 지목(다른 작업의 파일)과, 환경 문제로 분류한 빌드·테스트의 건너뜀뿐이다. 둘 다 체크를 올리지 못한다.
+- Lint의 건너뜀은 설정의 `lint: none`으로만 된다. 빌드와 테스트는 `none`으로 둘 수 없다.
+- 마지막 확인은 `impl check {feature} --final`의 결과를 쓴다. 그 뒤 구현 보고가 오거나 체크가 내려가면 결과는 지워지고 다시 돌려야 한다.
+- 설정이 없으면 `impl start`가 거부한다. `check`는 `android`가 설치됐는데 설정이 없으면 경고한다.
+
+주의할 것:
+- **이미 있던 Lint 위반**: Lint는 모듈 단위로 돈다. 이번 작업과 무관한 기존 위반이 있으면 모든 작업이 Lint 실패가 된다. detekt의 baseline처럼 기존 위반을 빼는 설정을 먼저 둔다.
+- **시간 제한**: 스킬의 셸 명령은 Claude Code의 시간 제한(기본 2분, 최대 10분)을 넘으면 끊긴다. 끊기면 결과가 적히지 않아 체크도 오르지 않는다. 처음 빌드가 오래 걸리는 저장소는 `BASH_DEFAULT_TIMEOUT_MS`와 `BASH_MAX_TIMEOUT_MS`를 늘린다.
+- **판정의 한계**: 이 장치는 에이전트가 착각이나 편의로 통과를 적는 것을 막는다. 셸 명령으로 체크포인트를 직접 고치는 것까지 막지는 못한다.
 
 ## 체크의 뜻
 
@@ -89,7 +120,7 @@ npx mob-sdd extension add android        # 이미 설치된 저장소에 더할 
 
 ## 체크포인트
 
-- `.mob-sdd/impl/{feature}/checkpoint.yaml`. 커밋하지 않는다. CLI가 디렉터리 안에 `.gitignore`를 둔다.
+- `.mob-sdd/impl/{feature}/checkpoint.yaml`. 기계 검사의 로그는 같은 디렉터리의 `logs/`에 있다. 커밋하지 않는다. CLI가 디렉터리 안에 `.gitignore`를 둔다.
 - 배정, 진행 중인 작업의 단계, 바꾼 모듈, 검증 결과, 시도 횟수, 검증 대기인 테스트 작업을 담는다. 완료의 기준은 breakdown의 체크뿐이다.
 - 다시 부르면 체크된 작업을 건너뛰고 진행 중이던 작업의 단계에서 이어 간다. 그 사이 코드를 손으로 고쳤을 수 있으므로 검증부터 다시 한다.
 - 커밋되지 않으므로 다른 기기에서 이어 가면 남은 작업의 배정을 다시 판단한다. 체크된 작업에는 영향이 없다.

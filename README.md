@@ -20,6 +20,7 @@
 ```sh
 npx mob-sdd init                                     # 코어: constitution부터 analyze까지
 npx mob-sdd init --extension android --extension wiki  # Android 구현 단계와 위키를 함께
+npx mob-sdd impl setup --lint "./gradlew {module}:detekt" # 구현 단계가 돌릴 검사 명령 (Lint가 없으면 --lint none)
 npx mob-sdd@latest upgrade                           # 새 버전으로 올린다
 ```
 

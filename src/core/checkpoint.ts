@@ -33,6 +33,8 @@ export interface TaskRecord {
   /** UI 작업이 만든 Compose 프리뷰 함수의 전체 이름. 캡처의 대조가 그대로 쓴다. */
   previews?: string[];
   checks?: Partial<Record<Check, CheckResult>>;
+  /** `impl check`가 돌린 기계 검사의 결과. 다음 `impl verify`가 가져가 판정한다. */
+  runs?: Partial<Record<Check, CheckResult>>;
   attempts?: Partial<Record<Check, Attempts>>;
 }
 
@@ -55,6 +57,8 @@ export interface Checkpoint {
   waiting: string[];
   /** 사람에게 넘긴 작업. */
   handed: string[];
+  /** 마지막 확인에서 `impl check --final`이 돌린 기계 검사의 결과. 코드가 바뀌면(보고, 체크를 내림) 지운다. */
+  final?: { runs: Partial<Record<Check, CheckResult>> };
 }
 
 export const MAX_ROUNDS = 3;
@@ -106,6 +110,7 @@ export function readCheckpoint(repo: Repo, feature: string): Checkpoint | undefi
     units: raw.units ?? {},
     waiting: raw.waiting ?? [],
     handed: raw.handed ?? [],
+    ...(raw.final?.runs ? { final: raw.final } : {}),
   };
 }
 

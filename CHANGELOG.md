@@ -2,6 +2,14 @@
 
 `upgrade`가 설치된 버전부터 새 버전까지의 항목을 보여 준다. 제목은 `## 버전` 형태로 쓴다.
 
+## 0.5.0
+
+- 구현 단계의 빌드, Lint, 테스트를 CLI가 돌린다. 새 명령 `impl check <feature> <작업>`과 `impl check <feature> --final`이 `config.yaml`의 `impl.checks` 명령을 실행해 종료 코드로 적고, 로그를 `.mob-sdd/impl/{feature}/logs/`에 남긴다. `verify-build`는 명령을 직접 돌리지 않고 이 결과의 실패를 분류한다.
+- **동작 변경**: `impl verify`와 `impl final`이 빌드, Lint, 테스트의 통과(`--check build=pass` 등)와 Lint의 건너뜀을 인자로 받지 않는다. 실패의 지목과 빌드·테스트의 건너뜀은 받는다. Lint를 건너뛰려면 설정에 `lint: none`을 명시한다.
+- **동작 변경**: `impl start`가 `impl.checks`가 없으면 거부한다. 올린 뒤 `npx mob-sdd impl setup --lint <명령|none>`으로 정한다. 빌드와 테스트는 기본값(`compileDebugKotlin`, `testDebugUnitTest`)이 있다. 진행 중인 체크포인트는 그대로 이어지며, 다음 검증부터 CLI가 검사를 돌린다.
+- `impl setup`: 검사 명령을 설정에 적는다. 모듈마다 다른 명령은 `"*"`를 기본으로 하는 묶음으로 손으로 적는다.
+- `check`가 `impl.checks`의 형식을 보고, `android`가 설치됐는데 없으면 경고한다.
+
 ## 0.4.0
 
 - 내장 확장 `wiki`: 지식 계층의 위키(`docs/wiki/`). 스킬 `wiki-ingest`(수집)와 `wiki-lint`(점검). constitution, blueprint, `android`의 `create-*`와 `heal-*`에 위키를 읽는 지시를 더한다. 두 스킬은 위키 아래만 쓰며 `hook write --scope wiki`가 그 밖의 문서 쓰기를 막는다.
