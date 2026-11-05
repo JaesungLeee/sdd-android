@@ -104,7 +104,7 @@ describe("기록과 색인", () => {
     expect(result.commit).toBe(head);
     expect(result.pages[0]?.sources).toEqual([{ path: "core/", sha256: hashSource(repo, "core/") }, { path: "core/없음.kt" }]);
     const text = read("docs/wiki/architecture/modules.md");
-    expect(text).toMatch(/^---\ntitle: 모듈 구조\nsummary: 모듈 구조의 요약\nsources:\n  - path: core\/\n    sha256: [0-9a-f]{64}\n  - path: core\/없음.kt\ncommit: [0-9a-f]+\n---\n\[개요\]/);
+    expect(text).toMatch(/^---\ntitle: 모듈 구조\nsummary: 모듈 구조의 요약\nsources:\n  - path: core\/\n    sha256: [0-9a-f]{64}\n  - path: core\/없음.kt\ncommit: "?[0-9a-f]+"?\n---\n\[개요\]/);
     const index = read("docs/wiki/index.md");
     expect(index).toContain("## architecture");
     expect(index).toContain("- [모듈 구조](architecture/modules.md): 모듈 구조의 요약");
@@ -171,7 +171,8 @@ describe("낡음 판정", () => {
     git("merge", "--squash", "topic");
     commit("squash");
     git("branch", "-D", "topic");
-    expect(read("docs/wiki/architecture/overview.md")).toContain(`commit: ${topic}`);
+    // 숫자로만 된 짧은 해시는 YAML이 숫자로 읽지 않게 따옴표를 붙여 쓴다
+    expect(read("docs/wiki/architecture/overview.md")).toMatch(new RegExp(`^commit: "?${topic}"?$`, "m"));
     expect(problems("stale")).toEqual([]);
     write("core/B.kt", "class B2\n");
     expect(problems("stale")[0]?.commitInHistory).toBe(false);
