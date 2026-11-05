@@ -22,7 +22,7 @@ import {
 } from "../src/commands/impl.js";
 import { implSetup } from "../src/core/impl-config.js";
 import { status } from "../src/commands/status.js";
-import { matchTasks, parseTasks, setChecked, splitUnits } from "../src/core/breakdown.js";
+import { matchTasks, parseTasks, setChecked, splitUnits, validateTasks } from "../src/core/breakdown.js";
 import { checkpointPath, readCheckpoint } from "../src/core/checkpoint.js";
 import { docPath, loadDoc, openRepo, Refusal, type Repo } from "../src/core/repo.js";
 
@@ -140,6 +140,13 @@ describe("breakdown의 계산", () => {
       ["US2", ["T005"]],
       ["tail", ["T006"]],
     ]);
+  });
+
+  it("떨어진 스토리는 같은 이름의 단위 둘이 되므로 오류다", () => {
+    const tasks = parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 [US2] b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] FINAL 끝\n");
+    expect(validateTasks(tasks)).toEqual(["3행: US1의 작업이 다른 스토리 뒤에 다시 나온다. 한 스토리의 작업은 한곳에 모은다"]);
+    // 스토리 밖의 작업이 사이에 있는 것은 떨어진 것이 아니다
+    expect(validateTasks(parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] FINAL 끝\n"))).toEqual([]);
   });
 
   it("파일은 가장 긴 경로로 맞은 작업에 대응한다", () => {

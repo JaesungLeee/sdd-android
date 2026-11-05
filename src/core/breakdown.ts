@@ -88,6 +88,28 @@ export function validateTasks(tasks: Task[]): string[] {
       problems.push(`${task.line}행: ${task.id}는 연결된 구현 작업 ${task.until}보다 앞에 있어야 한다`);
     }
   }
+  problems.push(...scatteredStories(tasks));
+  return problems;
+}
+
+/**
+ * 한 스토리의 작업이 다른 스토리를 사이에 두고 떨어져 있는 곳. 단위는 이름으로 기록되므로
+ * 떨어진 두 무리가 같은 이름의 단위 둘이 되어 검증 기록이 섞인다.
+ */
+function scatteredStories(tasks: Task[]): string[] {
+  const problems: string[] = [];
+  const closed = new Set<string>();
+  let current: string | undefined;
+  for (const task of liveTasks(tasks)) {
+    const name = task.story;
+    if (!name || name === current) continue;
+    if (current) closed.add(current);
+    if (closed.has(name)) {
+      problems.push(`${task.line}행: ${name}의 작업이 다른 스토리 뒤에 다시 나온다. 한 스토리의 작업은 한곳에 모은다`);
+      closed.delete(name);
+    }
+    current = name;
+  }
   return problems;
 }
 

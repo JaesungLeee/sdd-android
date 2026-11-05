@@ -12,6 +12,7 @@
 - 선택 검사 `impl.checks.rules`: Lint 밖의 규칙 도구(Konsist 등)를 CLI가 작업마다와 마지막 확인에서 돌린다. 실패 종류 `rules`.
 - `verify-principles`는 도구 줄이 없는 원칙만 감사하고, 원칙마다 확인한 곳이나 닿지 않는 이유를 보고한다.
 - `android`의 새 스킬 `sync-rules`: 원칙의 검사를 detekt, ktlint, Konsist의 규칙으로 옮긴다. constitution은 고치지 않는다.
+- **동작 변경**: breakdown에서 한 스토리의 작업이 다른 스토리를 사이에 두고 다시 나오면 `check`가 오류로 본다. 같은 이름의 단위가 둘 생겨 단위 검증의 기록이 섞이던 문제다. 끝난 스토리에 작업을 더할 때는 그 스토리 섹션 안에 넣는다.
 - `impl setup`: 검사 명령을 설정에 적는다. 모듈마다 다른 명령은 `"*"`를 기본으로 하는 묶음으로 손으로 적는다.
 - `check`가 `impl.checks`의 형식을 보고, `android`가 설치됐는데 없으면 경고한다.
 
