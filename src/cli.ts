@@ -80,8 +80,8 @@ const USAGE = `mob-sdd <명령>
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
   impl next <feature>              다음 작업과 종류, 단계
   impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
-  impl setup                       기계 검사의 명령을 config.yaml에 적는다 (--build, --lint <명령|none>, --test)
-  impl check <feature> [작업]      CLI가 빌드, Lint, 테스트를 돌려 종료 코드로 적는다 (--final이면 마지막 확인)
+  impl setup                       기계 검사의 명령을 config.yaml에 적는다 (--build, --lint <명령|none>, --test, --rules <명령|none>)
+  impl check <feature> [작업]      CLI가 빌드, Lint, 규칙, 테스트를 돌려 종료 코드로 적는다 (--final이면 마지막 확인)
   impl verify <feature> [작업]     검증 결과를 판정한다. 빌드·Lint·테스트는 impl check의 결과를 쓴다 (--check 디자인·원칙=결과, 실패 지목, --files, --unit)
   impl attempt <feature> <작업>    치유 직전에 시도를 센다 (--failure, --symptom, --note)
   impl final <feature>             마지막 확인 (--result pass|fail, 통과면 impl check --final 뒤에 --check 원칙·디자인=pass|skip, 실패면 --files, --failure, --symptom)
@@ -118,6 +118,7 @@ const OPTIONS = {
   build: { type: "string" },
   lint: { type: "string" },
   test: { type: "string" },
+  rules: { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
@@ -226,7 +227,7 @@ function splitList(value: string | undefined): string[] | undefined {
 
 function parseFailure(value: string | undefined): Check | undefined {
   if (value === undefined) return undefined;
-  if (!isCheck(value)) throw new Refusal(`실패 종류는 build, lint, test, design, principles 가운데 하나다: ${value}`);
+  if (!isCheck(value)) throw new Refusal(`실패 종류는 build, lint, test, rules, design, principles 가운데 하나다: ${value}`);
   return value;
 }
 
@@ -291,8 +292,8 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
   if (command === "impl") {
     const [action, featureArg, taskArg] = rest;
     if (action === "setup") {
-      const result = implSetup(repo, { build: values.build, lint: values.lint, test: values.test });
-      const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
+      const result = implSetup(repo, { build: values.build, lint: values.lint, test: values.test, rules: values.rules });
+      const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${result.checks[kind] === undefined ? "없음" : JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
       return { text: ["구현 단계의 검사 명령 (.mob-sdd/config.yaml의 impl.checks):", ...lines].join("\n"), data: result };
     }
     const feature = requireFeatureArg(featureArg);

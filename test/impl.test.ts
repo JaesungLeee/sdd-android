@@ -87,7 +87,7 @@ function start(): void {
   implAssign(repo, F, ["T001=structure", "T002=test", "T003=logic", "T004=logic", "T005=ui", "T006=structure"]);
 }
 
-type Outcome = Partial<Record<"build" | "lint" | "test", "pass" | "fail">>;
+type Outcome = Partial<Record<"build" | "lint" | "test" | "rules", "pass" | "fail">>;
 
 /** 돌린 명령. 시험의 설정에서 명령의 첫 낱말이 검사의 이름이다. */
 let ran: string[] = [];
@@ -497,6 +497,22 @@ describe("작업의 진행", () => {
     expect(result.missing).toEqual(["build", "lint"]);
     run("T005");
     expect(implVerify(repo, F, "T005", { today: today(), checks: {} }).raised).toEqual(["T005"]);
+  });
+
+  it("규칙 도구의 명령이 있으면 작업과 마지막 확인이 그 통과를 요구하고, 실패는 그 작업을 다시 고치게 한다", () => {
+    implSetup(repo, { rules: "rules {module}" });
+    implReport(repo, F, "T001", { today: today(), status: "done", modules: ["m"] });
+    expect(implReport(repo, F, "T001", { today: today(), status: "done", modules: ["m"] }).required).toEqual(["build", "lint", "rules"]);
+    run("T001", { rules: "fail" });
+    expect(ran).toEqual(["build m", "lint m", "rules m"]);
+    expect(implVerify(repo, F, "T001", { today: today(), checks: {} }).redo).toEqual([{ id: "T001", kind: "structure", failure: "rules" }]);
+    expect(() => implVerify(repo, F, "T001", { today: today(), checks: { rules: "pass" } })).toThrow(/규칙의 통과는 인자로/);
+    run("T001");
+    expect(implVerify(repo, F, "T001", { today: today(), checks: {} }).raised).toEqual(["T001"]);
+
+    // none은 규칙 도구를 따로 돌리지 않는다는 뜻이라 항목을 지운다
+    expect(implSetup(repo, { rules: "none" }).checks.rules).toBeUndefined();
+    expect(fs.readFileSync(path.join(repo.root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("rules");
   });
 
   it("모듈을 보고하지 않은 작업은 검사를 돌리지 않고, 모듈마다 다른 명령을 쓸 수 있다", () => {

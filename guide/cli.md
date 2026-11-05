@@ -19,7 +19,7 @@
 | `extension list\|add\|remove`, `preset list\|add\|remove` | 확장의 목록, 설치(내장 이름이나 로컬 경로), 제거 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
 | `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
-| `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`. [구현 단계](implementation.md#기계-검사) |
+| `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`, `--rules <명령\|none>`. [구현 단계](implementation.md#기계-검사) |
 | `run <확장> <스크립트> [인자…]` | 확장의 `scripts/` 아래 `.mjs`를 실행한다. 스킬이 부르지만 사람이 쳐도 된다. [OpenAPI 대조](openapi.md) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.
@@ -120,3 +120,4 @@ figma:
 - Figma: spec에 Figma 줄이 있는 feature가 있는데 개인 설정이 없으면 경고.
 - OpenAPI: `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다.
 - 구현 단계: `impl.checks`의 형식. `android`가 설치됐는데 없으면 경고. 명령은 돌리지 않는다.
+- constitution: 원칙의 검사 줄의 형식과, 도구 줄이 가리키는 규칙이 설정 파일에 켜져 있는지. 도구로 검사하는 원칙이 있는데 돌릴 명령이 없으면 경고.

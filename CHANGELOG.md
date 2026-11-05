@@ -8,6 +8,10 @@
 - **동작 변경**: `impl verify`와 `impl final`이 빌드, Lint, 테스트의 통과(`--check build=pass` 등)와 Lint의 건너뜀을 인자로 받지 않는다. 실패의 지목과 빌드·테스트의 건너뜀은 받는다. Lint를 건너뛰려면 설정에 `lint: none`을 명시한다.
 - **동작 변경**: `impl start`가 `impl.checks`가 없으면 거부한다. 올린 뒤 `npx mob-sdd impl setup --lint <명령|none>`으로 정한다. 빌드와 테스트는 기본값(`compileDebugKotlin`, `testDebugUnitTest`)이 있다. 진행 중인 체크포인트는 그대로 이어지며, 다음 검증부터 CLI가 검사를 돌린다.
 - 결과의 신선도: `impl check`가 작업 경로의 내용 해시를 함께 적고, `impl verify`와 `impl final`이 지금의 해시와 다르면 그 결과를 버리고 거부한다. 앞서 적힌 빌드·Lint의 통과도 그 사이 코드가 바뀌었으면 체크를 올리는 데 쓰지 않는다.
+- constitution 원칙의 검사 줄 `**검사**: 도구 \`규칙\` (설정 파일)` 또는 `**검사**: 감사`. 템플릿과 `/constitution`이 원칙마다 적게 하고, 검사 줄만 바꾸는 개정은 PATCH다. `check`가 도구 줄의 규칙이 설정 파일에 켜져 있는지 대조하고, `status`가 도구 검사·감사·미지정의 수를 보여 준다.
+- 선택 검사 `impl.checks.rules`: Lint 밖의 규칙 도구(Konsist 등)를 CLI가 작업마다와 마지막 확인에서 돌린다. 실패 종류 `rules`.
+- `verify-principles`는 도구 줄이 없는 원칙만 감사하고, 원칙마다 확인한 곳이나 닿지 않는 이유를 보고한다.
+- `android`의 새 스킬 `sync-rules`: 원칙의 검사를 detekt, ktlint, Konsist의 규칙으로 옮긴다. constitution은 고치지 않는다.
 - `impl setup`: 검사 명령을 설정에 적는다. 모듈마다 다른 명령은 `"*"`를 기본으로 하는 묶음으로 손으로 적는다.
 - `check`가 `impl.checks`의 형식을 보고, `android`가 설치됐는데 없으면 경고한다.
 

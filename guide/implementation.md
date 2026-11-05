@@ -22,9 +22,10 @@ npx mob-sdd impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 �
 | | `create-structure` | 모듈 골격, 빌드 구성, 화면 전환과 DI의 배선 |
 | 검증 | `verify-build` | CLI가 돌린 빌드, Lint, 테스트의 실패를 읽어 분류한다 |
 | | `verify-ui` | 코드의 값과 Figma의 대조, 기기 캡처와 Figma 스크린샷의 대조 |
-| | `verify-principles` | constitution 위반과 작업에 없는 변경 |
+| | `verify-principles` | 도구로 판정하지 못하는 constitution 원칙의 위반과 작업에 없는 변경 |
 | 치유 | `heal-build` | 빌드와 Lint 실패. import, 타입, null 안전성 같은 기계적 수정만 한다 |
 | | `heal-test` | 테스트 실패. 프로덕션 코드의 로직을 고친다. 테스트는 고치지 않는다 |
+| 규칙 | `sync-rules` | 구현 단계 밖에서 사용자가 부른다. constitution 원칙의 검사를 detekt, ktlint, Konsist의 규칙으로 옮긴다 |
 
 구현과 치유 스킬은 서브에이전트에서 돌고, 검증 스킬은 쓰기 도구가 없는 읽기 전용 에이전트로 돈다. 검증은 지적만 하고 고치지 않는다.
 
@@ -64,6 +65,7 @@ impl:
     build: "./gradlew {module}:compileDebugKotlin"
     lint: "./gradlew {module}:detekt"                  # Lint 도구가 없으면 none
     test: "./gradlew {module}:testDebugUnitTest {tests}"
+    rules: "./gradlew :konsist:test"                   # 선택. Lint 밖의 규칙 도구(Konsist 등)
     # 모듈마다 다른 명령: "*"가 기본이다
     # build:
     #   "*": "./gradlew {module}:compileDebugKotlin"
@@ -74,6 +76,7 @@ impl:
 - `impl check {feature} {작업}`이 빌드, Lint, 연결된 테스트를 돌린다. 빌드가 실패하면 테스트는 돌지 않는다. 출력은 `.mob-sdd/impl/{feature}/logs/`에 남는다. 결과는 다음 `impl verify`가 가져가 판정한다.
 - `impl verify`와 `impl final`은 빌드, Lint, 테스트의 통과를 인자로 받지 않는다. 받는 것은 실패의 지목(다른 작업의 파일)과, 환경 문제로 분류한 빌드·테스트의 건너뜀뿐이다. 둘 다 체크를 올리지 못한다.
 - Lint의 건너뜀은 설정의 `lint: none`으로만 된다. 빌드와 테스트는 `none`으로 둘 수 없다.
+- `rules`는 constitution 원칙의 도구 규칙 가운데 Lint 명령이 돌리지 않는 것(Konsist의 아키텍처 테스트 등)을 돌린다. 있으면 작업마다와 마지막 확인에서 통과해야 하고, 실패는 원칙 위반처럼 그 작업의 `create-*`로 되돌린다. 그런 도구가 없으면 두지 않는다(`impl setup --rules none`이 지운다).
 - 마지막 확인은 `impl check {feature} --final`의 결과를 쓴다. 그 뒤 구현 보고가 오거나 체크가 내려가면 결과는 지워지고 다시 돌려야 한다.
 - **결과의 신선도**: `impl check`는 돌린 때 작업 경로(breakdown의 작업 줄에 적힌 경로와 함께 돈 테스트 작업의 경로)의 내용 해시를 함께 적는다. `impl verify`와 `impl final`은 지금의 해시와 맞춰 보고, 다르면 그 결과를 버리고 다시 돌리라고 거부한다. 디자인만 다시 적는 때에도 앞서 적힌 빌드·Lint의 통과는 그 사이 코드가 바뀌었으면 쓰지 않는다. 커밋이 아니라 내용으로 보므로 스토리마다 커밋해도 코드가 같으면 같은 결과다. 작업 경로 밖의 파일은 보지 않는다.
 - 설정이 없으면 `impl start`가 거부한다. `check`는 `android`가 설치됐는데 설정이 없으면 경고한다.
@@ -82,6 +85,18 @@ impl:
 - **이미 있던 Lint 위반**: Lint는 모듈 단위로 돈다. 이번 작업과 무관한 기존 위반이 있으면 모든 작업이 Lint 실패가 된다. detekt의 baseline처럼 기존 위반을 빼는 설정을 먼저 둔다.
 - **시간 제한**: 스킬의 셸 명령은 Claude Code의 시간 제한(기본 2분, 최대 10분)을 넘으면 끊긴다. 끊기면 결과가 적히지 않아 체크도 오르지 않는다. 처음 빌드가 오래 걸리는 저장소는 `BASH_DEFAULT_TIMEOUT_MS`와 `BASH_MAX_TIMEOUT_MS`를 늘린다.
 - **판정의 한계**: 이 장치는 에이전트가 착각이나 편의로 통과를 적는 것을 막는다. 셸 명령으로 체크포인트를 직접 고치는 것까지 막지는 못한다.
+
+## 원칙의 판정
+
+constitution의 원칙은 검사 줄([문서 형식](documents.md#constitution-원칙의-검사-줄))에 따라 둘로 나뉘어 판정된다.
+
+| 원칙 | 판정 | 언제 |
+|---|---|---|
+| 도구 줄이 있다 | Lint와 `rules` 명령의 종료 코드(CLI) | 작업마다, 마지막 확인 |
+| `감사`이거나 검사 줄이 없다 | `verify-principles`(LLM). 원칙마다 확인한 곳이나 닿지 않는 이유를 적는다 | 단위마다, 마지막 확인 |
+
+- LLM에 기대는 원칙을 줄이려면 `/sync-rules`로 규칙을 만들고 `/constitution`을 다시 실행해 검사 줄을 도구로 바꾼다. 순서는 규칙이 먼저다. 설정에 없는 규칙을 가리키는 검사 줄은 `check`가 오류로 본다.
+- 도구 줄이 있는데 Lint가 `none`이고 `rules`도 없으면 그 규칙은 돌지 않는다. `check`가 경고한다.
 
 ## 체크의 뜻
 

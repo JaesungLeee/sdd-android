@@ -8,7 +8,7 @@ export const KINDS = ["test", "logic", "ui", "structure"] as const;
 export type Kind = (typeof KINDS)[number];
 
 /** 검사의 종류. 실패의 종류와 같은 이름을 쓴다. */
-export const CHECKS = ["build", "lint", "test", "design", "principles"] as const;
+export const CHECKS = ["build", "lint", "test", "rules", "design", "principles"] as const;
 export type Check = (typeof CHECKS)[number];
 
 export type CheckResult = "pass" | "fail" | "skip";

@@ -9,7 +9,8 @@ import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
 import { validateSources } from "../extensions/openapi/config.js";
-import { validateImplChecks } from "../core/impl-config.js";
+import { readImplChecks, validateImplChecks } from "../core/impl-config.js";
+import { parsePrinciples, verifyToolCheck } from "../core/principles.js";
 import { parse } from "yaml";
 import { duplicateItems } from "./doc.js";
 import { knownStages } from "./extension.js";
@@ -46,6 +47,7 @@ export function check(repo: Repo, nodeVersion: string = process.versions.node, a
 
   const project = { constitution: loadDoc(repo, "constitution"), prd: loadDoc(repo, "prd") };
   for (const doc of Object.values(project)) if (doc) checkDoc(repo, doc, add);
+  if (project.constitution && !project.constitution.parsed.error) checkPrinciples(repo, project.constitution, add);
 
   for (const feature of listFeatures(repo)) {
     const docs: Partial<Record<DocKind, LoadedDoc>> = { ...dropUndefined(project) };
@@ -149,6 +151,28 @@ function checkImpl(repo: Repo, add: Add, installed: boolean): void {
     if (!checks && installed) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. mob-sdd impl setup으로 정한다. 없으면 impl start가 거부한다`);
   } catch (error) {
     add("error", where, error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * 원칙의 `검사` 줄이 가리키는 도구의 규칙이 설정에 들어 있는지. 도구는 돌리지 않는다.
+ * 도구의 규칙이 있는 원칙이 있는데 구현 단계가 그것을 돌릴 명령(Lint나 rules)이 없으면 알린다.
+ */
+function checkPrinciples(repo: Repo, doc: LoadedDoc, add: Add): void {
+  const where = rel(repo, doc.path);
+  const principles = parsePrinciples(doc.body);
+  for (const principle of principles) {
+    for (const value of principle.malformed) {
+      add("error", where, `${principle.id}의 검사 줄이 형식에 맞지 않는다: "${value}". 도구 \`규칙\` (설정 파일)이나 감사로 적는다`);
+    }
+    for (const tool of principle.tools) {
+      const problem = verifyToolCheck(repo, tool);
+      if (problem) add("error", where, `${principle.id}의 ${tool.tool} 검사: ${problem}`);
+    }
+  }
+  const checks = readImplChecks(repo);
+  if (checks && principles.some((principle) => principle.tools.length > 0) && checks.lint === "none" && checks.rules === undefined) {
+    add("warn", ".mob-sdd/config.yaml", "도구로 검사하는 원칙이 있는데 구현 단계가 돌릴 명령이 없다(lint가 none이고 rules가 없다). 규칙은 설정에 있어도 검사가 돌지 않는다");
   }
 }
 

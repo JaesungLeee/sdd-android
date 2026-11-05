@@ -33,14 +33,16 @@ import {
 } from "../core/checkpoint.js";
 import { sha256 } from "../core/hash.js";
 import { hashSource } from "../core/wiki.js";
-import { commandFor, isMachineCheck, MACHINE_CHECKS, NO_COMMAND, requireImplChecks, type MachineCheck } from "../core/impl-config.js";
+import { commandFor, isMachineCheck, MACHINE_CHECKS, NO_COMMAND, readImplChecks, requireImplChecks, type CommandSpec, type MachineCheck } from "../core/impl-config.js";
 import { assertFeatureName, docPath, loadDoc, loadDocs, Refusal, writeDoc, writeFile, type LoadedDoc, type Repo } from "../core/repo.js";
 import { currentVersions, describeReason, implementGate, type GateResult } from "./gate.js";
 
-const CHECK_TEXT: Record<Check, string> = { build: "빌드", lint: "Lint", test: "테스트", design: "디자인", principles: "원칙" };
+const CHECK_TEXT: Record<Check, string> = { build: "빌드", lint: "Lint", test: "테스트", rules: "규칙", design: "디자인", principles: "원칙" };
 
 interface Context {
   feature: string;
+  /** 설정에 규칙 도구의 명령(`impl.checks.rules`)이 있다. 있으면 작업과 마지막 확인이 그 통과를 요구한다. */
+  rules: boolean;
   doc: LoadedDoc;
   tasks: Task[];
   units: Unit[];
@@ -62,7 +64,7 @@ function load(repo: Repo, feature: string): Context {
   const { doc, tasks } = requireBreakdown(repo, feature);
   const checkpoint = readCheckpoint(repo, feature);
   if (!checkpoint) throw new Refusal("진행 중인 구현이 없다. impl start로 착수 게이트를 확인하고 시작한다.");
-  return { feature, doc, tasks, units: splitUnits(tasks), checkpoint };
+  return { feature, rules: readImplChecks(repo)?.rules !== undefined, doc, tasks, units: splitUnits(tasks), checkpoint };
 }
 
 function save(repo: Repo, context: Context): void {
@@ -108,6 +110,7 @@ function satisfied(kind: Check, result: CheckResult | undefined): boolean {
  */
 export function requiredChecks(context: Context, task: Task): Check[] {
   const required: Check[] = ["build", "lint"];
+  if (context.rules) required.push("rules");
   if (testsOn(context, task.id).length > 0) required.push("test");
   if (context.checkpoint.assignments[task.id] === "ui") required.push("design");
   return required;
@@ -707,7 +710,7 @@ function summarize(text: string): string[] {
   return signal.length > 0 ? signal : lines.slice(-15);
 }
 
-function runCheck(repo: Repo, feature: string, label: string, kind: MachineCheck, spec: ReturnType<typeof requireImplChecks>[MachineCheck], modules: string[], tests: string, exec: Exec): CheckRun {
+function runCheck(repo: Repo, feature: string, label: string, kind: MachineCheck, spec: CommandSpec, modules: string[], tests: string, exec: Exec): CheckRun {
   if (spec === NO_COMMAND) return { kind, result: "skip", commands: [], summary: [] };
   const commands = [...new Set(modules.map((module) => render(commandFor(spec, module), module, tests)))];
   const dir = path.join(implDir(repo, feature), "logs");
@@ -750,7 +753,9 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
   const exec = options.exec ?? shellExec;
   const runs: CheckRun[] = [];
   const run = (label: string, kind: MachineCheck, modules: string[], tests = "") => {
-    const done = runCheck(repo, feature, label, kind, checks[kind], modules, tests, exec);
+    const spec = checks[kind];
+    if (spec === undefined) return undefined;
+    const done = runCheck(repo, feature, label, kind, spec, modules, tests, exec);
     runs.push(done);
     return done;
   };
@@ -762,7 +767,8 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
     if (modules.length === 0) throw new Refusal("작업들이 보고한 모듈이 없다. 구현 보고(impl report --modules)에 모듈이 적혀야 검사를 돌릴 수 있다.");
     const build = run("final", "build", modules);
     run("final", "lint", modules);
-    if (build.result !== "fail") run("final", "test", modules);
+    run("final", "rules", modules);
+    if (build?.result !== "fail") run("final", "test", modules);
     context.checkpoint.final = { runs: Object.fromEntries(runs.map((done) => [done.kind, done.result])), hash: scopeHash(repo, featureScope(context)) };
     save(repo, context);
     return { feature, final: true, runs };
@@ -777,8 +783,9 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
   if (modules.length === 0) throw new Refusal(`${id}가 보고한 모듈이 없다. impl report ${feature} ${id} --modules로 바꾼 모듈을 적은 뒤 돌린다.`);
   const build = run(id, "build", modules);
   run(id, "lint", modules);
+  run(id, "rules", modules);
   const tests = testsOn(context, id);
-  if (tests.length > 0 && build.result !== "fail") {
+  if (tests.length > 0 && build?.result !== "fail") {
     const testModules = modulesOf(context, tests.map((test) => test.id));
     run(id, "test", testModules.length > 0 ? testModules : modules, testFilter(tests));
   }
@@ -868,7 +875,7 @@ function designRequired(repo: Repo, context: Context): boolean {
 
 /** 마지막 확인이 돌려야 하는 검사. 빌드와 테스트는 통과여야 하고 나머지는 건너뜀도 된다. */
 function finalChecks(repo: Repo, context: Context): Check[] {
-  return ["build", "lint", "test", "principles", ...(designRequired(repo, context) ? (["design"] as Check[]) : [])];
+  return ["build", "lint", "test", ...(context.rules ? (["rules"] as Check[]) : []), "principles", ...(designRequired(repo, context) ? (["design"] as Check[]) : [])];
 }
 
 export interface FinalResult {
@@ -899,7 +906,7 @@ export function implFinal(repo: Repo, feature: string, options: FinalOptions): F
     if (failed.length > 0) throw new Refusal(`실패한 검사가 있다: ${failed.join(", ")}. 통과로 올릴 수 없고 --result fail --failure로 적는다.`);
     const missing = finalChecks(repo, context).filter((kind) => !satisfied(kind, checks[kind]));
     if (missing.length > 0) {
-      const machine = missing.some((kind) => isMachineCheck(kind)) ? ` 빌드, Lint, 테스트는 impl check ${feature} --final로 돌린다. 빌드와 테스트는 건너뜀으로 올릴 수 없다.` : "";
+      const machine = missing.some((kind) => isMachineCheck(kind)) ? ` 빌드, Lint, 테스트, 규칙은 impl check ${feature} --final로 돌린다. 빌드와 테스트는 건너뜀으로 올릴 수 없다.` : "";
       const hint = missing.includes("design") ? " 디자인은 verify-ui의 캡처의 대조다(Figma 노드가 있는 ui 작업이 있다)." : "";
       throw new Refusal(`마지막 확인에 빠진 검사: ${missing.map((kind) => CHECK_TEXT[kind]).join(", ")}. 원칙과 디자인은 돌린 결과를 --check {검사}=pass|skip으로 적는다.${machine}${hint}`);
     }

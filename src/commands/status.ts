@@ -4,6 +4,7 @@ import { countTasks, FINAL_ID, parseTasks } from "../core/breakdown.js";
 import { checkpointPath } from "../core/checkpoint.js";
 import type { DocKind } from "../core/hash.js";
 import { listFeatures, loadDoc, loadDocs, toStates, type LoadedDoc, type Repo } from "../core/repo.js";
+import { countPrinciples, parsePrinciples, type PrincipleCount } from "../core/principles.js";
 import { wikiSummary } from "../core/wiki.js";
 import { countChecks } from "./doc.js";
 import { verdictText } from "./gate.js";
@@ -27,6 +28,8 @@ export interface FeatureStatus {
 
 export interface StatusResult {
   project: Partial<Record<DocKind, DocSummary>>;
+  /** constitution의 원칙을 무엇이 판정하는지. 도구의 규칙이 아닌 것은 LLM의 감사에 기댄다. */
+  principles?: PrincipleCount;
   features: FeatureStatus[];
   /** 위키가 있을 때만. 없는 저장소의 출력은 바뀌지 않는다(PRD §4 「확장」). */
   wiki?: { pages: number; stale: number; uncollected: number };
@@ -44,9 +47,11 @@ function summarize(doc: LoadedDoc): DocSummary {
 /** 어디까지 왔고 무엇이 뒤처졌는지를 답한다(PRD CLI-003). */
 export function status(repo: Repo, only?: string): StatusResult {
   const project: StatusResult["project"] = {};
+  let principles: PrincipleCount | undefined;
   for (const kind of ["constitution", "prd"] as const) {
     const doc = loadDoc(repo, kind);
     if (doc) project[kind] = summarize(doc);
+    if (doc && kind === "constitution" && !doc.parsed.error) principles = countPrinciples(parsePrinciples(doc.body));
   }
 
   const features: FeatureStatus[] = [];
@@ -70,7 +75,7 @@ export function status(repo: Repo, only?: string): StatusResult {
     features.push(feature);
   }
   const wiki = wikiSummary(repo);
-  return { project, features, ...(wiki ? { wiki } : {}) };
+  return { project, ...(principles && principles.total > 0 ? { principles } : {}), features, ...(wiki ? { wiki } : {}) };
 }
 
 function describeDoc(kind: string, doc: DocSummary | undefined): string {
@@ -83,6 +88,10 @@ function describeDoc(kind: string, doc: DocSummary | undefined): string {
 export function formatStatus(result: StatusResult): string {
   const lines: string[] = [];
   lines.push(describeDoc("constitution", result.project.constitution));
+  if (result.principles) {
+    const { total, tool, audit, unspecified } = result.principles;
+    lines.push(`  원칙 ${total}: 도구 검사 ${tool}, 감사 ${audit}${unspecified > 0 ? `, 검사 미지정 ${unspecified}` : ""}`);
+  }
   lines.push(describeDoc("prd", result.project.prd));
   for (const feature of result.features) {
     lines.push("", `[${feature.name}]`);

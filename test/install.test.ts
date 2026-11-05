@@ -501,7 +501,7 @@ describe("실린 스킬과 템플릿", () => {
   it("내장 확장 android의 스킬이 합성되고, 일꾼은 격리 실행이며 검증은 읽기 전용에 모델을 명시한다", () => {
     const dir = path.join(assets, "ko", "extensions", "android", "skills");
     const names = fs.readdirSync(dir).sort();
-    expect(names).toEqual(["create-logic", "create-structure", "create-test", "create-ui", "design-inspector", "heal-build", "heal-test", "impl-orchestrator", "verify-build", "verify-principles", "verify-ui"]);
+    expect(names).toEqual(["create-logic", "create-structure", "create-test", "create-ui", "design-inspector", "heal-build", "heal-test", "impl-orchestrator", "sync-rules", "verify-build", "verify-principles", "verify-ui"]);
     for (const name of names) {
       const text = fs.readFileSync(path.join(dir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("{{>");
@@ -511,7 +511,11 @@ describe("실린 스킬과 템플릿", () => {
       if (name === "impl-orchestrator") {
         expect(text).not.toContain("context: fork");
         expect(text).toContain('.mob-sdd/bin/mob-sdd" gate implement');
-        for (const worker of names.filter((other) => other !== name)) expect(text).toContain(`Skill({{skill:${worker}}})`);
+        for (const worker of names.filter((other) => other !== name && other !== "sync-rules")) expect(text).toContain(`Skill({{skill:${worker}}})`);
+        expect(text).not.toContain("Skill({{skill:sync-rules}})");
+      } else if (name === "sync-rules") {
+        // 구현 단계 밖에서 사용자가 부르는 스킬이다. 사용자에게 물어야 하므로 메인 세션에서 돈다.
+        expect(text).not.toContain("context: fork");
       } else {
         expect(text, name).toContain("context: fork");
       }
