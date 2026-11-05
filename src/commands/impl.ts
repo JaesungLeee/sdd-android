@@ -31,7 +31,9 @@ import {
   type Phase,
   type TaskRecord,
 } from "../core/checkpoint.js";
-import { commandFor, isMachineCheck, NO_COMMAND, requireImplChecks, type MachineCheck } from "../core/impl-config.js";
+import { sha256 } from "../core/hash.js";
+import { hashSource } from "../core/wiki.js";
+import { commandFor, isMachineCheck, MACHINE_CHECKS, NO_COMMAND, requireImplChecks, type MachineCheck } from "../core/impl-config.js";
 import { assertFeatureName, docPath, loadDoc, loadDocs, Refusal, writeDoc, writeFile, type LoadedDoc, type Repo } from "../core/repo.js";
 import { currentVersions, describeReason, implementGate, type GateResult } from "./gate.js";
 
@@ -141,6 +143,7 @@ function lower(repo: Repo, context: Context, ids: string[]): string[] {
   for (const id of lowered) {
     const rec = record(context, id);
     delete rec.checks;
+    delete rec.checksHash;
     rec.status = "done";
     const isTest = context.tasks.find((task) => task.id === id)?.until !== undefined;
     context.checkpoint.waiting = context.checkpoint.waiting.filter((waiting) => waiting !== id);
@@ -472,6 +475,8 @@ export interface VerifyResult {
   healed: Check[];
   /** 건너뜀으로는 체크를 올릴 수 없는 검사. 환경을 고쳐 다시 돌려야 한다. */
   blockedBySkip: Check[];
+  /** 돌린 뒤 작업의 파일이 바뀌어 버린 기계 검사의 결과. impl check로 다시 돌린다. */
+  stale?: Check[];
 }
 
 export function parseChecks(values: string[]): Partial<Record<Check, CheckResult>> {
@@ -530,9 +535,26 @@ export function implVerify(repo: Repo, feature: string, id: string | undefined, 
   }
   const rec = record(context, id);
   assertClaims(options.checks);
+  const current = scopeHash(repo, taskScope(context, id));
+  if (rec.runs && rec.runsHash !== current) {
+    // 돌린 뒤에 작업의 파일이 바뀌었다. 그 결과로는 지금의 코드를 판정할 수 없다.
+    delete rec.runs;
+    delete rec.runsHash;
+    save(repo, context);
+    throw new Refusal(`impl check 뒤에 ${id}의 파일이 바뀌어 그 결과를 버렸다. impl check ${context.feature} ${id}로 다시 돌린다.`);
+  }
+  // 앞서 적힌 기계 검사의 통과도 그 뒤 코드가 바뀌었으면 쓰지 않는다. 디자인만 다시 적는 경우에 낡은 빌드 통과로 체크가 오르지 않게 한다.
+  let stale: Check[] = [];
+  if (!rec.runs && rec.checksHash !== undefined && rec.checksHash !== current && rec.checks) {
+    stale = MACHINE_CHECKS.filter((kind) => rec.checks?.[kind] !== undefined);
+    for (const kind of stale) delete rec.checks[kind];
+    delete rec.checksHash;
+  }
+  if (rec.runs) rec.checksHash = rec.runsHash;
+  delete rec.runsHash;
   // impl check가 돌린 결과를 가져오고, 인자는 그 위에 얹는다(실패의 지목, 환경 문제의 건너뜀).
   const incoming = { ...rec.runs, ...options.checks };
-  if (Object.keys(incoming).length === 0) throw new Refusal(`검사 결과가 없다. 빌드와 Lint, 테스트는 impl check ${context.feature} ${id}로 돌리고, 디자인은 --check design=결과로 적는다.`);
+  if (Object.keys(incoming).length === 0 && stale.length === 0) throw new Refusal(`검사 결과가 없다. 빌드와 Lint, 테스트는 impl check ${context.feature} ${id}로 돌리고, 디자인은 --check design=결과로 적는다.`);
   delete rec.runs;
   rec.checks = { ...rec.checks, ...incoming };
   const gateTests = testsOn(context, id);
@@ -541,7 +563,7 @@ export function implVerify(repo: Repo, feature: string, id: string | undefined, 
     if (kind === "test") for (const test of gateTests) fillRound(record(context, test.id), kind, result);
   }
 
-  const result: VerifyResult = { task: id, checks: rec.checks, raised: [], lowered: [], redo: [], unmatched: [], missing: [], healed: [], blockedBySkip: [] };
+  const result: VerifyResult = { task: id, checks: rec.checks, raised: [], lowered: [], redo: [], unmatched: [], missing: [], healed: [], blockedBySkip: [], stale };
   const failed = (Object.entries(incoming) as [Check, CheckResult][]).filter(([, value]) => value === "fail").map(([kind]) => kind);
 
   if (failed.length > 0) {
@@ -599,6 +621,27 @@ function verifyUnit(repo: Repo, context: Context, options: VerifyOptions): Verif
   }
   save(repo, context);
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// 결과의 신선도
+
+/**
+ * 작업 경로의 내용 해시. 기계 검사를 돌린 때의 코드와 판정하는 때의 코드가 같은지 본다.
+ * 커밋이 아니라 내용으로 보므로, 스토리마다 커밋해도 코드가 같으면 같은 해시다(위키의 원본 해시와 같은 규칙).
+ */
+export function scopeHash(repo: Repo, paths: string[]): string {
+  return sha256([...new Set(paths)].sort().map((rel) => `${rel} ${hashSource(repo, rel) ?? "-"}`).join("\n"));
+}
+
+/** 그 작업의 검사가 보는 경로: 작업의 경로와, 함께 돌리는 테스트 작업의 경로. */
+function taskScope(context: Context, id: string): string[] {
+  const task = findTask(context, id);
+  return [...task.paths, ...testsOn(context, id).flatMap((test) => test.paths)];
+}
+
+function featureScope(context: Context): string[] {
+  return liveTasks(context.tasks).flatMap((task) => task.paths);
 }
 
 // ---------------------------------------------------------------------------
@@ -720,7 +763,7 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
     const build = run("final", "build", modules);
     run("final", "lint", modules);
     if (build.result !== "fail") run("final", "test", modules);
-    context.checkpoint.final = { runs: Object.fromEntries(runs.map((done) => [done.kind, done.result])) };
+    context.checkpoint.final = { runs: Object.fromEntries(runs.map((done) => [done.kind, done.result])), hash: scopeHash(repo, featureScope(context)) };
     save(repo, context);
     return { feature, final: true, runs };
   }
@@ -740,6 +783,7 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
     run(id, "test", testModules.length > 0 ? testModules : modules, testFilter(tests));
   }
   rec.runs = Object.fromEntries(runs.map((done) => [done.kind, done.result]));
+  rec.runsHash = scopeHash(repo, taskScope(context, id));
   delete context.checkpoint.final;
   save(repo, context);
   return { feature, task: id, final: false, runs };
@@ -844,6 +888,11 @@ export function implFinal(repo: Repo, feature: string, options: FinalOptions): F
     const open = liveTasks(context.tasks).filter((task) => !task.checked).map((task) => task.id);
     if (open.length > 0) throw new Refusal(`체크되지 않은 작업이 있어 마지막 확인을 올릴 수 없다: ${open.join(", ")}`);
     assertClaims(options.checks ?? {});
+    if (context.checkpoint.final && context.checkpoint.final.hash !== scopeHash(repo, featureScope(context))) {
+      delete context.checkpoint.final;
+      save(repo, context);
+      throw new Refusal(`impl check --final 뒤에 작업의 파일이 바뀌어 그 결과를 버렸다. impl check ${feature} --final로 다시 돌리고, 원칙 감사와 캡처의 대조도 지금의 코드로 다시 한다.`);
+    }
     // 빌드, Lint, 테스트는 impl check --final이 돌린 결과다. 인자로는 원칙과 디자인을 적는다.
     const checks = { ...context.checkpoint.final?.runs, ...options.checks };
     const failed = (Object.entries(checks) as [Check, CheckResult][]).filter(([, value]) => value === "fail").map(([kind]) => CHECK_TEXT[kind]);
@@ -969,6 +1018,9 @@ export function formatVerify(result: VerifyResult): string {
   if (result.unmatched.length > 0) lines.push(`어느 작업에도 대응하지 않는 파일: ${result.unmatched.join(", ")}. 작업 없는 실패라 사람에게 넘긴다.`);
   if (result.blockedBySkip.length > 0) {
     lines.push(`건너뜀으로는 체크를 올릴 수 없는 검사: ${result.blockedBySkip.map((kind) => CHECK_TEXT[kind]).join(", ")}. 환경 문제를 사용자에게 알리고 멈춘다. 고쳐진 뒤 다시 부르면 이 작업의 검증부터 이어 간다.`);
+  }
+  if (result.stale && result.stale.length > 0) {
+    lines.push(`검사 뒤에 작업의 파일이 바뀌어 버린 결과: ${result.stale.map((kind) => CHECK_TEXT[kind]).join(", ")}. impl check로 다시 돌린다.`);
   }
   const notYet = result.missing.filter((kind) => !result.blockedBySkip.includes(kind));
   if (notYet.length > 0) lines.push(`아직 돌리지 않은 검사: ${notYet.map((kind) => CHECK_TEXT[kind]).join(", ")}`);

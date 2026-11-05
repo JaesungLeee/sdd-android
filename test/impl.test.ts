@@ -464,6 +464,41 @@ describe("작업의 진행", () => {
     expect(implVerify(repo, F, "T001", { today: today(), checks: {} }).redo).toEqual([{ id: "T001", kind: "structure", failure: "lint" }]);
   });
 
+  it("검사를 돌린 뒤 작업의 파일이 바뀌면 그 결과로는 판정하지 않는다", () => {
+    const write = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(repo.root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(repo.root, rel), text);
+    };
+    write("feature/login/build.gradle.kts", "plugins {}\n");
+    implReport(repo, F, "T001", { today: today(), status: "done", modules: ["m"] });
+    run("T001");
+    write("feature/login/build.gradle.kts", "plugins { id(\"x\") }\n");
+    expect(() => implVerify(repo, F, "T001", { today: today(), checks: {} })).toThrow(/파일이 바뀌어 그 결과를 버렸다/);
+    expect(readCheckpoint(repo, F)?.tasks.T001?.runs).toBeUndefined();
+    // 내용이 같으면 다시 쓴 파일이어도 같은 결과로 본다
+    run("T001");
+    write("feature/login/build.gradle.kts", "plugins { id(\"x\") }\n");
+    expect(implVerify(repo, F, "T001", { today: today(), checks: {} }).raised).toEqual(["T001"]);
+  });
+
+  it("디자인만 다시 적을 때 그 사이 코드가 바뀌었으면 앞서 적힌 빌드 통과를 쓰지 않는다", () => {
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004");
+    implReport(repo, F, "T005", { today: today(), status: "done", modules: ["m"] });
+    run("T005");
+    expect(implVerify(repo, F, "T005", { today: today(), checks: {} }).missing).toEqual(["design"]);
+    // 디자인 차이를 고치느라 화면 파일이 바뀌었다
+    fs.mkdirSync(path.join(repo.root, "feature/login/src/main"), { recursive: true });
+    fs.writeFileSync(path.join(repo.root, "feature/login/src/main/LoginScreen.kt"), "fun LoginScreen() {}\n");
+    const result = implVerify(repo, F, "T005", { today: today(), checks: { design: "pass" } });
+    expect(result.stale).toEqual(["build", "lint"]);
+    expect(result.raised).toEqual([]);
+    expect(result.missing).toEqual(["build", "lint"]);
+    run("T005");
+    expect(implVerify(repo, F, "T005", { today: today(), checks: {} }).raised).toEqual(["T005"]);
+  });
+
   it("모듈을 보고하지 않은 작업은 검사를 돌리지 않고, 모듈마다 다른 명령을 쓸 수 있다", () => {
     implReport(repo, F, "T001", { today: today(), status: "done" });
     expect(() => run("T001")).toThrow(/보고한 모듈이 없다/);
@@ -512,6 +547,12 @@ describe("작업의 진행", () => {
     // 그 뒤 코드가 바뀌면(구현 보고) 돌린 결과는 버려진다
     run(undefined);
     implReport(repo, F, "T006", { today: today(), status: "done", modules: ["m"] });
+    expect(readCheckpoint(repo, F)?.final).toBeUndefined();
+    run(undefined);
+    // 보고 없이 사람이 파일을 고쳐도 내용 해시로 알아챈다
+    fs.mkdirSync(path.join(repo.root, "app/src/main"), { recursive: true });
+    fs.writeFileSync(path.join(repo.root, "app/src/main/Nav.kt"), "// 손으로 고침\n");
+    expect(() => implFinal(repo, F, { today: today(), result: "pass", checks: { principles: "pass" } })).toThrow(/--final 뒤에 작업의 파일이 바뀌어/);
     expect(readCheckpoint(repo, F)?.final).toBeUndefined();
     run(undefined);
     // Figma 줄이 있는 스토리의 ui 작업이 있으면 디자인(캡처)도 필요하다

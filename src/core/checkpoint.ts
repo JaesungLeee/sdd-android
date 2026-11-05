@@ -35,6 +35,10 @@ export interface TaskRecord {
   checks?: Partial<Record<Check, CheckResult>>;
   /** `impl check`가 돌린 기계 검사의 결과. 다음 `impl verify`가 가져가 판정한다. */
   runs?: Partial<Record<Check, CheckResult>>;
+  /** `runs`를 돌린 때 작업 경로의 내용 해시. 판정할 때 지금의 해시와 다르면 그 결과는 낡았다. */
+  runsHash?: string;
+  /** `checks`에 든 기계 검사 결과가 돌았던 때의 해시. 체크를 올리기 전에 지금의 해시와 맞춘다. */
+  checksHash?: string;
   attempts?: Partial<Record<Check, Attempts>>;
 }
 
@@ -58,7 +62,7 @@ export interface Checkpoint {
   /** 사람에게 넘긴 작업. */
   handed: string[];
   /** 마지막 확인에서 `impl check --final`이 돌린 기계 검사의 결과. 코드가 바뀌면(보고, 체크를 내림) 지운다. */
-  final?: { runs: Partial<Record<Check, CheckResult>> };
+  final?: { runs: Partial<Record<Check, CheckResult>>; hash?: string };
 }
 
 export const MAX_ROUNDS = 3;
