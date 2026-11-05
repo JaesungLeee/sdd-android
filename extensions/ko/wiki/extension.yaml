@@ -6,6 +6,7 @@ description: "지식 계층의 위키. 코드베이스의 구조, 관찰된 규�
 directives:
   constitution: directives/constitution.md
   blueprint: directives/blueprint.md
+  fix: directives/fix.md
   create-test: directives/create.md
   create-logic: directives/create.md
   create-ui: directives/create.md

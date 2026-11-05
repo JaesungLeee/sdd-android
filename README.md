@@ -45,6 +45,7 @@ npx mob-sdd@latest upgrade                           # 새 버전으로 올린�
 | 6 | `/breakdown` | `docs/specs/{feature}/breakdown.md` | 순서가 정해진 작업 목록 |
 | 7 | `/analyze` (선택) | 없음 | spec, blueprint, breakdown 사이의 누락과 모순을 보고 |
 | 8 | `/impl-orchestrator` | 코드, `failures.md` | breakdown의 작업을 구현, 검증, 치유 (`android` extension) |
+| 뒤 | `/fix` | spec(PATCH), breakdown의 수정 단위 | 구현이 끝난 feature의 버그 수정과 작은 변경. 범위는 CLI가 판정하고, 넘으면 정식 경로로 돌려보낸다 |
 
 feature는 `docs/specs/` 아래의 디렉터리 하나다. `/spec 로그인`처럼 입력을 주면 그 feature를 대상으로 하고, 입력이 없으면 목록에서 고른다.
 

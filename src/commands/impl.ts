@@ -228,6 +228,8 @@ function recordFailure(repo: Repo, context: Context, id: string | undefined, kin
 export interface StartOptions {
   today: string;
   acknowledged?: boolean;
+  /** 구현이 끝난 feature에 `/fix`가 더한 수정 단위만 구현한다. */
+  fix?: string;
 }
 
 export interface StartResult extends GateResult {
@@ -247,7 +249,7 @@ export function implStart(repo: Repo, feature: string, options: StartOptions): S
   // 검사 명령이 없으면 첫 검증에서 막힌다. 코드를 쓰기 전에 드러나야 한다.
   requireImplChecks(repo);
   const gate = implementGate(repo, feature);
-  if (gate.mode === "done") throw new Refusal("마지막 확인 줄이 체크되어 있다. 이 feature의 구현은 끝났다. 작업을 더하려면 breakdown을 개정한다.");
+  if (gate.mode === "done") throw new Refusal("마지막 확인 줄이 체크되어 있다. 이 feature의 구현은 끝났다. 버그 수정이나 작은 변경은 /fix로, 그보다 크면 breakdown을 개정해 작업을 더한다.");
   const reasons = gate.reasons.filter((reason) => reason.action === gate.action).map(describeReason).join(", ");
   if (gate.action === "block") throw new Refusal(`중단: ${reasons}. 그 문서의 단계를 먼저 다시 실행한다.`);
   if (gate.action === "confirm" && !options.acknowledged) {
@@ -256,8 +258,14 @@ export function implStart(repo: Repo, feature: string, options: StartOptions): S
 
   const versions = currentVersions(loadDocs(repo, feature));
   const existing = readCheckpoint(repo, feature);
+  const fix = options.fix ?? existing?.fix;
+  if (options.fix && existing && existing.fix !== options.fix) {
+    throw new Refusal(`이미 진행 중인 구현이 있다${existing.fix ? `(수정 단위 ${existing.fix})` : ""}. 그것을 끝낸 뒤 ${options.fix}를 시작한다.`);
+  }
+  if (fix) assertFixScope(repo, feature, fix);
   const decision = gate.confirmed ? existing!.started.decision : options.acknowledged && gate.action === "confirm" ? "acknowledged" : "pass";
   const checkpoint = existing ? { ...existing, started: { decision, versions } } : emptyCheckpoint(decision, versions);
+  if (fix) checkpoint.fix = fix;
   if (!existing) {
     // 새 체크포인트에서 이미 끝나 있는 단위는 다시 검증하지 않는다. 마지막 확인이 feature 전체를 다시 본다.
     const { tasks } = requireBreakdown(repo, feature);
@@ -267,6 +275,23 @@ export function implStart(repo: Repo, feature: string, options: StartOptions): S
   }
   writeCheckpoint(repo, feature, checkpoint);
   return { ...gate, versions, resumed: existing !== undefined, checkpoint };
+}
+
+/** 수정 모드의 범위. 그 수정 단위가 있고, 체크되지 않은 작업이 모두 그 단위에 있어야 한다. */
+function assertFixScope(repo: Repo, feature: string, fix: string): void {
+  const { tasks } = requireBreakdown(repo, feature);
+  const unit = splitUnits(tasks).find((candidate) => candidate.name === fix);
+  if (!unit) throw new Refusal(`breakdown에 수정 단위가 없다: ${fix}. /fix가 더한 단위의 ID를 준다.`);
+  const outside = liveTasks(tasks).filter((task) => !task.checked && task.fix !== fix).map((task) => task.id);
+  if (outside.length > 0) {
+    throw new Refusal(`${fix} 밖에 체크되지 않은 작업이 있다: ${outside.join(", ")}. 수정 모드는 그 단위만 구현한다. --fix 없이 구현한다.`);
+  }
+}
+
+/** 수정 모드면 그 단위의 작업, 아니면 모든 작업. 배정과 디자인 대조가 보는 범위다. */
+function scopedTasks(context: Context): Task[] {
+  const fix = context.checkpoint.fix;
+  return liveTasks(context.tasks).filter((task) => !fix || task.fix === fix);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,8 +316,8 @@ export function implAssign(repo: Repo, feature: string, pairs: string[]): Assign
     if (context.checkpoint.assignments[id] !== kind) added.push(id);
     context.checkpoint.assignments[id] = kind;
   }
-  // 체크된 작업도 뒤의 검증이 체크를 내릴 수 있으므로 종류가 있어야 한다.
-  const unassigned = liveTasks(context.tasks).filter((task) => !context.checkpoint.assignments[task.id]).map((task) => task.id);
+  // 체크된 작업도 뒤의 검증이 체크를 내릴 수 있으므로 종류가 있어야 한다. 수정 모드는 그 단위의 작업만이다.
+  const unassigned = scopedTasks(context).filter((task) => !context.checkpoint.assignments[task.id]).map((task) => task.id);
   if (unassigned.length > 0) throw new Refusal(`배정이 없는 작업이 있다: ${unassigned.join(", ")}. 체크된 작업을 포함해 모든 작업에 종류를 준다.`);
   save(repo, context);
   return { assignments: context.checkpoint.assignments, added };
@@ -342,7 +367,7 @@ export function implNext(repo: Repo, feature: string): NextResult {
     feature,
     done: finalChecked(context),
     final: false,
-    unassigned: live.filter((task) => !checkpoint.assignments[task.id]).map((task) => task.id),
+    unassigned: scopedTasks(context).filter((task) => !checkpoint.assignments[task.id]).map((task) => task.id),
     testable: [],
     unitEnd: false,
     waiting: checkpoint.waiting,
@@ -868,7 +893,7 @@ export function figmaStories(spec: string): Set<string> {
 function designRequired(repo: Repo, context: Context): boolean {
   const stories = figmaStories(loadDoc(repo, "spec", context.feature)?.body ?? "");
   const body = loadDoc(repo, "breakdown", context.feature)?.body.split("\n") ?? [];
-  return liveTasks(context.tasks).some(
+  return scopedTasks(context).some(
     (task) => context.checkpoint.assignments[task.id] === "ui" && ((task.story !== undefined && stories.has(task.story)) || /figma\.com\//.test(body[task.line - 1] ?? "")),
   );
 }
@@ -975,7 +1000,7 @@ export function implShow(repo: Repo, feature: string): ShowResult {
 // 사람이 읽는 출력
 
 export function formatStart(result: StartResult): string {
-  const lines = [`${result.feature}: ${result.resumed ? "이어서 실행한다" : "시작한다"} (결정 ${result.checkpoint.started.decision === "pass" ? "통과" : "확인 뒤 계속"})`];
+  const lines = [`${result.feature}${result.checkpoint.fix ? ` ${result.checkpoint.fix}(수정 모드)` : ""}: ${result.resumed ? "이어서 실행한다" : "시작한다"} (결정 ${result.checkpoint.started.decision === "pass" ? "통과" : "확인 뒤 계속"})`];
   lines.push(`문서 버전: ${Object.entries(result.versions).map(([kind, version]) => `${kind} ${version}`).join(", ")}`);
   for (const reason of result.reasons) lines.push(`- ${describeReason(reason)}`);
   return lines.join("\n");

@@ -1,7 +1,7 @@
 ---
 name: {{skill:impl-orchestrator}}
 description: "SDD의 구현 단계 진입점. breakdown의 작업을 구현 스킬에 배정해 차례로 구현, 검증, 치유하고 체크를 기록한다. 코드를 직접 쓰지 않는다"
-argument-hint: "구현할 feature의 이름. 스토리 사이에서 멈추지 않으려면 --all"
+argument-hint: "구현할 feature의 이름. 스토리 사이에서 멈추지 않으려면 --all. /fix가 더한 수정 단위만 구현하려면 --fix FIX-001"
 allowed-tools: Bash(sh *), Skill({{skill:create-test}}), Skill({{skill:create-logic}}), Skill({{skill:create-ui}}), Skill({{skill:create-structure}}), Skill({{skill:verify-build}}), Skill({{skill:verify-principles}}), Skill({{skill:verify-ui}}), Skill({{skill:heal-build}}), Skill({{skill:heal-test}}), Skill({{skill:design-inspector}})
 ---
 
@@ -11,7 +11,14 @@ feature 하나의 breakdown을 끝까지 구현한다. 이 스킬은 메인 세�
 
 {{> input}}
 
-입력에서 feature의 이름과 `--all`을 읽는다. `--all`이 있으면 스토리 사이에서 멈추지 않고 마지막 확인까지 간다. 없으면 단위(스토리) 하나를 마치고 멈춘다.
+입력에서 feature의 이름과 `--all`, `--fix`를 읽는다. `--all`이 있으면 스토리 사이에서 멈추지 않고 마지막 확인까지 간다. 없으면 단위(스토리) 하나를 마치고 멈춘다.
+
+`--fix FIX-001`이면 **수정 모드**다. 구현이 끝난 feature에 `/{{skill:fix}}`가 더한 수정 단위만 구현한다. 흐름은 같고 다음만 다르다.
+
+- 착수할 때 `impl start {feature} --fix FIX-001`을 부른다. 그 단위 밖에 체크되지 않은 작업이 있으면 CLI가 거부한다. 그때는 `--fix` 없이 부르라고 안내한다.
+- 배정은 그 단위의 작업에만 한다. 이미 끝난 작업은 배정하지 않는다.
+- 수정 단위가 하나의 단위다. 단위 검증과 마지막 확인은 그 단위의 작업이 바꾼 파일과 모듈만 본다. CLI가 체크포인트의 기록으로 범위를 정한다.
+- 검증 실패가 **수정 단위 밖의 작업**을 다시 고칠 작업으로 돌려주면 고치지 않고 멈춘다. 수정이 다른 곳을 깨뜨린 것이라 작은 수정이 아니다. 무엇이 깨졌는지 보고하고, 사람이 판단하게 한다.
 
 {{> cli}}
 
@@ -43,10 +50,10 @@ CLI가 거부하면 인자를 바꿔 다시 시도하지 않는다. 특히 `impl
 
 「현재 상태」에서 대상 feature의 줄을 본다.
 
-- **통과**: `mob-sdd impl start {feature}`를 부른다. "검사 명령이 설정되어 있지 않다"로 거부되면 시작하지 않는다. 사용자가 `mob-sdd impl setup`으로 명령을 정해야 한다고 안내하고 끝낸다. 대신 정해 주지 않는다. "체크포인트의 결정을 따른다"가 붙어 있으면 이어서 실행하는 것이다. 묻지 않는다.
+- **통과**: `mob-sdd impl start {feature}`를 부른다(수정 모드면 `--fix FIX-001`을 붙인다). "검사 명령이 설정되어 있지 않다"로 거부되면 시작하지 않는다. 사용자가 `mob-sdd impl setup`으로 명령을 정해야 한다고 안내하고 끝낸다. 대신 정해 주지 않는다. "체크포인트의 결정을 따른다"가 붙어 있으면 이어서 실행하는 것이다. 묻지 않는다.
 - **확인 필요**: 사유를 사용자에게 보여 주고 중단할지 계속할지 한 번 묻는다. 계속하기로 하면 `impl start {feature} --acknowledged`를 부른다. 묻지 않고 붙이지 않는다.
 - **중단**: 시작하지 않는다. 사유와 어느 단계를 먼저 다시 실행해야 하는지 알리고 끝낸다. 사용자가 게이트를 건너뛰자고 해도 따르지 않고, 건너뛰는 방법을 선택지로 내놓지 않는다.
-- **구현 완료**: 마지막 확인 줄이 체크되어 있다. 끝났다고 알리고, 작업을 더하려면 breakdown을 개정하라고 안내한다.
+- **구현 완료**: 마지막 확인 줄이 체크되어 있다. 끝났다고 알리고, 버그 수정이나 작은 변경이면 `/{{skill:fix}}`, 그보다 크면 breakdown을 개정하라고 안내한다.
 
 ## 작업의 종류
 

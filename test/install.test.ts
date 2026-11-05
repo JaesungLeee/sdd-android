@@ -463,10 +463,12 @@ describe("실린 스킬과 템플릿", () => {
 
   const DOC_STAGES = ["constitution", "prd", "spec", "blueprint", "breakdown"];
   const READ_ONLY = ["clarify", "analyze"];
+  /** 구현이 끝난 feature의 수정. spec과 breakdown을 쓰므로 쓰기 hook을 갖는다. */
+  const FIX = "fix";
 
   it("한국어 스킬이 합성되고 채우지 않은 포함 표기가 남지 않는다", () => {
     expect(languages).toContain("ko");
-    expect(fs.readdirSync(skillsDir).sort()).toEqual([...DOC_STAGES, ...READ_ONLY].sort());
+    expect(fs.readdirSync(skillsDir).sort()).toEqual([...DOC_STAGES, ...READ_ONLY, FIX].sort());
     for (const name of fs.readdirSync(skillsDir)) {
       const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("{{>");
@@ -484,6 +486,9 @@ describe("실린 스킬과 템플릿", () => {
       expect(text, name).toContain("hook write");
       expect(text, name).toContain(`.mob-sdd/bin/mob-sdd" gate ${name}`);
     }
+    const fix = fs.readFileSync(path.join(skillsDir, FIX, "SKILL.md"), "utf8");
+    expect(fix).toContain("hook write");
+    expect(fix).toContain('.mob-sdd/bin/mob-sdd" gate breakdown');
   });
 
   it("읽기 전용 단계는 hook과 기록 명령의 호출을 갖지 않는다", () => {

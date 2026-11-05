@@ -21,6 +21,7 @@ import {
   type Exec,
 } from "../src/commands/impl.js";
 import { implSetup } from "../src/core/impl-config.js";
+import { fixCheck } from "../src/commands/fix.js";
 import { status } from "../src/commands/status.js";
 import { matchTasks, parseTasks, setChecked, splitUnits, validateTasks } from "../src/core/breakdown.js";
 import { checkpointPath, readCheckpoint } from "../src/core/checkpoint.js";
@@ -140,13 +141,6 @@ describe("breakdown의 계산", () => {
       ["US2", ["T005"]],
       ["tail", ["T006"]],
     ]);
-  });
-
-  it("떨어진 스토리는 같은 이름의 단위 둘이 되므로 오류다", () => {
-    const tasks = parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 [US2] b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] FINAL 끝\n");
-    expect(validateTasks(tasks)).toEqual(["3행: US1의 작업이 다른 스토리 뒤에 다시 나온다. 한 스토리의 작업은 한곳에 모은다"]);
-    // 스토리 밖의 작업이 사이에 있는 것은 떨어진 것이 아니다
-    expect(validateTasks(parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] FINAL 끝\n"))).toEqual([]);
   });
 
   it("파일은 가장 긴 경로로 맞은 작업에 대응한다", () => {
@@ -629,5 +623,143 @@ describe("작업의 진행", () => {
     expect(() => parseChecks(["screen=pass"])).toThrow(Refusal);
     expect(parseChecks([])).toEqual({});
     expect(parseChecks(["build=pass", "test=skip"])).toEqual({ build: "pass", test: "skip" });
+  });
+});
+
+describe("수정 단위", () => {
+  const FIX_SECTION = `## 수정: FIX-001 날짜 미반영
+
+- [ ] T007 [FIX-001] [until:T008] 날짜 재현 테스트 \`domain/src/test/DateBugTest.kt\`
+- [ ] T008 [FIX-001] 날짜를 넘긴다 \`domain/src/main/usecase/Booking.kt\`
+
+`;
+
+  /** feature의 구현을 끝까지 마친다. */
+  function complete(): void {
+    start();
+    for (const id of ["T001", "T003"]) finish(id);
+    implReport(repo, F, "T002", { today: today(), status: "done" });
+    finish("T004");
+    finish("T005", ["design=skip"]);
+    finish("T006");
+    run(undefined);
+    implFinal(repo, F, { today: today(), result: "pass", checks: { principles: "pass" } });
+  }
+
+  function addFix(section: string = FIX_SECTION): void {
+    const file = docPath(repo, "breakdown", F);
+    fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("## 마지막 확인", `${section}## 마지막 확인`));
+  }
+
+  it("수정 단위는 스토리의 나눔과 따로 한 단위이고 기존 단위의 구성을 바꾸지 않는다", () => {
+    addFix();
+    const units = splitUnits(parseTasks(body())).map((unit) => [unit.name, unit.tasks.map((task) => task.id)]);
+    expect(units).toEqual([
+      ["US1", ["T001", "T002", "T003", "T004"]],
+      ["US2", ["T005"]],
+      ["tail", ["T006"]],
+      ["FIX-001", ["T007", "T008"]],
+    ]);
+  });
+
+  it("떨어진 스토리는 같은 이름의 단위 둘이 되므로 오류다", () => {
+    const tasks = parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 [US2] b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] T004 [US1] [FIX-001] d `d.kt`\n- [ ] FINAL 끝\n");
+    expect(validateTasks(tasks)).toEqual([
+      "4행: T004에 스토리와 수정 단위가 함께 있다. 하나만 단다",
+      "3행: US1의 작업이 다른 단위 뒤에 다시 나온다. 한 단위의 작업은 한곳에 모은다. 끝난 기능에 작업을 더하려면 수정 단위([FIX-…])를 쓴다",
+    ]);
+    // 스토리 밖의 작업이 사이에 있는 것은 떨어진 것이 아니다
+    expect(validateTasks(parseTasks("- [ ] T001 [US1] a `a.kt`\n- [ ] T002 b `b.kt`\n- [ ] T003 [US1] c `c.kt`\n- [ ] FINAL 끝\n"))).toEqual([]);
+  });
+
+  it("끝난 feature에 작은 수정을 더해 그 단위만 구현하고, 마지막 확인은 그 단위가 바꾼 모듈만 돈다", () => {
+    complete();
+    addFix();
+    expect(fixCheck(repo, F, "FIX-001")).toEqual({ feature: F, fix: "FIX-001", tasks: ["T007", "T008"], test: "T007" });
+    docRevise(repo, "breakdown", F, { today: today(), grade: "minor" });
+    expect(checked("FINAL")).toBe(false);
+
+    // 다른 모듈의 작업이 끝났다는 기록은 새 체크포인트에 없다
+    const started = implStart(repo, F, { today: today(), fix: "FIX-001" });
+    expect(started.checkpoint.fix).toBe("FIX-001");
+    expect(implNext(repo, F).unassigned).toEqual(["T007", "T008"]);
+    expect(() => implAssign(repo, F, ["T007=logic"])).toThrow(/test여야/);
+    implAssign(repo, F, ["T007=test", "T008=logic"]);
+    expect(implNext(repo, F)).toMatchObject({ task: { id: "T007" }, unit: "FIX-001" });
+
+    implReport(repo, F, "T007", { today: today(), status: "done", modules: [":domain"] });
+    implReport(repo, F, "T008", { today: today(), status: "done", modules: [":domain"] });
+    ran = [];
+    run("T008");
+    expect(ran).toEqual(["build :domain", "lint :domain", "test :domain --tests '*DateBugTest'"]);
+    expect(implVerify(repo, F, "T008", { today: today(), checks: {} }).raised).toEqual(["T008", "T007"]);
+    expect(implNext(repo, F).pendingUnit).toBe("FIX-001");
+    implVerify(repo, F, undefined, { today: today(), unit: "FIX-001", checks: { principles: "pass" } });
+
+    ran = [];
+    run(undefined);
+    expect(ran).toEqual(["build :domain", "lint :domain", "test :domain"]);
+    expect(implFinal(repo, F, { today: today(), result: "pass", checks: { principles: "pass" } }).done).toBe(true);
+    expect(checked("FINAL")).toBe(true);
+  });
+
+  it("범위를 넘는 수정은 무엇이 넘었는지 모아 거부한다", () => {
+    addFix();
+    expect(() => fixCheck(repo, F, "FIX-001")).toThrow(/구현이 끝나지 않았다/);
+    const file = docPath(repo, "breakdown", F);
+    fs.writeFileSync(file, setChecked(fs.readFileSync(file, "utf8"), ["T001", "T002", "T003", "T004", "T005", "T006", "FINAL"], true));
+
+    const wide = `## 수정: FIX-002 넓은 수정
+
+- [ ] T009 [FIX-002] 새 화면 \`app/src/debug/New.kt\`
+- [ ] T010 [FIX-002] 의존성 \`app/build.gradle.kts\`
+- [ ] T011 [FIX-002] 모듈 전체 \`domain/\`
+
+`;
+    addFix(wide);
+    const message = (() => {
+      try {
+        fixCheck(repo, F, "FIX-002");
+        return "";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    })();
+    expect(message).toContain("FIX-002의 작업이 3개다");
+    expect(message).toContain("FIX-002 밖에 체크되지 않은 작업이 있다: T007, T008");
+    expect(message).toContain("재현 테스트");
+    expect(message).toContain("T009의 경로가 기존 작업이 맡은 곳 밖이다: app/src/debug/New.kt");
+    expect(message).toContain("T010가 빌드 구성을 고친다: app/build.gradle.kts");
+    expect(message).toContain("T011의 경로가 디렉터리다: domain/");
+    expect(message).toContain("정식 경로");
+  });
+
+  it("문구처럼 재현 테스트가 없는 수정은 사유를 적어야 하고, spec의 변경이 PATCH를 넘으면 거부한다", () => {
+    complete();
+    addFix(`## 수정: FIX-001 문구
+
+- [ ] T007 [FIX-001] 버튼 문구 \`feature/login/src/main/LoginScreen.kt\`
+
+`);
+    expect(() => fixCheck(repo, F, "FIX-001")).toThrow(/--no-test/);
+    expect(fixCheck(repo, F, "FIX-001", { noTest: "문구만 바꾼다" }).noTest).toBe("문구만 바꾼다");
+
+    const spec = docPath(repo, "spec", F);
+    // 문구를 고치는 spec의 PATCH 개정은 그대로 통과한다
+    fs.writeFileSync(spec, fs.readFileSync(spec, "utf8").replace("요구사항", "요구사항: 버튼 문구는 확인"));
+    docChecklist(repo, F);
+    docRevise(repo, "spec", F, { today: today(), grade: "patch" });
+    expect(fixCheck(repo, F, "FIX-001", { noTest: "문구만 바꾼다" }).tasks).toEqual(["T007"]);
+    fs.writeFileSync(spec, fs.readFileSync(spec, "utf8") + "\n새 요구사항\n");
+    docChecklist(repo, F);
+    docRevise(repo, "spec", F, { today: today(), grade: "minor" });
+    expect(() => fixCheck(repo, F, "FIX-001", { noTest: "문구만 바꾼다" })).toThrow(/게이트를 통과시키지 않는다/);
+  });
+
+  it("수정 모드는 그 단위 밖에 남은 작업이 있으면 시작하지 않는다", () => {
+    addFix();
+    docRevise(repo, "breakdown", F, { today: today(), grade: "minor" });
+    expect(() => implStart(repo, F, { today: today(), fix: "FIX-001" })).toThrow(/FIX-001 밖에 체크되지 않은 작업이 있다: T001/);
+    expect(() => implStart(repo, F, { today: today(), fix: "FIX-009" })).toThrow(/수정 단위가 없다/);
   });
 });

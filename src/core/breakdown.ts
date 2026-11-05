@@ -4,6 +4,8 @@ export interface Task {
   checked: boolean;
   parallel: boolean;
   story?: string;
+  /** 수정 단위의 ID(`FIX-001`). 구현이 끝난 feature에 `/fix`가 더한 작업이다. 스토리 대신 단다. */
+  fix?: string;
   /** 연결 표기. 이 테스트 작업을 통과시키는 마지막 구현 작업의 ID. */
   until?: string;
   dropped: boolean;
@@ -15,11 +17,13 @@ export interface Task {
 
 export const FINAL_ID = "FINAL";
 
+export const FIX_ID = /^FIX-\d{3}$/;
+
 const TASK_LINE = /^\s*- \[([ xX])\] (T\d{3}|FINAL)(?=\s|$)(.*)$/;
 const MARKER = /^\s*\[([^\]]+)\]/;
 const FENCE = /^\s*(```|~~~)/;
 
-/** breakdown 본문에서 작업 줄을 읽는다. 표시의 순서는 `[P]`, `[US…]`, `[until:…]`, `[dropped]`다. */
+/** breakdown 본문에서 작업 줄을 읽는다. 표시의 순서는 `[P]`, `[US…]`나 `[FIX-…]`, `[until:…]`, `[dropped]`다. */
 export function parseTasks(body: string): Task[] {
   const tasks: Task[] = [];
   let fence: string | null = null;
@@ -52,6 +56,7 @@ export function parseTasks(body: string): Task[] {
       const value = marker[1] as string;
       if (value === "P") task.parallel = true;
       else if (/^US\d+$/.test(value)) task.story = value;
+      else if (FIX_ID.test(value)) task.fix = value;
       else if (/^until:T\d{3}$/.test(value)) task.until = value.slice("until:".length);
       else if (value === "dropped") task.dropped = true;
       else break;
@@ -81,6 +86,7 @@ export function validateTasks(tasks: Task[]): string[] {
   for (const task of tasks) {
     if (task.id === FINAL_ID) continue;
     if (task.paths.length === 0) problems.push(`${task.line}행: ${task.id}에 백틱으로 감싼 경로가 없다`);
+    if (task.story && task.fix) problems.push(`${task.line}행: ${task.id}에 스토리와 수정 단위가 함께 있다. 하나만 단다`);
     if (task.until === undefined) continue;
     const target = order.get(task.until);
     if (target === undefined) problems.push(`${task.line}행: ${task.id}의 연결 표기가 없는 작업을 가리킨다: ${task.until}`);
@@ -88,24 +94,24 @@ export function validateTasks(tasks: Task[]): string[] {
       problems.push(`${task.line}행: ${task.id}는 연결된 구현 작업 ${task.until}보다 앞에 있어야 한다`);
     }
   }
-  problems.push(...scatteredStories(tasks));
+  problems.push(...scatteredUnits(tasks));
   return problems;
 }
 
 /**
- * 한 스토리의 작업이 다른 스토리를 사이에 두고 떨어져 있는 곳. 단위는 이름으로 기록되므로
- * 떨어진 두 무리가 같은 이름의 단위 둘이 되어 검증 기록이 섞인다.
+ * 한 스토리나 수정 단위의 작업이 다른 스토리를 사이에 두고 떨어져 있는 곳. 단위는 이름으로 기록되므로
+ * 떨어진 두 무리가 같은 이름의 단위 둘이 되어 검증 기록이 섞인다. 끝난 스토리에 작업을 더하려면 수정 단위를 쓴다.
  */
-function scatteredStories(tasks: Task[]): string[] {
+function scatteredUnits(tasks: Task[]): string[] {
   const problems: string[] = [];
   const closed = new Set<string>();
   let current: string | undefined;
   for (const task of liveTasks(tasks)) {
-    const name = task.story;
+    const name = task.fix ?? task.story;
     if (!name || name === current) continue;
     if (current) closed.add(current);
     if (closed.has(name)) {
-      problems.push(`${task.line}행: ${name}의 작업이 다른 스토리 뒤에 다시 나온다. 한 스토리의 작업은 한곳에 모은다`);
+      problems.push(`${task.line}행: ${name}의 작업이 다른 단위 뒤에 다시 나온다. 한 단위의 작업은 한곳에 모은다. 끝난 기능에 작업을 더하려면 수정 단위([FIX-…])를 쓴다`);
       closed.delete(name);
     }
     current = name;
@@ -154,9 +160,21 @@ export const TAIL_UNIT = "tail";
  * 작업을 멈춤 단위로 나눈다(구현 단계 스킬 구성 §2 「자동 진행」).
  * 각 스토리의 첫 작업 앞에서 나누므로, 스토리 밖의 작업은 다음 스토리의 단위에 들어간다.
  * 마지막 스토리 뒤에 남는 작업은 `tail`이다. 스토리가 하나도 없으면 전체가 `tail`이다.
+ * 수정 단위의 작업은 스토리의 나눔과 따로 그 ID마다 한 단위다. 수정 단위를 더해도 기존 단위의 구성은 바뀌지 않는다.
  */
 export function splitUnits(tasks: Task[]): Unit[] {
-  const live = liveTasks(tasks);
+  const fixes: Unit[] = [];
+  for (const task of liveTasks(tasks)) {
+    if (!task.fix) continue;
+    const unit = fixes.find((candidate) => candidate.name === task.fix);
+    if (unit) unit.tasks.push(task);
+    else fixes.push({ name: task.fix, tasks: [task] });
+  }
+  return [...splitStories(tasks), ...fixes];
+}
+
+function splitStories(tasks: Task[]): Unit[] {
+  const live = liveTasks(tasks).filter((task) => !task.fix);
   const units: Unit[] = [];
   let pending: Task[] = [];
   let current: Unit | undefined;

@@ -63,6 +63,8 @@ export interface Checkpoint {
   handed: string[];
   /** 마지막 확인에서 `impl check --final`이 돌린 기계 검사의 결과. 코드가 바뀌면(보고, 체크를 내림) 지운다. */
   final?: { runs: Partial<Record<Check, CheckResult>>; hash?: string };
+  /** 수정 모드면 그 수정 단위의 ID. 배정과 디자인 대조가 그 단위의 작업만 본다. */
+  fix?: string;
 }
 
 export const MAX_ROUNDS = 3;
@@ -115,6 +117,7 @@ export function readCheckpoint(repo: Repo, feature: string): Checkpoint | undefi
     waiting: raw.waiting ?? [],
     handed: raw.handed ?? [],
     ...(raw.final?.runs ? { final: raw.final } : {}),
+    ...(typeof raw.fix === "string" ? { fix: raw.fix } : {}),
   };
 }
 

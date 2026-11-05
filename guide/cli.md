@@ -37,6 +37,7 @@
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
 | `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 테스트를 CLI가 돌려 종료 코드로 적는다 |
+| `fix check <feature> <FIX-001> [--no-test <사유>]` | `fix` | 수정 단위가 작은 수정의 범위 안인지 계산한다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
 | `wiki index\|record\|lint\|sources\|category add` | `wiki-ingest`, `wiki-lint` | 위키의 색인, 원본 해시 기록, 점검 계산, 미수집 원본, 갈래 추가 |
 

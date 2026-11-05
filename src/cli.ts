@@ -16,6 +16,7 @@ import {
   type RecordResult,
 } from "./commands/doc.js";
 import { check, formatCheck } from "./commands/check.js";
+import { fixCheck, formatFixCheck } from "./commands/fix.js";
 import { formatGate, gateAll, isGateStage, verdictText, type GateStage } from "./commands/gate.js";
 import { figmaSetup, figmaShow, formatFigmaSetup, formatFigmaShow } from "./commands/figma.js";
 import { formatHookOutput, hookWrite, hookWriteScoped, isHookScope } from "./commands/hook.js";
@@ -76,7 +77,8 @@ const USAGE = `mob-sdd <명령>
   preset list|add|remove           preset의 목록, 설치, 제거
   directives <단계>                그 단계에 적용되는 확장 지시 파일
   hook write                       쓰기 hook (입력은 표준 입력의 JSON, --scope wiki면 위키 밖의 문서 쓰기를 막는다)
-  impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다
+  fix check <feature> <FIX-001>    /fix가 더한 수정 단위가 작은 수정의 범위 안인지 판정한다 (--no-test <사유>)
+  impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다 (--fix <FIX-001>이면 그 수정 단위만)
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
   impl next <feature>              다음 작업과 종류, 단계
   impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
@@ -119,6 +121,8 @@ const OPTIONS = {
   lint: { type: "string" },
   test: { type: "string" },
   rules: { type: "string" },
+  fix: { type: "string" },
+  "no-test": { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
@@ -289,6 +293,13 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     const result = gateAll(repo, requireGateStage(rest[0]));
     return { text: formatGate(result), data: result };
   }
+  if (command === "fix") {
+    const [action, featureArg, fixArg] = rest;
+    if (action !== "check") throw new Refusal("fix 명령은 check다: fix check <feature> <FIX-001>");
+    if (!fixArg) throw new Refusal("수정 단위의 ID가 필요하다: fix check <feature> <FIX-001>");
+    const result = fixCheck(repo, requireFeatureArg(featureArg), fixArg, values["no-test"] ? { noTest: values["no-test"] } : {});
+    return { text: formatFixCheck(result), data: result };
+  }
   if (command === "impl") {
     const [action, featureArg, taskArg] = rest;
     if (action === "setup") {
@@ -300,7 +311,7 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     const today = write.today;
     switch (action) {
       case "start": {
-        const result = implStart(repo, feature, write);
+        const result = implStart(repo, feature, { ...write, ...(values.fix ? { fix: values.fix } : {}) });
         return { text: formatStart(result), data: result };
       }
       case "assign": {
