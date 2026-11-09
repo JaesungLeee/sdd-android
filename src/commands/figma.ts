@@ -25,6 +25,8 @@ export interface FigmaShowResult {
   tools: string[];
   /** 개인 설정 파일에 아직 허용되지 않은 도구. */
   missingPermissions: string[];
+  /** 읽지 못한 개인 설정 파일과 그 이유. 있으면 기본값으로 낸다. */
+  unreadable: string[];
 }
 
 interface Settings {
@@ -49,18 +51,34 @@ function allowed(settings: Settings): string[] {
   return Array.isArray(allow) ? allow.filter((item): item is string => typeof item === "string") : [];
 }
 
-/** 스킬 본문에 주입할 Figma 설정. 스킬 파일에는 개인 값이 없고 실행할 때 여기서 받는다(PRD STG-007). */
+/**
+ * 스킬 본문에 주입할 Figma 설정. 스킬 파일에는 개인 값이 없고 실행할 때 여기서 받는다(PRD STG-007).
+ * 개인 설정 파일이 깨져 있어도 거부하지 않는다. 주입이 실패하면 스킬이 로드되지 않아 그 사실을 알릴 수 없기 때문이다.
+ * 읽지 못한 파일은 기본값으로 두고 이유를 함께 낸다.
+ */
 export function figmaShow(repo: Repo): FigmaShowResult {
-  const local = readLocalConfig(repo);
+  const unreadable: string[] = [];
+  const attempt = <T>(read: () => T, fallback: T): T => {
+    try {
+      return read();
+    } catch (error) {
+      if (!(error instanceof Refusal)) throw error;
+      unreadable.push(error.message);
+      return fallback;
+    }
+  };
+  const local = attempt(() => readLocalConfig(repo), undefined);
   const config = figmaConfig(local);
   const tools = figmaToolNames(config);
-  const have = new Set(allowed(readSettings(repo)));
+  const settings = attempt<Settings | undefined>(() => readSettings(repo), undefined);
+  const have = new Set(settings ? allowed(settings) : []);
   return {
     configured: local?.figma !== undefined,
     config,
     name: figmaServerName(config),
     tools,
     missingPermissions: tools.filter((tool) => !have.has(tool)),
+    unreadable,
   };
 }
 
@@ -114,6 +132,7 @@ function requireServer(value: string): FigmaServer {
 
 export function formatFigmaShow(result: FigmaShowResult): string {
   const lines = [
+    ...result.unreadable.map((reason) => `개인 설정을 읽지 못해 기본값으로 냈다: ${reason}. 파일을 고친 뒤 sdd-android figma setup으로 다시 정한다.`),
     `Figma 서버: ${result.config.server} (등록 이름 ${result.name})${result.configured ? "" : " — 설정이 없어 기본값이다. sdd-android figma setup으로 정한다"}`,
     `읽기 도구: ${result.tools.join(", ")}`,
   ];

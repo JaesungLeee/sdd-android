@@ -109,6 +109,8 @@ describe("breakdown의 작업 줄", () => {
     const quoted = parseTasks("- [ ] T001 `todoz: …` 한 줄을 내는지 본다 `test/cli.test.mjs`, `src/cli.mjs`");
     expect(quoted[0]?.paths).toEqual(["test/cli.test.mjs", "src/cli.mjs"]);
     expect(parseTasks("- [ ] T001 `src/a.ts`를 만든다")[0]?.paths).toEqual([]);
+    const node = parseTasks("- [ ] T016 [US1] 로그인 화면을 만든다 [로그인 - 기본](https://www.figma.com/design/a?node-id=12-34) `feature/login/LoginScreen.kt`")[0];
+    expect(node).toMatchObject({ id: "T016", story: "US1", paths: ["feature/login/LoginScreen.kt"] });
     expect(tasks[3]).toMatchObject({ dropped: true, checked: true });
   });
 

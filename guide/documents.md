@@ -160,6 +160,7 @@ CLI-001 41ab…
 - [ ] T010 [P] [US1] [until:T014] 로그인 유스케이스의 테스트를 작성한다 `domain/src/test/LoginUseCaseTest.kt`
 - [ ] T012 [P] [US1] 사용자 모델을 만든다 `domain/src/main/model/User.kt`
 - [ ] T014 [US1] 로그인 유스케이스를 구현한다 `domain/src/main/usecase/`
+- [ ] T016 [US1] 로그인 화면을 만든다 [로그인 - 기본](https://www.figma.com/design/…?node-id=12-34) `feature/login/src/main/LoginScreen.kt`
 - [x] T009 [US1] [dropped] 토큰 저장소를 만든다 `data/src/main/TokenStore.kt`
 - [ ] FINAL 마지막 확인
 ```
@@ -172,6 +173,7 @@ CLI-001 41ab…
 | `[FIX-001]` | 구현이 끝난 뒤 `/fix`가 더한 수정 단위. 「수정」 섹션에만 있고 `[US…]`와 함께 달지 않는다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `[until:T014]` | 테스트 작업에 단다. 이 테스트를 통과시키는 마지막 구현 작업이다. 테스트는 T014가 끝난 뒤에 돌고 그때 함께 체크된다 |
 | `[dropped]` | 개정으로 무효가 된 완료 작업. 폐기 사유와 조치를 아래에 적는다 |
+| `[화면 이름](Figma URL)` | 화면을 만드는 작업이 스토리의 화면 가운데 일부만 그릴 때 설명 끝에 적는다. spec의 Figma 줄에 있는 링크를 옮긴다. 있으면 구현 단계가 그 작업의 디자인 원본으로 이것을 쓰고, 없으면 스토리의 Figma 줄 전체를 쓴다 |
 | 줄 끝의 백틱 | 이 작업이 만들거나 고치는 경로. 여러 개를 적을 수 있고 `/`로 끝나면 그 아래 전체다. **작업마다 하나 이상 있어야 한다** |
 | `FINAL` | 마지막 확인 줄. 문서의 마지막 작업 줄이고 CLI만 올리고 내린다 |
 

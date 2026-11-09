@@ -25,6 +25,8 @@ npx sdd-android figma show
 
 `--name`은 Claude Code에 등록한 서버의 이름이다. `claude mcp list`에 나오는 이름이고 사람마다 다르다(`figma`, `figma-desktop`, `plugin:figma:figma` 등).
 
+`show`는 Figma를 읽는 스킬의 본문에도 주입된다. 두 개인 파일 가운데 읽지 못하는 것이 있으면(형식 오류 등) 거부하지 않고 기본값과 그 이유를 낸다. 파일을 고친 뒤 `setup`으로 다시 정한다. `setup`은 그런 파일이 있으면 거부한다.
+
 `setup`은 개인 파일 두 개만 쓴다. 둘 다 커밋하지 않으므로 팀원마다 다르게 둘 수 있다.
 
 | 파일 | 쓰는 것 |

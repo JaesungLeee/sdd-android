@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { check } from "../src/commands/check.js";
-import { figmaSetup, figmaShow, SETTINGS_LOCAL } from "../src/commands/figma.js";
+import { figmaSetup, figmaShow, formatFigmaShow, SETTINGS_LOCAL } from "../src/commands/figma.js";
 import { init } from "../src/commands/init.js";
 import { promptInit } from "../src/commands/init-prompt.js";
 import { assetsFromDir } from "../src/core/assets.js";
@@ -133,5 +133,17 @@ describe("Figma 설정", () => {
     expect(() => figmaSetup(repo, { name: "bad name" })).toThrow(Refusal);
     fs.writeFileSync(path.join(repo.root, ".sdd-android", "config.local.yaml"), "figma:\n  server: nope\n");
     expect(figmaConfig(readLocalConfig(repo)).server).toBe("desktop");
+  });
+
+  it("개인 설정 파일이 깨져 있으면 show는 기본값과 이유를 내고, setup은 거부한다", () => {
+    fs.mkdirSync(path.join(repo.root, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(repo.root, SETTINGS_LOCAL), "{ 깨진");
+    fs.writeFileSync(path.join(repo.root, ".sdd-android", "config.local.yaml"), "- 목록\n");
+    const shown = figmaShow(repo);
+    expect(shown).toMatchObject({ configured: false, name: "figma-desktop" });
+    expect(shown.missingPermissions).toHaveLength(4);
+    expect(shown.unreadable).toHaveLength(2);
+    expect(formatFigmaShow(shown)).toContain("개인 설정을 읽지 못해 기본값으로 냈다");
+    expect(() => figmaSetup(repo, { server: "remote" })).toThrow(Refusal);
   });
 });

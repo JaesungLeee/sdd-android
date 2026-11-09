@@ -76,7 +76,7 @@ hooks:
 | 후보 | 규칙 | 나온 곳 |
 |---|---|---|
 | 테스트 우선 | 새 동작은 실패하는 테스트를 먼저 쓴다 | 입력 |
-| 계층 경계 | `domain/`은 `data/`를 가져다 쓰지 않는다 | 코드: `eslint.config.js`의 import 규칙 |
+| 계층 경계 | `domain` 모듈은 `data` 모듈을 가져다 쓰지 않는다 | 코드: `domain/build.gradle.kts`의 의존성, `config/detekt.yml`의 `ForbiddenImport` |
 ```
 
 코드에서 찾은 후보는 지금 그렇게 되어 있다는 관찰일 뿐이다. 팀이 그것을 원칙으로 삼으려는지는 알 수 없으므로 확정된 것처럼 쓰지 않는다.
