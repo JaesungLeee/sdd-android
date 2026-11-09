@@ -34,6 +34,7 @@ import {
 import { hashSource, sha256 } from "../core/hash.js";
 import { commandFor, isMachineCheck, MACHINE_CHECKS, NO_COMMAND, readImplChecks, requireImplChecks, type CommandSpec, type MachineCheck } from "../core/impl-config.js";
 import { assertFeatureName, docPath, loadDoc, loadDocs, Refusal, writeDoc, writeFile, type LoadedDoc, type Repo } from "../core/repo.js";
+import { skillName } from "../core/skilltext.js";
 import { currentVersions, describeReason, implementGate, type GateResult } from "./gate.js";
 
 const CHECK_TEXT: Record<Check, string> = { build: "빌드", lint: "Lint", test: "테스트", rules: "규칙", design: "디자인", principles: "원칙" };
@@ -248,7 +249,7 @@ export function implStart(repo: Repo, feature: string, options: StartOptions): S
   // 검사 명령이 없으면 첫 검증에서 막힌다. 코드를 쓰기 전에 드러나야 한다.
   requireImplChecks(repo);
   const gate = implementGate(repo, feature);
-  if (gate.mode === "done") throw new Refusal("마지막 확인 줄이 체크되어 있다. 이 feature의 구현은 끝났다. 버그 수정이나 작은 변경은 /fix로, 그보다 크면 breakdown을 개정해 작업을 더한다.");
+  if (gate.mode === "done") throw new Refusal(`마지막 확인 줄이 체크되어 있다. 이 feature의 구현은 끝났다. 버그 수정이나 작은 변경은 /${skillName("fix", repo.config.prefix)}로, 그보다 크면 breakdown을 개정해 작업을 더한다.`);
   const reasons = gate.reasons.filter((reason) => reason.action === gate.action).map(describeReason).join(", ");
   if (gate.action === "block") throw new Refusal(`중단: ${reasons}. 그 문서의 단계를 먼저 다시 실행한다.`);
   if (gate.action === "confirm" && !options.acknowledged) {
@@ -511,7 +512,7 @@ export function parseChecks(values: string[]): Partial<Record<Check, CheckResult
   for (const value of values) {
     const [kind, result] = value.split("=");
     if (!kind || !result || !isCheck(kind) || !isCheckResult(result)) {
-      throw new Refusal(`검사는 종류=결과 꼴이다(종류: build, lint, test, design, principles; 결과: pass, fail, skip): ${value}`);
+      throw new Refusal(`검사는 종류=결과 꼴이다(종류: build, lint, test, rules, design, principles; 결과: pass, fail, skip): ${value}`);
     }
     checks[kind] = result;
   }

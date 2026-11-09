@@ -6,7 +6,7 @@ export type FileMap = Map<string, string>;
 
 /**
  * 패키지에 실린 스킬과 템플릿.
- * 번들 안에 들어 있어 저장소의 번들이 자기 버전의 원본을 언제나 갖는다(PRD CLI-004).
+ * 번들 안에 들어 있어 npm 패키지가 파일 하나로 끝난다(PRD CLI-001).
  * 키는 `ko/skills/prd/SKILL.md`, `ko/templates/prd.md` 꼴이다.
  */
 export interface Assets {

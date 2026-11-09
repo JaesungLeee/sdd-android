@@ -21,7 +21,7 @@ import {
   type Exec,
 } from "../src/commands/impl.js";
 import { implSetup } from "../src/core/impl-config.js";
-import { fixCheck } from "../src/commands/fix.js";
+import { fixCheck, formatFixCheck } from "../src/commands/fix.js";
 import { status } from "../src/commands/status.js";
 import { matchTasks, parseTasks, setChecked, splitUnits, validateTasks } from "../src/core/breakdown.js";
 import { checkpointPath, readCheckpoint } from "../src/core/checkpoint.js";
@@ -675,7 +675,10 @@ describe("수정 단위", () => {
   it("끝난 feature에 작은 수정을 더해 그 단위만 구현하고, 마지막 확인은 그 단위가 바꾼 모듈만 돈다", () => {
     complete();
     addFix();
-    expect(fixCheck(repo, F, "FIX-001")).toEqual({ feature: F, fix: "FIX-001", tasks: ["T007", "T008"], test: "T007" });
+    const result = fixCheck(repo, F, "FIX-001");
+    expect(result).toEqual({ feature: F, fix: "FIX-001", tasks: ["T007", "T008"], test: "T007" });
+    expect(formatFixCheck(result)).toContain(`/impl-orchestrator ${F} --fix FIX-001`);
+    expect(formatFixCheck(result, "sdd")).toContain(`/sdd-impl-orchestrator ${F} --fix FIX-001`);
     docRevise(repo, "breakdown", F, { today: today(), grade: "minor" });
     expect(checked("FINAL")).toBe(false);
 

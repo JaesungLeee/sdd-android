@@ -10,12 +10,13 @@ import { docChecklist, docComplete, docNew } from "../src/commands/doc.js";
 import { init } from "../src/commands/init.js";
 import { promptInit } from "../src/commands/init-prompt.js";
 import { changelogBetween, upgrade } from "../src/commands/upgrade.js";
-import { parseTasks, validateTasks, countTasks } from "../src/core/breakdown.js";
+import { parseTasks, setChecked, validateTasks, countTasks } from "../src/core/breakdown.js";
 import { readManifest } from "../src/core/manifest.js";
 import { docPath, openRepo, Refusal } from "../src/core/repo.js";
 import { splitItems } from "../src/core/items.js";
 import { applyPrefix } from "../src/core/skilltext.js";
 import { implSetup } from "../src/core/impl-config.js";
+import { LAUNCHER } from "../src/core/launcher.js";
 
 const PROJECT = path.dirname(path.dirname(new URL(import.meta.url).pathname));
 
@@ -93,6 +94,10 @@ describe("breakdown의 작업 줄", () => {
     "```text",
     "- [ ] T999 코드 블록 안의 줄",
     "```",
+    "<!--",
+    "    - [ ] T998 [FIX-001] 주석 안의 예시 `a.kt`",
+    "-->",
+    "<!-- 한 줄 주석 --> ",
     "- [ ] FINAL 마지막 확인",
   ].join("\n");
   const tasks = parseTasks(body);
@@ -105,6 +110,12 @@ describe("breakdown의 작업 줄", () => {
     expect(quoted[0]?.paths).toEqual(["test/cli.test.mjs", "src/cli.mjs"]);
     expect(parseTasks("- [ ] T001 `src/a.ts`를 만든다")[0]?.paths).toEqual([]);
     expect(tasks[3]).toMatchObject({ dropped: true, checked: true });
+  });
+
+  it("코드 블록과 HTML 주석 안의 줄은 작업이 아니고, 체크도 그 줄을 건드리지 않는다", () => {
+    expect(tasks.map((task) => task.id)).not.toContain("T998");
+    const commented = "<!--\n- [ ] T001 예시 `a.kt`\n-->\n- [ ] T001 실제 `a.kt`\n- [ ] FINAL 끝";
+    expect(setChecked(commented, ["T001"], true)).toBe("<!--\n- [ ] T001 예시 `a.kt`\n-->\n- [x] T001 실제 `a.kt`\n- [ ] FINAL 끝");
   });
 
   it("형식이 맞으면 문제가 없다", () => {
@@ -170,6 +181,25 @@ describe("init", () => {
     const target = gitRepo();
     init(options(target));
     if (process.platform !== "win32") expect(fs.statSync(path.join(target, ".sdd-android/bin/sdd-android")).mode & 0o111).not.toBe(0);
+  });
+
+  it("node를 찾지 못하면 본문 주입이 부르는 명령만 안내를 내고 0으로 끝난다", () => {
+    if (process.platform === "win32") return;
+    // 기계마다 node의 자리가 달라, 찾는 함수를 비워 node가 없는 셸을 만든다.
+    const script = path.join(tempDir("launcher"), "sdd-android");
+    fs.writeFileSync(script, LAUNCHER.replace(/^find_node\(\) \{[\s\S]*?^\}$/m, "find_node() { :; }"));
+    const run = (...args: string[]) => spawnSync("/bin/sh", [script, ...args], { encoding: "utf8" });
+    for (const args of [["gate", "spec"], ["status"], ["figma", "show"]]) {
+      const ran = run(...args);
+      expect(ran.status, args.join(" ")).toBe(0);
+      expect(ran.stdout, args.join(" ")).toContain("Node.js를 찾지 못했다");
+    }
+    for (const args of [["check"], ["figma", "setup"], ["doc", "new", "prd"]]) {
+      const ran = run(...args);
+      expect(ran.status, args.join(" ")).toBe(127);
+      expect(ran.stderr, args.join(" ")).toContain("Node.js를 찾지 못했다");
+    }
+    expect(run("hook", "write").status).toBe(0);
   });
 
   it("접두사를 붙이면 스킬의 이름과 서로를 가리키는 이름이 모두 바뀐다", () => {

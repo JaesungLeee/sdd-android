@@ -1,5 +1,5 @@
 /**
- * OpenAPI 문서의 조회(PRD CLI-004). blueprint가 `openapi operations`와 `openapi show`로 부른다.
+ * OpenAPI 문서의 조회(PRD CLI-005). blueprint가 `openapi operations`와 `openapi show`로 부른다.
  *
  *   operations [--source <이름>] [--filter <텍스트>]   출처마다 머리말과 오퍼레이션 목록
  *   show <operationId | "METHOD /path">…               고른 오퍼레이션을 $ref를 풀어 펼친다

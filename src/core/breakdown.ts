@@ -22,13 +22,20 @@ export const FIX_ID = /^FIX-\d{3}$/;
 const TASK_LINE = /^\s*- \[([ xX])\] (T\d{3}|FINAL)(?=\s|$)(.*)$/;
 const MARKER = /^\s*\[([^\]]+)\]/;
 const FENCE = /^\s*(```|~~~)/;
+const COMMENT_OPEN = /^\s*<!--/;
 
-/** breakdown 본문에서 작업 줄을 읽는다. 표시의 순서는 `[P]`, `[US…]`나 `[FIX-…]`, `[until:…]`, `[dropped]`다. */
-export function parseTasks(body: string): Task[] {
-  const tasks: Task[] = [];
+/**
+ * 작업 줄을 찾는다. 코드 블록과 HTML 주석 안은 보지 않는다.
+ * 템플릿의 주석에 든 예시(`- [ ] T007 [FIX-001] …`)가 지워지지 않고 남아도 작업이 되지 않게 하기 위해서다.
+ */
+function scanTaskLines(lines: string[], visit: (match: RegExpExecArray, index: number) => void): void {
   let fence: string | null = null;
-
-  body.replace(/\r\n?/g, "\n").split("\n").forEach((text, index) => {
+  let comment = false;
+  lines.forEach((text, index) => {
+    if (comment) {
+      if (text.includes("-->")) comment = false;
+      return;
+    }
     const fenceMatch = FENCE.exec(text);
     if (fenceMatch) {
       if (fence === null) fence = fenceMatch[1] ?? null;
@@ -36,10 +43,20 @@ export function parseTasks(body: string): Task[] {
       return;
     }
     if (fence !== null) return;
-
+    if (COMMENT_OPEN.test(text)) {
+      comment = !text.slice(text.indexOf("<!--") + 4).includes("-->");
+      return;
+    }
     const match = TASK_LINE.exec(text);
-    if (!match) return;
+    if (match) visit(match, index);
+  });
+}
 
+/** breakdown 본문에서 작업 줄을 읽는다. 표시의 순서는 `[P]`, `[US…]`나 `[FIX-…]`, `[until:…]`, `[dropped]`다. */
+export function parseTasks(body: string): Task[] {
+  const tasks: Task[] = [];
+
+  scanTaskLines(body.replace(/\r\n?/g, "\n").split("\n"), (match, index) => {
     const task: Task = {
       id: match[2] as string,
       checked: match[1] !== " ",
@@ -138,14 +155,11 @@ export function setChecked(body: string, ids: readonly string[], checked: boolea
   if (ids.length === 0) return body;
   const wanted = new Set(ids);
   const mark = checked ? "x" : " ";
-  return body
-    .split("\n")
-    .map((line) => {
-      const match = TASK_LINE.exec(line);
-      if (!match || !wanted.has(match[2] as string)) return line;
-      return line.replace(/^(\s*- )\[[ xX]\]/, `$1[${mark}]`);
-    })
-    .join("\n");
+  const lines = body.split("\n");
+  scanTaskLines(lines, (match, index) => {
+    if (wanted.has(match[2] as string)) lines[index] = (lines[index] as string).replace(/^(\s*- )\[[ xX]\]/, `$1[${mark}]`);
+  });
+  return lines.join("\n");
 }
 
 /** 멈춤 단위. 스토리마다 하나이고, 마지막 스토리 뒤의 작업은 `tail` 하나다. */

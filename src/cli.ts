@@ -285,7 +285,7 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     if (action !== "check") throw new Refusal("fix 명령은 check다: fix check <feature> <FIX-001>");
     if (!fixArg) throw new Refusal("수정 단위의 ID가 필요하다: fix check <feature> <FIX-001>");
     const result = fixCheck(repo, requireFeatureArg(featureArg), fixArg, values["no-test"] ? { noTest: values["no-test"] } : {});
-    return { text: formatFixCheck(result), data: result };
+    return { text: formatFixCheck(result, repo.config.prefix), data: result };
   }
   if (command === "impl") {
     const [action, featureArg, taskArg] = rest;

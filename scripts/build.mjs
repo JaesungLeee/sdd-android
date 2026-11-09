@@ -140,7 +140,7 @@ async function main() {
     format: "esm",
     target: "node22",
     outfile: path.join(dist, "sdd-android.mjs"),
-    // 스킬과 템플릿을 번들 안에 넣는다. 저장소의 번들이 자기 버전의 원본을 갖는다(PRD CLI-004).
+    // 스킬과 템플릿을 번들 안에 넣는다. npm 패키지는 파일 하나다(PRD CLI-001).
     define: { __VERSION__: JSON.stringify(version), __ASSETS__: JSON.stringify(assets) },
     // yaml 패키지가 번들 안에서 require를 쓴다. ESM 번들에는 require가 없어 만들어 준다.
     banner: {

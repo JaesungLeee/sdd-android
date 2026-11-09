@@ -6,7 +6,7 @@ import { ACCEPT, discoverDocument, isHtml, type Fetch } from "../openapi/spec.js
 import { Refusal, type Repo } from "../core/repo.js";
 
 /**
- * OpenAPI 출처의 설정(PRD CLI-004). `.sdd-android/config.yaml`의 `openapi.sources`를 손으로 고치지 않게 하는 명령이다.
+ * OpenAPI 출처의 설정(PRD CLI-005). `.sdd-android/config.yaml`의 `openapi.sources`를 손으로 고치지 않게 하는 명령이다.
  * 설정 파일의 다른 내용과 주석은 그대로 둔다. 팀이 공유하는 설정이라 커밋된다.
  */
 
@@ -70,7 +70,7 @@ export interface AddSourceResult {
 
 /**
  * 주소가 Swagger UI 페이지면 그 페이지가 읽는 문서의 주소로 바꾼다. 설정에는 문서의 주소가 남아야 조회 시점의 출처가 분명하다.
- * 네트워크가 없거나 찾지 못하면 받은 대로 두고 알린다. 스크립트가 실행할 때 한 번 더 찾는다.
+ * 네트워크가 없거나 찾지 못하면 받은 대로 두고 알린다. 조회(`openapi operations`, `openapi show`)가 실행할 때 한 번 더 찾는다.
  */
 async function resolveUrl(url: string, fetchImpl: Fetch): Promise<{ url: string; resolvedFrom?: string; note?: string }> {
   let text: string;

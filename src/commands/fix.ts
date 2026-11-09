@@ -3,6 +3,7 @@ import path from "node:path";
 import { FINAL_ID, FIX_ID, liveTasks, matchTasks, parseTasks, splitUnits, validateTasks, type Task } from "../core/breakdown.js";
 import { checkpointPath } from "../core/checkpoint.js";
 import { assertFeatureName, docPath, loadDoc, Refusal, type Repo } from "../core/repo.js";
+import { skillName } from "../core/skilltext.js";
 import { describeReason, stageGate } from "./gate.js";
 
 /** 수정 단위의 작업 수 상한. 수정 작업 하나와 재현 테스트 하나다. 넘으면 작은 수정이 아니다. */
@@ -85,16 +86,18 @@ export function fixCheck(repo: Repo, feature: string, fix: string, options: FixC
   }
 
   if (problems.length > 0) {
+    const skill = (name: string) => `/${skillName(name, repo.config.prefix)}`;
     throw new Refusal(
-      `${fix}는 작은 수정의 범위를 넘는다.\n- ${problems.join("\n- ")}\n더한 수정 단위를 breakdown에서 지우고, 정식 경로(필요하면 /spec, /blueprint, 그리고 /breakdown의 개정)로 진행한다.`,
+      `${fix}는 작은 수정의 범위를 넘는다.\n- ${problems.join("\n- ")}\n더한 수정 단위를 breakdown에서 지우고, 정식 경로(필요하면 ${skill("spec")}, ${skill("blueprint")}, 그리고 ${skill("breakdown")}의 개정)로 진행한다.`,
     );
   }
   return { feature, fix, tasks: own.map((task) => task.id), ...(test ? { test: test.id } : {}), ...(options.noTest ? { noTest: options.noTest } : {}) };
 }
 
-export function formatFixCheck(result: FixCheckResult): string {
+/** `prefix`는 설치할 때 정한 스킬 이름 접두사다. 안내하는 스킬 이름에 붙인다. */
+export function formatFixCheck(result: FixCheckResult, prefix = ""): string {
   const lines = [`${result.fix}: 작은 수정의 범위 안이다 (작업 ${result.tasks.join(", ")})`];
   lines.push(result.test ? `재현 테스트: ${result.test}` : `재현 테스트 없음: ${result.noTest}`);
-  lines.push(`다음: sdd-android doc revise breakdown ${result.feature} --grade minor로 개정을 기록하고, /impl-orchestrator ${result.feature} --fix ${result.fix}로 구현한다.`);
+  lines.push(`다음: sdd-android doc revise breakdown ${result.feature} --grade minor로 개정을 기록하고, /${skillName("impl-orchestrator", prefix)} ${result.feature} --fix ${result.fix}로 구현한다.`);
   return lines.join("\n");
 }
