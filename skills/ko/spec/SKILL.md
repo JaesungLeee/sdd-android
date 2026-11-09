@@ -34,12 +34,6 @@ feature 하나의 spec을 만들거나 개정한다. spec은 사용자가 **무�
 
 위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate spec`을 직접 불러 확인한다.
 
-## 확장 지시의 목록
-
-!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives spec`
-
-{{> directives}}
-
 {{> gate}}
 
 spec과 PRD의 관계는 보고만 하는 관계다. PRD가 없거나 완료되지 않았어도 이 단계는 막히지 않는다.

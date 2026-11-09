@@ -45,13 +45,12 @@ import {
 import { isCheck, type Check } from "./core/checkpoint.js";
 import { implSetup, MACHINE_CHECKS } from "./core/impl-config.js";
 import { loadAssets } from "./core/assets.js";
-import { addExtension, directives, formatAdd, formatDirectives, formatList, formatRemove, listExtensions, removeExtension, resolveBundle } from "./commands/extension.js";
 import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
-import { runScript } from "./commands/run.js";
 import { addSource, formatSources as formatOpenApiSources, listSources, removeSource } from "./commands/openapi.js";
+import { queryOperations } from "./openapi/operations.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
 import { isGrade, type Grade } from "./core/version.js";
@@ -59,7 +58,7 @@ import { VERSION } from "./version.js";
 
 const USAGE = `sdd-android <명령>
 
-  init                             이 저장소에 설치한다 (--language, --prefix, --yes, --extension <내장 확장>)
+  init                             이 저장소에 설치한다 (--language, --prefix, --yes)
   upgrade                          설치된 파일을 이 버전으로 올린다
   status [feature]                 진행 상태와 버전 체인 판정
   check                            설치와 문서에 깨진 곳이 없는지 검사한다
@@ -71,10 +70,7 @@ const USAGE = `sdd-android <명령>
   doc confirm <단계> [feature]     영향 없음을 기록한다
   doc restore <단계> [feature]     병합 뒤 메타데이터와 해시를 HEAD 쪽으로 되돌린다 (--from)
   doc checklist <feature>          체크리스트의 상태를 기록한다
-  extension list|add|remove        확장의 목록, 설치(이름이나 경로), 제거
   figma show|setup                 Figma 서버 설정과 읽기 도구의 권한 (--server, --name)
-  preset list|add|remove           preset의 목록, 설치, 제거
-  directives <단계>                그 단계에 적용되는 확장 지시 파일
   hook write                       쓰기 hook (입력은 표준 입력의 JSON)
   fix check <feature> <FIX-001>    /fix가 더한 수정 단위가 작은 수정의 범위 안인지 판정한다 (--no-test <사유>)
   impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다 (--fix <FIX-001>이면 그 수정 단위만)
@@ -89,7 +85,8 @@ const USAGE = `sdd-android <명령>
   impl reset <feature> <작업>      사용자가 승인한 뒤 시도 횟수를 초기화한다
   impl show <feature>              체크포인트
   openapi list|add|remove          OpenAPI 출처의 목록, 추가(--url이나 --path), 제거. config.yaml의 openapi.sources를 쓴다
-  run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (뒤의 인자는 --root까지 그대로 넘긴다)
+  openapi operations               출처마다 문서를 조회해 오퍼레이션 목록을 낸다 (--source, --filter)
+  openapi show <오퍼레이션>…       고른 오퍼레이션의 파라미터, 요청, 응답을 펼친다. operationId나 "METHOD /path" (--source)
 
 옵션: --json, --acknowledged, --grade <등급|항목=등급>, --depends <ID,ID>, --root <경로>, --version`;
 
@@ -120,21 +117,19 @@ const OPTIONS = {
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
   yes: { type: "boolean", short: "y", default: false },
-  extension: { type: "string", multiple: true },
   server: { type: "string" },
   name: { type: "string" },
   url: { type: "string" },
   path: { type: "string" },
+  source: { type: "string" },
+  filter: { type: "string" },
   version: { type: "boolean", default: false },
   help: { type: "boolean", short: "h", default: false },
 } as const;
 
 const SELF = fileURLToPath(import.meta.url);
 
-/**
- * 첫 명령의 위치와 그 앞의 `--root`. 값을 받는 옵션(`--root X`)의 값은 명령이 아니다.
- * `run` 뒤는 스크립트의 인자라 보지 않는다.
- */
+/** 첫 명령의 위치와 그 앞의 `--root`. 값을 받는 옵션(`--root X`)의 값은 명령이 아니다. */
 function locateCommand(argv: string[]): { index: number; root?: string } {
   let root: string | undefined;
   for (let i = 0; i < argv.length; i += 1) {
@@ -369,24 +364,6 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     }
     throw new Refusal("impl 명령은 setup, start, assign, next, report, check, verify, attempt, final, reset, show 가운데 하나다");
   }
-  if (command === "extension" || command === "preset") {
-    const assets = loadAssets(SELF);
-    const [action, target] = rest;
-    if (action === "list") {
-      const result = listExtensions(repo, assets, command);
-      return { text: formatList(result), data: result };
-    }
-    if (action === "add" && target) {
-      const { bundle, origin } = resolveBundle(repo, assets, target);
-      const result = addExtension(repo, assets, bundle, { origin, expectKind: command });
-      return { text: formatAdd(result), data: result };
-    }
-    if (action === "remove" && target) {
-      const result = removeExtension(repo, assets, target, command);
-      return { text: formatRemove(result), data: result };
-    }
-    throw new Refusal(`${command} 명령은 list, add <이름|경로>, remove <이름> 가운데 하나다`);
-  }
   if (command === "figma") {
     if (rest[0] === "show") {
       const result = figmaShow(repo);
@@ -419,12 +396,11 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
       return { text: `출처를 뺐다: ${result.removed.name}
 ${formatOpenApiSources(result.sources)}`, data: result };
     }
-    throw new Refusal("openapi 명령은 list, add <이름> --url <주소>|--path <경로>, remove <이름> 가운데 하나다");
-  }
-  if (command === "directives") {
-    if (!rest[0]) throw new Refusal("단계 이름이 필요하다");
-    const found = directives(repo, rest[0]);
-    return { text: formatDirectives(found), data: found };
+    if (action === "operations" || action === "show") {
+      const text = await queryOperations(repo.root, action, { source: values.source, filter: values.filter, selectors: rest.slice(1) });
+      return { text, data: { text } };
+    }
+    throw new Refusal("openapi 명령은 list, add <이름> --url <주소>|--path <경로>, remove <이름>, operations, show <오퍼레이션>… 가운데 하나다");
   }
   if (command === "hook" && rest[0] === "write") {
     const input = JSON.parse(fs.readFileSync(0, "utf8")) as { tool_input?: { file_path?: string } };
@@ -500,7 +476,6 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
   const base: InitOptions = {
     target: path.resolve(values.root ?? process.cwd()),
     language: values.language,
-    ...(values.extension !== undefined ? { extensions: values.extension } : {}),
     prefix: values.prefix ?? "",
     assets: loadAssets(SELF),
     bundlePath: SELF,
@@ -514,7 +489,6 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     try {
       options = await promptInit(base, {
         prefixGiven: values.prefix !== undefined,
-        extensionsGiven: values.extension !== undefined,
         ask: (question) => terminal.question(question),
         print: (text) => console.log(text),
       });
@@ -529,12 +503,12 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     `sdd-android ${VERSION}을 설치했다.`,
     ...result.files.map((file) => `- ${file}`),
     ...result.backedUp.map((moved) => `옮겼다: ${moved.from} → ${moved.to}`),
-    result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: sdd-android extension add android",
     "",
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
-    ...(result.extensions.includes("android") ? ["Figma를 쓰면 sdd-android figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
+    "구현 단계를 쓰기 전에 sdd-android impl setup --lint <명령|none>으로 검사 명령을 정한다.",
+    "Figma를 쓰면 sdd-android figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다.",
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
 }
@@ -546,13 +520,6 @@ async function main(): Promise<void> {
     if (delegate(argv)) return;
     const located = locateCommand(argv);
     const first = located.index >= 0 ? argv[located.index] : undefined;
-    // 스크립트의 인자는 이 CLI의 옵션이 아니다. 옵션 해석 전에 그대로 넘긴다. `run` 뒤의 `--root`도 스크립트의 것이다.
-    if (first === "run") {
-      const [extension, script, ...args] = argv.slice(located.index + 1);
-      const result = runScript(openRepo(resolveRoot(located.root)), extension, script, args);
-      process.exitCode = result.status;
-      return;
-    }
     const wantsInfo = argv.includes("--help") || argv.includes("-h") || argv.includes("--version");
     const { text, data, exitCode }: { text: string; data: unknown; exitCode?: number } =
       first === "init" && !wantsInfo ? await runInit(argv) : await run(argv);

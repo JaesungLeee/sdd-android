@@ -1,5 +1,0 @@
-name: android
-kind: extension
-version: 0.1.0
-requires: ">=0.3.0"
-description: "구현 단계. Kotlin, Gradle, Jetpack Compose 프로젝트의 작업 목록을 구현하고 검증하고 치유하는 스킬"

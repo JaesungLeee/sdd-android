@@ -15,6 +15,7 @@ import { readManifest } from "../src/core/manifest.js";
 import { docPath, openRepo, Refusal } from "../src/core/repo.js";
 import { splitItems } from "../src/core/items.js";
 import { applyPrefix } from "../src/core/skilltext.js";
+import { implSetup } from "../src/core/impl-config.js";
 
 const PROJECT = path.dirname(path.dirname(new URL(import.meta.url).pathname));
 
@@ -162,7 +163,7 @@ describe("init", () => {
     const manifest = readManifest(target);
     expect(manifest?.version).toBe("0.1.0");
     expect(Object.keys(manifest?.files ?? {})).toEqual([...Object.keys(manifest?.files ?? {})].sort());
-    expect(manifest?.files[".sdd-android/templates/prd.md"]?.source).toBe("core");
+    expect(manifest?.files[".sdd-android/templates/prd.md"]).toEqual({ sha256: expect.any(String) });
   });
 
   it("실행 스크립트는 실행 비트를 갖는다", () => {
@@ -304,6 +305,7 @@ describe("check", () => {
     fs.writeFileSync(bundle, "// bundle\n");
     target = gitRepo();
     init({ target, language: "ko", prefix: "", assets: assetsFromDir(makeAssets(pkg)), bundlePath: bundle, version: "0.1.0", homeDir: tempDir("home") });
+    implSetup(openRepo(target), { lint: "none" });
   });
 
   const errors = () => check(openRepo(target)).problems.filter((problem) => problem.level === "error").map((problem) => problem.message);
@@ -399,9 +401,9 @@ describe("번들", () => {
     const run = (cwd: string, ...args: string[]) =>
       spawnSync(process.execPath, [path.join(pkg, "sdd-android.mjs"), ...args], { cwd, env, encoding: "utf8" });
 
-    const installed = run(target, "init", "--extension", "android").stdout;
+    const installed = run(target, "init").stdout;
     expect(installed).toContain("설치했다");
-    expect(installed).toContain("함께 설치한 확장: android");
+    expect(installed).toContain("impl setup");
     const sub = path.join(target, "app", "src");
     fs.mkdirSync(sub, { recursive: true });
 
@@ -416,19 +418,11 @@ describe("번들", () => {
     expect(run(sub, "check").status).toBe(0);
     expect(JSON.parse(run(sub, "status", "--json").stdout).project.prd.version).toBe("1.0.0");
 
-    // 번들에 실린 원본으로 preset을 설치하고 제거한다. 패키지의 assets 디렉터리는 필요 없다.
+    // 저장소의 번들은 패키지의 assets 디렉터리 없이 돈다. 확장 명령은 없다.
     fs.rmSync(path.join(pkg, "assets"), { recursive: true });
-    // init --extension android가 내장 android를 함께 설치했다.
-    expect(run(sub, "extension", "list").stdout).toContain("android 0.1.0 [extension] 설치됨 (내장)");
-    const preset = tempDir("preset");
-    fs.mkdirSync(path.join(preset, "templates"), { recursive: true });
-    fs.writeFileSync(path.join(preset, "extension.yaml"), "name: acme\nkind: preset\nversion: 1.0.0\n");
-    fs.writeFileSync(path.join(preset, "templates", "spec.md"), "# acme\n");
-    expect(run(sub, "preset", "add", preset).stdout).toContain("설치했다");
-    expect(fs.readFileSync(path.join(target, ".sdd-android", "templates", "spec.md"), "utf8")).toBe("# acme\n");
-    expect(run(sub, "preset", "remove", "acme").stdout).toContain("되살렸다");
-    expect(fs.readFileSync(path.join(target, ".sdd-android", "templates", "spec.md"), "utf8")).toContain("# 스펙");
-    expect(run(sub, "directives", "spec").stdout).toContain("확장 지시가 없다");
+    for (const removed of ["extension", "preset", "directives", "run"]) expect(run(sub, removed, "list").stderr, removed).toContain("알 수 없는 명령이다");
+    expect(fs.existsSync(path.join(target, ".sdd-android", "extensions"))).toBe(false);
+    expect(run(sub, "openapi", "operations").stdout).toContain("출처가 없다");
 
     // 구현 단계의 스킬이 설치되어 있고, Figma 설정 명령이 번들에서 돈다.
     expect(run(sub, "figma", "show").stdout).toContain("mcp__figma-desktop__get_metadata");
@@ -438,13 +432,12 @@ describe("번들", () => {
     expect(orchestrator).toContain("Skill(create-logic)");
     expect(orchestrator).not.toContain("{{");
     expect(run(sub, "gate", "implement").stdout).toContain("login: 중단");
-    expect(run(sub, "directives", "create-logic").stdout).toContain("확장 지시가 없다");
 
-    // 저장소 밖에서 `run` 앞의 --root를 공백과 = 두 형태로 받는다. 그 값을 명령으로 읽지 않는다.
+    // 저장소 밖에서 명령 앞의 --root를 공백과 = 두 형태로 받는다. 그 값을 명령으로 읽지 않는다.
     const outside = tempDir("outside");
     for (const args of [["--root", target], [`--root=${target}`]]) {
-      const ran = run(outside, ...args, "run", "nope", "x.mjs");
-      expect(ran.stderr, args.join(" ")).toContain("설치된 확장이 아니다: nope");
+      const ran = run(outside, ...args, "gate", "blueprint");
+      expect(ran.stdout, args.join(" ")).toContain("login: 중단");
     }
 
     // PATH에 node가 없는 셸에서도 실행 스크립트가 node를 찾아 판정을 낸다.
@@ -471,18 +464,19 @@ describe("실린 스킬과 템플릿", () => {
   const READ_ONLY = ["clarify", "analyze"];
   /** 구현이 끝난 feature의 수정. spec과 breakdown을 쓰므로 쓰기 hook을 갖는다. */
   const FIX = "fix";
+  const IMPL = ["create-logic", "create-structure", "create-test", "create-ui", "design-inspector", "heal-build", "heal-test", "impl-orchestrator", "sync-rules", "verify-build", "verify-principles", "verify-ui"];
 
   it("한국어 스킬이 합성되고 채우지 않은 포함 표기가 남지 않는다", () => {
     expect(languages).toContain("ko");
-    expect(fs.readdirSync(skillsDir).sort()).toEqual([...DOC_STAGES, ...READ_ONLY, FIX].sort());
+    expect(fs.readdirSync(skillsDir).sort()).toEqual([...DOC_STAGES, ...READ_ONLY, FIX, ...IMPL].sort());
     for (const name of fs.readdirSync(skillsDir)) {
       const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("{{>");
       expect(text, name).toContain(`name: {{skill:${name}}}`);
       expect(text, name).toContain("allowed-tools: Bash(sh *)");
       expect(text, name).not.toContain("sdd-android.mjs");
-      expect(text, name).toContain(`.sdd-android/bin/sdd-android" directives ${name}`);
-      expect(text, name).toContain("## 확장 지시");
+      expect(text, name).not.toContain("directives");
+      expect(text, name).not.toContain("확장 지시");
     }
   });
 
@@ -509,15 +503,10 @@ describe("실린 스킬과 템플릿", () => {
     expect(analyze).toContain("context: fork");
   });
 
-  it("내장 확장 android의 스킬이 합성되고, 일꾼은 격리 실행이며 검증은 읽기 전용에 모델을 명시한다", () => {
-    const dir = path.join(assets, "ko", "extensions", "android", "skills");
-    const names = fs.readdirSync(dir).sort();
-    expect(names).toEqual(["create-logic", "create-structure", "create-test", "create-ui", "design-inspector", "heal-build", "heal-test", "impl-orchestrator", "sync-rules", "verify-build", "verify-principles", "verify-ui"]);
+  it("구현 단계의 일꾼은 격리 실행이며 검증은 읽기 전용에 모델을 명시한다", () => {
+    const names = IMPL;
     for (const name of names) {
-      const text = fs.readFileSync(path.join(dir, name, "SKILL.md"), "utf8");
-      expect(text, name).not.toContain("{{>");
-      expect(text, name).toContain(`name: {{skill:${name}}}`);
-      expect(text, name).toContain(`.sdd-android/bin/sdd-android" directives ${name}`);
+      const text = fs.readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8");
       expect(text, name).not.toContain("hooks:");
       if (name === "impl-orchestrator") {
         expect(text).not.toContain("context: fork");

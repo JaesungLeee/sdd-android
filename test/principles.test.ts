@@ -53,7 +53,7 @@ function messages(): string[] {
 beforeEach(() => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-principles-"));
   fs.mkdirSync(path.join(root, ".sdd-android", "templates"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), 'language: ko\ndocs_dir: docs\nimpl:\n  checks:\n    build: "b"\n    lint: "l"\n    test: "t"\n');
   fs.writeFileSync(path.join(root, ".sdd-android", "manifest.json"), JSON.stringify({ version: "0.5.0", files: {} }));
   fs.writeFileSync(path.join(root, ".sdd-android", "templates", "constitution.md"), CONSTITUTION);
   repo = openRepo(root);

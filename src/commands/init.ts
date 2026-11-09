@@ -2,12 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Assets } from "../core/assets.js";
-import { bundleSkills, planBundle, readBundle, satisfiesRequirement, type Bundle } from "../core/extension.js";
 import { hashContent, manifestPath, writeManifest, type Manifest } from "../core/manifest.js";
 import { LAUNCHER, LAUNCHER_PATH, markExecutable } from "../core/launcher.js";
-import { openRepo, Refusal } from "../core/repo.js";
+import { Refusal } from "../core/repo.js";
 import { applyPrefix, skillName } from "../core/skilltext.js";
-import { addExtension } from "./extension.js";
 
 export interface InitOptions {
   /** 설치할 저장소의 루트. */
@@ -15,7 +13,7 @@ export interface InitOptions {
   language: string;
   /** 스킬 이름 접두사. 없으면 빈 문자열. */
   prefix: string;
-  /** 패키지에 실린 스킬, 템플릿, 내장 확장. */
+  /** 패키지에 실린 스킬과 템플릿. */
   assets: Assets;
   /** 저장소에 복사할 CLI 번들. */
   bundlePath: string;
@@ -26,8 +24,6 @@ export interface InitOptions {
   backup?: boolean;
   /** 백업 디렉터리의 이름에 쓰는 날짜. */
   today?: string;
-  /** 함께 설치할 내장 확장의 이름. 기본은 없다. 코어는 스택을 전제하지 않으므로 구현 단계의 확장은 명시했을 때만 설치한다(PRD CLI-001). */
-  extensions?: string[];
 }
 
 export interface InitConflicts {
@@ -42,8 +38,6 @@ export interface InitConflicts {
 export interface InitPlan {
   files: Map<string, string | Buffer>;
   skills: string[];
-  /** 함께 설치할 내장 확장의 묶음. */
-  bundles: Bundle[];
   conflicts: InitConflicts;
 }
 
@@ -52,24 +46,6 @@ export interface InitResult {
   skills: string[];
   /** 백업으로 옮긴 스킬의 원래 경로와 옮긴 경로. */
   backedUp: { from: string; to: string }[];
-  /** 함께 설치한 확장의 이름. */
-  extensions: string[];
-}
-
-/** 함께 설치할 내장 확장의 묶음. 이름이 내장 확장에 없거나 이 버전이 요건을 만족하지 못하면 거부한다. */
-function pickBundles(options: InitOptions): Bundle[] {
-  const builtin = options.assets.extensions(options.language);
-  const bundles: Bundle[] = [];
-  for (const name of new Set(options.extensions ?? [])) {
-    const files = builtin.get(name);
-    if (!files) throw new Refusal(`내장 확장이 아니다: ${name} (있는 것: ${[...builtin.keys()].join(", ") || "없음"})`);
-    const bundle = readBundle(files);
-    if (!satisfiesRequirement(bundle.manifest.requires, options.version)) {
-      throw new Refusal(`${name}은 sdd-android ${bundle.manifest.requires?.slice(2)} 이상이 필요하다(이 버전 ${options.version})`);
-    }
-    bundles.push(bundle);
-  }
-  return bundles;
 }
 
 const PREFIX = /^[a-z0-9][a-z0-9-]*$/;
@@ -86,7 +62,7 @@ export function describeConflicts(conflicts: InitConflicts): string[] {
   ];
 }
 
-/** 패키지가 설치하는 코어 파일. 경로에서 내용으로. `init`과 `upgrade`가 함께 쓴다. */
+/** 패키지가 설치하는 파일. 경로에서 내용으로. `init`과 `upgrade`가 함께 쓴다. */
 export function coreFiles(options: Pick<InitOptions, "assets" | "language" | "prefix" | "bundlePath">): {
   files: Map<string, string | Buffer>;
   skills: string[];
@@ -126,22 +102,16 @@ export function planInit(options: InitOptions): InitPlan {
   if (prefix && !PREFIX.test(prefix)) throw new Refusal(`접두사는 소문자, 숫자, 하이픈만 쓴다: ${prefix}`);
 
   const { files, skills } = coreFiles(options);
-  const bundles = pickBundles(options);
-  // 확장의 스킬도 코어와 같이 겹침을 본다. 코어를 설치한 뒤 확장에서 겹치면 반쯤 설치된 채 멈추기 때문이다.
-  const extensionSkills = bundles.flatMap((bundle) => bundleSkills(bundle).map((name) => skillName(name, prefix)));
-  const allSkills = [...skills, ...extensionSkills];
-  const extensionState = bundles.flatMap((bundle) => planBundle(bundle, prefix).map((file) => file.target).filter((rel) => rel.startsWith(".sdd-android/")));
 
   const exists = (rel: string) => fs.existsSync(path.join(target, rel));
   const home = options.homeDir ?? os.homedir();
   return {
     files,
     skills,
-    bundles,
     conflicts: {
-      skills: allSkills.filter((name) => exists(`.claude/skills/${name}/SKILL.md`)),
-      home: allSkills.filter((name) => fs.existsSync(path.join(home, ".claude", "skills", name))),
-      state: [...files.keys(), ".sdd-android/config.yaml", ...extensionState].filter((rel) => rel.startsWith(".sdd-android/") && exists(rel)),
+      skills: skills.filter((name) => exists(`.claude/skills/${name}/SKILL.md`)),
+      home: skills.filter((name) => fs.existsSync(path.join(home, ".claude", "skills", name))),
+      state: [...files.keys(), ".sdd-android/config.yaml"].filter((rel) => rel.startsWith(".sdd-android/") && exists(rel)),
     },
   };
 }
@@ -182,13 +152,13 @@ export function init(options: InitOptions): InitResult {
     }
   }
 
-  const manifest: Manifest = { version: options.version, files: {}, extensions: {} };
+  const manifest: Manifest = { version: options.version, files: {} };
   for (const [rel, content] of plan.files) {
     const file = path.join(target, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
     if (rel === LAUNCHER_PATH) markExecutable(file);
-    manifest.files[rel] = { sha256: hashContent(content), source: "core" };
+    manifest.files[rel] = { sha256: hashContent(content) };
   }
   fs.writeFileSync(
     path.join(target, ".sdd-android", "config.yaml"),
@@ -196,22 +166,9 @@ export function init(options: InitOptions): InitResult {
   );
   writeManifest(target, manifest);
 
-  // 내장 확장은 코어와 같은 절차로 설치한다. 겹침은 위에서 이미 봤다.
-  const repo = openRepo(target);
-  const extensions: string[] = [];
-  const extensionFiles: string[] = [];
-  const skills = [...plan.skills];
-  for (const bundle of plan.bundles) {
-    const added = addExtension(repo, options.assets, bundle, { origin: "builtin", homeDir: options.homeDir });
-    extensions.push(added.name);
-    extensionFiles.push(...added.added);
-    skills.push(...added.skills);
-  }
-
   return {
-    files: [...plan.files.keys(), ".sdd-android/config.yaml", ".sdd-android/manifest.json", ...extensionFiles].sort(),
-    skills,
+    files: [...plan.files.keys(), ".sdd-android/config.yaml", ".sdd-android/manifest.json"].sort(),
+    skills: plan.skills,
     backedUp,
-    extensions,
   };
 }

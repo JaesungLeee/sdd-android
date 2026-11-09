@@ -8,15 +8,12 @@ import { LOCAL_CONFIG_FILE, readLocalConfig } from "../core/local-config.js";
 import { hashContent, readManifest } from "../core/manifest.js";
 import { listFeatures, loadDoc, type LoadedDoc, type Repo } from "../core/repo.js";
 import { compareVersions, isGrade, isVersion } from "../core/version.js";
-import { validateSources } from "../extensions/openapi/config.js";
+import { validateSources } from "../openapi/config.js";
 import { readImplChecks, validateImplChecks } from "../core/impl-config.js";
 import { parsePrinciples, verifyToolCheck } from "../core/principles.js";
 import { parse } from "yaml";
 import { duplicateItems } from "./doc.js";
-import { knownStages } from "./extension.js";
 import { figmaStories } from "./impl.js";
-import { bundleFromDir } from "../core/assets.js";
-import { MANIFEST_FILE, readBundle } from "../core/extension.js";
 
 export interface Problem {
   level: "error" | "warn";
@@ -94,8 +91,6 @@ function checkInstall(repo: Repo, add: Add): void {
     if (!fs.existsSync(full)) add("error", file, "설치된 파일이 없다");
     else if (hashContent(fs.readFileSync(full)) !== entry.sha256) add("warn", file, "설치한 뒤 바뀐 파일이다");
   }
-  // 확장의 선언이 있는지와, 지시의 대상 단계가 설치된 스킬인지.
-  const stages = knownStages(repo, manifest);
   // spec에 Figma 줄이 있는 feature가 있으면 Figma 설정이 있어야 한다. 없으면 기본값으로 동작하지만 사람마다 다른 값이라 알린다(PRD SYS-006).
   // Figma를 쓰지 않는 저장소는 조용하다.
   if (!readLocalConfig(repo)?.figma) {
@@ -105,17 +100,7 @@ function checkInstall(repo: Repo, add: Add): void {
     }
   }
   checkOpenApi(repo, add);
-  checkImpl(repo, add, "android" in (manifest.extensions ?? {}));
-  for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
-    const dir = path.join(repo.root, ".sdd-android", "extensions", name);
-    if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
-      add("error", `.sdd-android/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
-      continue;
-    }
-    for (const stage of Object.keys(readBundle(bundleFromDir(dir)).manifest.directives)) {
-      if (!stages.has(stage)) add("warn", `.sdd-android/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
-    }
-  }
+  checkImpl(repo, add);
 }
 
 /** `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다(구현 설계 「0.4 구현의 진행」). */
@@ -137,8 +122,8 @@ function checkOpenApi(repo: Repo, add: Add): void {
   }
 }
 
-/** `impl.checks`의 형식. 구현 단계(android)가 설치되어 있는데 없으면 알린다. 명령은 돌리지 않는다. */
-function checkImpl(repo: Repo, add: Add, installed: boolean): void {
+/** `impl.checks`의 형식. 없으면 알린다. 명령은 돌리지 않는다. */
+function checkImpl(repo: Repo, add: Add): void {
   const where = ".sdd-android/config.yaml";
   let raw: unknown;
   try {
@@ -148,7 +133,7 @@ function checkImpl(repo: Repo, add: Add, installed: boolean): void {
   }
   try {
     const { checks, missing } = validateImplChecks(raw);
-    if (!checks && installed) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. sdd-android impl setup으로 정한다. 없으면 impl start가 거부한다`);
+    if (!checks) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. sdd-android impl setup으로 정한다. 없으면 impl start가 거부한다`);
   } catch (error) {
     add("error", where, error instanceof Error ? error.message : String(error));
   }

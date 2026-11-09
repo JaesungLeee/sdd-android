@@ -8,26 +8,23 @@
 
 ## 명령
 
-사람이 치는 명령은 다섯 묶음이다.
+사람이 치는 명령은 다음과 같다.
 
 | 명령 | 하는 일 |
 |---|---|
-| `init` | 설치. `--language ko`, `--prefix <접두사>`, `--extension <내장 확장>`, `--yes`(묻지 않고 기본값) |
+| `init` | 설치. `--language ko`, `--prefix <접두사>`, `--yes`(묻지 않고 기본값) |
 | `upgrade` | 설치된 파일을 실행한 패키지의 버전으로 올린다 |
 | `status [feature]` | 문서의 상태, 체크리스트와 작업의 집계, 버전 체인 판정. feature의 구현 중과 구현 완료를 알린다 |
 | `check` | 설치 점검과 문서의 형식·일관성 검사. 문제가 있으면 0이 아닌 코드로 끝난다. CI에 둔다 |
-| `extension list\|add\|remove`, `preset list\|add\|remove` | 확장의 목록, 설치(내장 이름이나 로컬 경로), 제거 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
 | `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
 | `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`, `--rules <명령\|none>`. [구현 단계](implementation.md#기계-검사) |
-| `run <확장> <스크립트> [인자…]` | 확장의 `scripts/` 아래 `.mjs`를 실행한다. 스킬이 부르지만 사람이 쳐도 된다. [OpenAPI 대조](openapi.md) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.
 
 | 명령 | 부르는 스킬 | 하는 일 |
 |---|---|---|
 | `gate <단계>` | 단계 스킬의 본문 주입 | 그 단계에서 본 feature별 판정 |
-| `directives <단계>` | 단계 스킬의 본문 주입 | 그 단계에 적용되는 확장 지시 파일 |
 | `doc new <단계> [feature]` | 단계 스킬 | 템플릿을 복사해 `draft`로 만든다 |
 | `doc changes <단계> [feature]` | 단계 스킬 | 기록된 해시와 비교해 바뀐 곳 |
 | `doc complete <단계> [feature]` | 단계 스킬 | 신규 문서의 완료 기록. `created`, `1.0.0` |
@@ -37,6 +34,7 @@
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
 | `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 테스트를 CLI가 돌려 종료 코드로 적는다 |
+| `openapi operations`, `openapi show <오퍼레이션>…` | `blueprint` | OpenAPI 문서를 조회해 오퍼레이션 목록을 내거나 고른 것을 펼친다. [OpenAPI 대조](openapi.md#조회-명령) |
 | `fix check <feature> <FIX-001> [--no-test <사유>]` | `fix` | 수정 단위가 작은 수정의 범위 안인지 계산한다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
 
@@ -61,7 +59,6 @@
 | `manifest.json` | 한다 | 아니다. 설치한 파일의 해시와 버전. `upgrade`와 `check`의 근거 |
 | `templates/*.md` | 한다 | 된다. 고친 파일은 `upgrade`가 보존한다 |
 | `hashes/` | 한다 | 아니다. 문서의 본문 해시 |
-| `extensions/{이름}/` | 한다 | 확장의 스킬이 아닌 파일(선언, 지시, 스크립트) |
 | `impl/{feature}/` | 안 한다 | 아니다. 구현 단계의 체크포인트, 기계 검사의 로그, 디자인 분석, 캡처 |
 | `backup/{날짜}/` | 한다 | `init`에서 백업을 고른 경우에만 생긴다 |
 | `.gitignore`, `.gitattributes` | 한다 | 아니다. `config.local.yaml`을 무시하고 실행 스크립트를 LF로 고정한다 |
@@ -94,13 +91,10 @@ figma:
 
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.5.0",
   "files": {
-    ".claude/skills/spec/SKILL.md": { "sha256": "…", "source": "core" },
-    ".sdd-android/templates/spec.md": { "sha256": "…", "source": "core" }
-  },
-  "extensions": {
-    "android": { "kind": "extension", "version": "0.1.0", "origin": "builtin" }
+    ".claude/skills/spec/SKILL.md": { "sha256": "…" },
+    ".sdd-android/templates/spec.md": { "sha256": "…" }
   }
 }
 ```
@@ -110,11 +104,11 @@ figma:
 ## `check`가 보는 것
 
 - 환경: Node.js 22 이상.
-- 설치: 설치 기록이 있는지, 기록된 파일이 모두 있는지(없으면 오류), 설치한 뒤 바뀌었는지(경고), 확장의 선언 파일과 지시의 대상 단계.
+- 설치: 설치 기록이 있는지, 기록된 파일이 모두 있는지(없으면 오류), 설치한 뒤 바뀌었는지(경고).
 - 문서: frontmatter 형식, `status`와 `version`, 개정 기록의 순서, 기준 버전이 상위의 개정 기록에 있는지, 의존 항목의 ID, 항목 ID의 중복, 미기록 변경, 해시 파일의 버전.
 - spec: 완료된 spec의 checklist가 `pass`이고 지금의 본문을 검증한 것인지.
 - breakdown: 작업 줄의 형식, 작업마다 경로가 있는지, `until`이 가리키는 작업이 있고 테스트 작업이 그보다 앞에 있는지, 마지막 확인 줄의 상태.
 - Figma: spec에 Figma 줄이 있는 feature가 있는데 개인 설정이 없으면 경고.
 - OpenAPI: `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다.
-- 구현 단계: `impl.checks`의 형식. `android`가 설치됐는데 없으면 경고. 명령은 돌리지 않는다.
+- 구현 단계: `impl.checks`의 형식. 없으면 경고. 명령은 돌리지 않는다.
 - constitution: 원칙의 검사 줄의 형식과, 도구 줄이 가리키는 규칙이 설정 파일에 켜져 있는지. 도구로 검사하는 원칙이 있는데 돌릴 명령이 없으면 경고.

@@ -4,10 +4,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { check } from "../src/commands/check.js";
 import { addSource, listSources, removeSource } from "../src/commands/openapi.js";
-import { runScript } from "../src/commands/run.js";
 import { openRepo, Refusal } from "../src/core/repo.js";
-import { findOperations, formatList, listOperations, loadSource, main, parseSpec, renderOperation, validateSources, type Fetch } from "../src/extensions/openapi/openapi.js";
-import { discoverDocument, inlineSwaggerDoc } from "../src/extensions/openapi/spec.js";
+import { validateSources } from "../src/openapi/config.js";
+import { findOperations, formatList, listOperations, loadSource, queryOperations, renderOperation } from "../src/openapi/operations.js";
+import { discoverDocument, inlineSwaggerDoc, parseSpec, type Fetch } from "../src/openapi/spec.js";
 
 const SPEC = {
   openapi: "3.0.3",
@@ -100,7 +100,7 @@ describe("OpenAPI 문서", () => {
     expect(text).toContain("== file (없음.yaml) · 조회 실패: 파일이 없다: 없음.yaml");
   });
 
-  it("설정의 출처를 검사하고 main이 명령을 가른다", async () => {
+  it("설정의 출처를 검사하고 조회 명령이 출처를 고른다", async () => {
     expect(validateSources(undefined)).toEqual([]);
     expect(validateSources({ sources: [{ name: "a", url: "https://x" }, { name: "b", path: "p.yaml" }] })).toEqual([{ name: "a", url: "https://x" }, { name: "b", path: "p.yaml" }]);
     expect(() => validateSources({ sources: [{ name: "A", url: "https://x" }] })).toThrow(/name/);
@@ -110,25 +110,23 @@ describe("OpenAPI 문서", () => {
     expect(() => validateSources({ sources: "x" })).toThrow(/목록/);
 
     const none = tempRepo("");
-    expect((await main(["list"], none)).text).toContain("출처가 없다");
+    expect(await queryOperations(none, "operations")).toContain("출처가 없다");
     const root = tempRepo("openapi:\n  sources:\n    - name: api\n      path: openapi.json\n");
     fs.writeFileSync(path.join(root, "openapi.json"), JSON.stringify(SPEC));
-    expect((await main([], root)).exitCode).toBe(2);
-    expect((await main(["list", "--filter", "pets"], root)).text).toContain("GET /pets listPets");
-    expect((await main(["list", "--source", "nope"], root)).exitCode).toBe(2);
-    const shown = await main(["show", "getPet", "GET /pets", "없음"], root);
-    expect(shown.exitCode).toBe(0);
-    expect(shown.text).toContain("== api · GET /pets/{petId} getPet");
-    expect(shown.text).toContain("== api · GET /pets listPets");
-    expect(shown.text).toContain("== 없음: 어느 출처에도 없다");
-    expect((await main(["show"], root)).exitCode).toBe(2);
+    expect(await queryOperations(root, "operations", { filter: "pets" })).toContain("GET /pets listPets");
+    await expect(queryOperations(root, "operations", { source: "nope" })).rejects.toThrow(/그런 출처가 없다: nope/);
+    const shown = await queryOperations(root, "show", { selectors: ["getPet", "GET /pets", "없음"] });
+    expect(shown).toContain("== api · GET /pets/{petId} getPet");
+    expect(shown).toContain("== api · GET /pets listPets");
+    expect(shown).toContain("== 없음: 어느 출처에도 없다");
+    await expect(queryOperations(root, "show")).rejects.toThrow(Refusal);
   });
 
   it("check는 출처의 형식과 path의 파일을 본다", () => {
     const root = tempRepo("openapi:\n  sources:\n    - name: api\n      path: contracts/openapi.yaml\n    - name: bad\n");
     fs.mkdirSync(path.join(root, ".git"));
     fs.writeFileSync(path.join(root, ".sdd-android", "manifest.json"), JSON.stringify({ version: "0.4.0", files: {} }));
-    const messages = () => check(openRepo(root)).problems.filter((p) => p.where === ".sdd-android/config.yaml").map((p) => p.message);
+    const messages = () => check(openRepo(root)).problems.filter((p) => p.where === ".sdd-android/config.yaml" && p.message.includes("openapi")).map((p) => p.message);
     expect(messages()).toEqual(["openapi.sources[1]: url과 path 가운데 하나만 적는다"]);
     fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\nopenapi:\n  sources:\n    - name: api\n      path: contracts/openapi.yaml\n");
     expect(messages()).toEqual(["openapi 출처 api의 파일이 없다: contracts/openapi.yaml"]);
@@ -222,7 +220,7 @@ describe("Swagger UI 페이지의 주소", () => {
     expect(inlineSwaggerDoc('"swaggerDoc": {"a": "}", "b": {"c": 1}}, x')).toBe('{"a": "}", "b": {"c": 1}}');
   });
 
-  it("스크립트는 찾은 주소로 읽고 머리말에 적으며, 못 찾으면 실패로 낸다", async () => {
+  it("조회는 찾은 주소로 읽고 머리말에 적으며, 못 찾으면 실패로 낸다", async () => {
     const root = tempRepo("");
     const found = await loadSource(root, { name: "s", url: "https://s.io/api-docs" }, nest, now);
     expect(found.error).toBeUndefined();
@@ -253,26 +251,5 @@ describe("Swagger UI 페이지의 주소", () => {
     expect(added.note).toContain("페이지 주소를 그대로 저장했다");
     const loaded = await loadSource(repo.root, added.source, inline, now);
     expect(loaded.error).toBeUndefined();
-  });
-});
-
-describe("run", () => {
-  it("설치된 확장의 scripts/ 아래 .mjs만 저장소 루트에서 실행하고 인자와 종료 코드를 그대로 넘긴다", () => {
-    const root = tempRepo("");
-    const ext = path.join(root, ".sdd-android", "extensions", "sample");
-    fs.mkdirSync(path.join(ext, "scripts"), { recursive: true });
-    fs.writeFileSync(path.join(ext, "extension.yaml"), "name: sample\nkind: extension\nversion: 1.0.0\n");
-    fs.writeFileSync(path.join(ext, "scripts", "echo.mjs"), "console.log(JSON.stringify({ args: process.argv.slice(2), root: process.env.SDD_ANDROID_ROOT, cwd: process.cwd() })); process.exitCode = 3;\n");
-    fs.writeFileSync(path.join(ext, "other.mjs"), "console.log('x');\n");
-    const repo = openRepo(root);
-    const result = runScript(repo, "sample", "echo.mjs", ["list", "--filter", "x y"], { capture: true });
-    expect(result.status).toBe(3);
-    expect(JSON.parse(result.stdout ?? "")).toEqual({ args: ["list", "--filter", "x y"], root, cwd: fs.realpathSync(root) === root ? root : expect.any(String) });
-    expect(() => runScript(repo, "nope", "echo.mjs", [])).toThrow(/설치된 확장이 아니다/);
-    expect(() => runScript(repo, "sample", "../other.mjs", [])).toThrow(Refusal);
-    expect(() => runScript(repo, "sample", "echo.js", [])).toThrow(/\.mjs/);
-    expect(() => runScript(repo, "sample", "none.mjs", [])).toThrow(/스크립트가 없다/);
-    expect(() => runScript(repo, undefined, "echo.mjs", [])).toThrow(/확장 이름.*받은 값: 없음/);
-    expect(() => runScript(repo, "Bad_Name", "echo.mjs", [])).toThrow(/받은 값: Bad_Name/);
   });
 });

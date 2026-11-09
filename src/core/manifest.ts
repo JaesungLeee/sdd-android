@@ -4,24 +4,12 @@ import { sha256 } from "./hash.js";
 
 export interface ManifestEntry {
   sha256: string;
-  /** `core`이거나 extension, preset의 이름. */
-  source: string;
-  /** preset이 교체한 코어 파일이면, 교체 당시의 코어 파일 해시. upgrade가 코어의 변경을 알리는 데 쓴다. */
-  core?: string;
-}
-
-export interface InstalledExtension {
-  kind: "extension" | "preset";
-  version: string;
-  /** 패키지에 내장된 것인지, 로컬 경로에서 설치한 것인지. 경로는 사람마다 달라 적지 않는다. */
-  origin: "builtin" | "local";
 }
 
 export interface Manifest {
   /** 설치된 sdd-android의 버전. */
   version: string;
   files: Record<string, ManifestEntry>;
-  extensions?: Record<string, InstalledExtension>;
 }
 
 export function manifestPath(root: string): string {
@@ -44,7 +32,5 @@ export function writeManifest(root: string, manifest: Manifest): void {
   const files: Record<string, ManifestEntry> = {};
   for (const key of Object.keys(manifest.files).sort()) files[key] = manifest.files[key] as ManifestEntry;
   fs.mkdirSync(path.dirname(manifestPath(root)), { recursive: true });
-  const extensions: Record<string, InstalledExtension> = {};
-  for (const key of Object.keys(manifest.extensions ?? {}).sort()) extensions[key] = (manifest.extensions ?? {})[key] as InstalledExtension;
-  fs.writeFileSync(manifestPath(root), JSON.stringify({ version: manifest.version, files, extensions }, null, 2) + "\n");
+  fs.writeFileSync(manifestPath(root), JSON.stringify({ version: manifest.version, files }, null, 2) + "\n");
 }

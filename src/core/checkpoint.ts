@@ -3,7 +3,7 @@ import path from "node:path";
 import { parse, stringify } from "yaml";
 import { Refusal, type Repo } from "./repo.js";
 
-/** 구현 스킬의 종류. 0.3에서는 코어에 고정한다. 두 번째 스택이 생길 때 확장이 선언하는 구조로 바꾼다. */
+/** 구현 스킬의 종류. */
 export const KINDS = ["test", "logic", "ui", "structure"] as const;
 export type Kind = (typeof KINDS)[number];
 

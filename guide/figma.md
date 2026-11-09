@@ -1,6 +1,6 @@
 # Figma 설정
 
-`android` extension의 `design-inspector`, `create-ui`, `verify-ui`가 Figma를 읽는다. spec에 Figma 줄이 없는 feature는 설정 없이 돈다. Figma 줄은 있는데 설정이 없으면 `check`가 경고하고, 기본값(desktop, `figma-desktop`)으로 동작한다.
+구현 단계의 `design-inspector`, `create-ui`, `verify-ui`가 Figma를 읽는다. spec에 Figma 줄이 없는 feature는 설정 없이 돈다. Figma 줄은 있는데 설정이 없으면 `check`가 경고하고, 기본값(desktop, `figma-desktop`)으로 동작한다.
 
 ## 서버 고르기
 

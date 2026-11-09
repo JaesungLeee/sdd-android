@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseDocument } from "yaml";
-import { validateSources, type SourceConfig } from "../extensions/openapi/config.js";
-import { ACCEPT, discoverDocument, isHtml, type Fetch } from "../extensions/openapi/spec.js";
+import { validateSources, type SourceConfig } from "../openapi/config.js";
+import { ACCEPT, discoverDocument, isHtml, type Fetch } from "../openapi/spec.js";
 import { Refusal, type Repo } from "../core/repo.js";
 
 /**

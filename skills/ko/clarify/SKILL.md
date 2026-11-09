@@ -28,12 +28,6 @@ spec의 품질 체크리스트는 spec을 쓴 에이전트가 형식과 완성�
 
 위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate spec`을 직접 불러 확인한다.
 
-## 확장 지시의 목록
-
-!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives clarify`
-
-{{> directives}}
-
 {{> feature-target}}
 
 이 단계는 판정으로 멈추지 않는다. 판정은 보고에 싣는다.

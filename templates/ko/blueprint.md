@@ -12,11 +12,11 @@
     해당하지 않는 줄은 지운다.
 -->
 
-- **언어와 버전**: [예: TypeScript 5.6]
-- **주요 의존성**: [예: 프레임워크, 라이브러리]
-- **저장소**: [예: PostgreSQL, 파일]
-- **테스트**: [예: 테스트 도구와 실행 명령]
-- **대상 플랫폼**: [예: Linux 서버, Android 8 이상]
+- **언어와 버전**: [예: Kotlin 2.0, AGP 8.5]
+- **주요 의존성**: [예: Jetpack Compose, Hilt, Retrofit]
+- **저장소**: [예: Room, DataStore]
+- **테스트**: [예: JUnit, Turbine, `./gradlew testDebugUnitTest`]
+- **대상 플랫폼**: [예: minSdk 26, targetSdk 35]
 - **성능 목표와 제약**: [spec의 성공 기준에서 온 것]
 
 ## 헌법 준수 확인

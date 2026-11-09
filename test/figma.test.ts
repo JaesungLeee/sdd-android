@@ -8,7 +8,6 @@ import { init } from "../src/commands/init.js";
 import { promptInit } from "../src/commands/init-prompt.js";
 import { assetsFromDir } from "../src/core/assets.js";
 import { figmaConfig, mcpToolName, readLocalConfig } from "../src/core/local-config.js";
-import { readManifest } from "../src/core/manifest.js";
 import { openRepo, Refusal, type Repo } from "../src/core/repo.js";
 
 const CORE: Record<string, string> = {
@@ -17,8 +16,7 @@ const CORE: Record<string, string> = {
   "ko/templates/checklist.md": "# 체크리스트\n\n- [ ] 하나\n",
 };
 const ANDROID: Record<string, string> = {
-  "ko/extensions/android/extension.yaml": "name: android\nkind: extension\nversion: 0.1.0\nrequires: \">=0.3.0\"\n",
-  "ko/extensions/android/skills/create-ui/SKILL.md": "---\nname: {{skill:create-ui}}\n---\n`/{{skill:spec}}` 뒤.\n",
+  "ko/skills/create-ui/SKILL.md": "---\nname: {{skill:create-ui}}\n---\n`/{{skill:spec}}` 뒤.\n",
 };
 
 function tempDir(name: string): string {
@@ -48,49 +46,27 @@ function options(target: string, files: Record<string, string>, extra: Partial<P
   return { target, language: "ko", prefix: "", assets: assetsFromDir(writeTree(tempDir("assets"), files)), bundlePath: bundle, version: "0.3.0", homeDir: tempDir("home"), ...extra };
 }
 
-describe("init과 android 확장", () => {
-  it("기본은 코어만이고, 이름을 주면 내장 확장을 함께 설치한다", () => {
-    expect(init(options(gitRepo(), { ...CORE, ...ANDROID })).extensions).toEqual([]);
+describe("init과 구현 단계", () => {
+  it("구현 스킬을 문서 단계와 함께 설치하고 스킬 참조에 접두사를 붙인다", () => {
     const target = gitRepo();
-    const result = init(options(target, { ...CORE, ...ANDROID }, { extensions: ["android"] }));
-    expect(result.extensions).toEqual(["android"]);
-    expect(result.skills).toEqual(["spec", "create-ui"]);
-    expect(fs.readFileSync(path.join(target, ".claude", "skills", "create-ui", "SKILL.md"), "utf8")).toContain("`/spec` 뒤");
-    expect(readManifest(target)?.extensions?.android).toMatchObject({ kind: "extension", origin: "builtin" });
-    expect(result.files).toContain(".sdd-android/extensions/android/extension.yaml");
+    const result = init(options(target, { ...CORE, ...ANDROID }, { prefix: "sdd" }));
+    expect(result.skills).toEqual(["sdd-create-ui", "sdd-spec"]);
+    expect(fs.readFileSync(path.join(target, ".claude", "skills", "sdd-create-ui", "SKILL.md"), "utf8")).toContain("`/sdd-spec` 뒤");
+    expect(fs.existsSync(path.join(target, ".sdd-android", "extensions"))).toBe(false);
   });
 
-  it("내장에 없는 이름과 이 버전이 요건을 못 채우는 확장은 거부한다", () => {
-    expect(() => init(options(gitRepo(), CORE, { extensions: ["android"] }))).toThrow(/내장 확장이 아니다/);
-    expect(() => init(options(gitRepo(), { ...CORE, ...ANDROID }, { extensions: ["android"], version: "0.1.0" }))).toThrow(/0\.3\.0 이상이 필요하다/);
-  });
-
-  it("확장의 스킬이 겹치면 코어를 설치하기 전에 멈춘다", () => {
-    const target = gitRepo();
-    writeTree(target, { ".claude/skills/create-ui/SKILL.md": "# 기존\n" });
-    expect(() => init(options(target, { ...CORE, ...ANDROID }, { extensions: ["android"] }))).toThrow(/create-ui/);
-    expect(fs.existsSync(path.join(target, ".sdd-android"))).toBe(false);
-  });
-
-  it("묻는 흐름에서 구현 단계의 확장을 묻고 기본은 없음이다", async () => {
+  it("묻는 흐름은 접두사를 받았으면 진행 여부만 묻는다", async () => {
     const asked: string[] = [];
-    const run = async (answers: string[]) => {
-      const queue = [...answers];
-      return promptInit(options(gitRepo(), { ...CORE, ...ANDROID }), {
-        prefixGiven: true,
-        ask: async (q) => {
-          asked.push(q);
-          return queue.shift() ?? "";
-        },
-        print: () => {},
-      });
-    };
-    expect((await run(["", "y"]))?.extensions).toEqual([]);
-    expect(asked.some((q) => q.includes("android"))).toBe(true);
-    expect((await run(["android", "y"]))?.extensions).toEqual(["android"]);
-    asked.length = 0;
-    await promptInit(options(gitRepo(), { ...CORE, ...ANDROID }), { prefixGiven: true, extensionsGiven: true, ask: async () => "y", print: () => {} });
-    expect(asked.some((q) => q.includes("android"))).toBe(false);
+    const result = await promptInit(options(gitRepo(), { ...CORE, ...ANDROID }), {
+      prefixGiven: true,
+      ask: async (q) => {
+        asked.push(q);
+        return "y";
+      },
+      print: () => {},
+    });
+    expect(result).toBeDefined();
+    expect(asked).toEqual(["진행할까? (Y/n): "]);
   });
 });
 
@@ -98,7 +74,7 @@ describe("Figma 설정", () => {
   let repo: Repo;
   beforeEach(() => {
     const target = gitRepo();
-    init(options(target, { ...CORE, ...ANDROID }, { extensions: ["android"] }));
+    init(options(target, { ...CORE, ...ANDROID }));
     repo = openRepo(target);
   });
 

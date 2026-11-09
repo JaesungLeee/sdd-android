@@ -1,6 +1,6 @@
 # sdd-android
 
-문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD(Spec-Driven Development) 워크플로 CLI다. Claude Code를 쓰는 저장소에 명령 한 줄로 설치한다. 문서 단계는 스택을 가리지 않고, 구현 단계는 v1에서 Android(Kotlin, Gradle, Jetpack Compose)를 지원한다.
+문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD(Spec-Driven Development) 워크플로 CLI다. Claude Code를 쓰는 Android 저장소(Kotlin, Gradle, Jetpack Compose)에 명령 한 줄로 설치한다.
 
 ## 무엇을 하나
 
@@ -18,8 +18,7 @@
 ## 설치
 
 ```sh
-npx sdd-android init                                     # 코어: constitution부터 analyze까지
-npx sdd-android init --extension android                 # 코어와 Android 구현 단계
+npx sdd-android init                                     # 문서 단계부터 구현 단계까지
 npx sdd-android impl setup --lint "./gradlew {module}:detekt" # 구현 단계가 돌릴 검사 명령 (Lint가 없으면 --lint none)
 npx sdd-android@latest upgrade                           # 새 버전으로 올린다
 ```
@@ -44,19 +43,10 @@ npx sdd-android@latest upgrade                           # 새 버전으로 올�
 | 5 | `/blueprint` | `docs/specs/{feature}/blueprint.md`, `research.md` | 설계와 리서치 기록 |
 | 6 | `/breakdown` | `docs/specs/{feature}/breakdown.md` | 순서가 정해진 작업 목록 |
 | 7 | `/analyze` (선택) | 없음 | spec, blueprint, breakdown 사이의 누락과 모순을 보고 |
-| 8 | `/impl-orchestrator` | 코드, `failures.md` | breakdown의 작업을 구현, 검증, 치유 (`android` extension) |
+| 8 | `/impl-orchestrator` | 코드, `failures.md` | breakdown의 작업을 구현, 검증, 치유 |
 | 뒤 | `/fix` | spec(PATCH), breakdown의 수정 단위 | 구현이 끝난 feature의 버그 수정과 작은 변경. 범위는 CLI가 판정하고, 넘으면 정식 경로로 돌려보낸다 |
 
 feature는 `docs/specs/` 아래의 디렉터리 하나다. `/spec 로그인`처럼 입력을 주면 그 feature를 대상으로 하고, 입력이 없으면 목록에서 고른다.
-
-## 확장
-
-코어는 스택을 전제하지 않는다. 구현 단계와 OpenAPI 대조는 내장 확장으로 더한다.
-
-| 확장 | 하는 일 |
-|---|---|
-| `android` | Kotlin, Gradle, Jetpack Compose 프로젝트의 구현 단계. `/impl-orchestrator` |
-| `openapi` | blueprint가 서버의 OpenAPI 문서를 조회해 인터페이스 계약의 근거로 삼는다 |
 
 ## 사람이 치는 명령
 
@@ -67,9 +57,19 @@ npx sdd-android check              # 설치와 문서의 깨진 곳. CI에서 �
 
 그 밖의 명령(`doc`, `gate`, `impl` 등)은 스킬이 부른다. 전체 목록은 [CLI와 설정 파일](guide/cli.md)에 있다.
 
+## OpenAPI 대조 (선택)
+
+서버 API를 쓰는 프로젝트면 출처를 적어 둔다. blueprint가 그 문서를 조회해 인터페이스 계약의 근거로 삼는다. 출처가 없으면 이 절차를 건너뛴다.
+
+```sh
+npx sdd-android openapi add mino --url https://api.example.com/v3/api-docs
+```
+
+자세한 것은 [OpenAPI 대조](guide/openapi.md)에 있다.
+
 ## Figma (선택)
 
-`android` extension을 설치했고 spec에 Figma 화면 링크를 적을 때만 필요하다.
+spec에 Figma 화면 링크를 적을 때만 필요하다.
 
 ```sh
 npx sdd-android figma setup --server desktop --name figma-desktop
@@ -82,10 +82,9 @@ npx sdd-android figma setup --server desktop --name figma-desktop
 - [워크플로](guide/workflow.md): 단계의 흐름, 착수 게이트, 개정, 병합 뒤 정리, 갱신
 - [문서 형식](guide/documents.md): frontmatter, 항목 ID, 변경의 판정, breakdown 작업 줄
 - [CLI와 설정 파일](guide/cli.md): 명령 전체와 `.sdd-android/`의 파일
-- [구현 단계](guide/implementation.md): `android` extension의 스킬과 흐름
-- [OpenAPI 대조](guide/openapi.md): `openapi` extension의 출처 설정과 조회
+- [구현 단계](guide/implementation.md): 구현 스킬과 흐름
+- [OpenAPI 대조](guide/openapi.md): 출처 설정과 조회
 - [Figma 설정](guide/figma.md): 서버 선택, 권한, 캡처 환경
-- [확장 만들기](guide/extensions.md): extension과 preset의 형식
 
 변경 내역은 [CHANGELOG.md](CHANGELOG.md)에 있다.
 

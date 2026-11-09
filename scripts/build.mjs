@@ -2,7 +2,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSync } from "esbuild";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const INCLUDE = /^[ \t]*\{\{> ([a-z0-9][a-z0-9-]*)\}\}[ \t]*$/gm;
@@ -91,41 +90,8 @@ export function compareLanguages(structures) {
   return problems;
 }
 
-/** 디렉터리의 파일을 상대 경로에서 내용으로 모은다. */
-function walk(dir, prefix = "") {
-  const files = {};
-  for (const entry of readDir(dir)) {
-    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) Object.assign(files, walk(path.join(dir, entry.name), rel));
-    else if (entry.isFile()) files[rel] = readText(path.join(dir, entry.name));
-  }
-  return files;
-}
-
-/** 내장 확장의 스크립트 원본. 확장 이름에서 `src/extensions/` 아래의 진입 파일로. */
-const SCRIPTS = { openapi: "openapi/openapi.ts" };
-
-const bundled = new Map();
-
-/** 스크립트를 의존성과 함께 ESM 파일 하나로 묶는다. 설치된 저장소에는 node_modules가 없다. */
-function bundleScript(entry) {
-  if (!bundled.has(entry)) {
-    const result = buildSync({
-      entryPoints: [entry],
-      bundle: true,
-      platform: "node",
-      format: "esm",
-      target: "node22",
-      write: false,
-      banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
-    });
-    bundled.set(entry, result.outputFiles[0].text);
-  }
-  return bundled.get(entry);
-}
-
 /**
- * 스킬, 템플릿, 내장 확장을 `outDir`에 내고, 같은 내용을 `ko/skills/prd/SKILL.md` 꼴의 키로 모아 돌려준다.
+ * 스킬과 템플릿을 `outDir`에 내고, 같은 내용을 `ko/skills/prd/SKILL.md` 꼴의 키로 모아 돌려준다.
  * 돌려준 것은 번들 안에 넣는다. 디렉터리는 검토용이다.
  */
 export function buildAssets(outDir) {
@@ -153,16 +119,6 @@ export function buildAssets(outDir) {
       if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
       emit(`${language}/templates/${entry.name}`, readText(path.join(templates, entry.name)));
     }
-    // 내장 확장. 스킬은 코어와 같은 조각으로 합성하고 나머지 파일은 그대로 싣는다.
-    for (const [rel, text] of Object.entries(walk(path.join(ROOT, "extensions", language)))) {
-      const composed = /^[^/]+\/skills\/[^/]+\/SKILL\.md$/.test(rel) ? composeSkill(text, fragments) : text;
-      emit(`${language}/extensions/${rel}`, composed);
-    }
-    // 확장 스크립트는 의존성(yaml)과 함께 파일 하나로 묶어 싣는다. 언어와 무관한 파일이라 언어마다 같은 것을 낸다.
-    for (const [extension, entry] of Object.entries(SCRIPTS)) {
-      if (!fs.existsSync(path.join(ROOT, "extensions", language, extension))) continue;
-      emit(`${language}/extensions/${extension}/scripts/${path.basename(entry, ".ts")}.mjs`, bundleScript(path.join(ROOT, "src", "extensions", entry)));
-    }
     structures[language] = structure;
   }
   const problems = compareLanguages(structures);
@@ -184,7 +140,7 @@ async function main() {
     format: "esm",
     target: "node22",
     outfile: path.join(dist, "sdd-android.mjs"),
-    // 스킬, 템플릿, 내장 확장을 번들 안에 넣는다. 저장소의 번들이 자기 버전의 원본을 갖는다(PRD CLI-004).
+    // 스킬과 템플릿을 번들 안에 넣는다. 저장소의 번들이 자기 버전의 원본을 갖는다(PRD CLI-004).
     define: { __VERSION__: JSON.stringify(version), __ASSETS__: JSON.stringify(assets) },
     // yaml 패키지가 번들 안에서 require를 쓴다. ESM 번들에는 require가 없어 만들어 준다.
     banner: {

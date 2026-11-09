@@ -1,10 +1,8 @@
 # 구현 단계
 
-`android` extension이 제공하는 구현 단계다. breakdown의 작업을 구현하고, 검증하고, 실패하면 치유하며, 검증을 통과한 작업만 체크한다. 코어만 설치했으면 이 단계는 없다.
+breakdown의 작업을 구현하고, 검증하고, 실패하면 치유하며, 검증을 통과한 작업만 체크한다. `init`이 문서 단계와 함께 설치한다. 시작하기 전에 검사 명령을 정한다.
 
 ```sh
-npx sdd-android init --extension android     # 처음 설치할 때
-npx sdd-android extension add android        # 이미 설치된 저장소에 더할 때
 npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 명령. Lint가 없으면 --lint none
 ```
 
@@ -91,7 +89,7 @@ impl:
 - `rules`는 constitution 원칙의 도구 규칙 가운데 Lint 명령이 돌리지 않는 것(Konsist의 아키텍처 테스트 등)을 돌린다. 있으면 작업마다와 마지막 확인에서 통과해야 하고, 실패는 원칙 위반처럼 그 작업의 `create-*`로 되돌린다. 그런 도구가 없으면 두지 않는다(`impl setup --rules none`이 지운다).
 - 마지막 확인은 `impl check {feature} --final`의 결과를 쓴다. 그 뒤 구현 보고가 오거나 체크가 내려가면 결과는 지워지고 다시 돌려야 한다.
 - **결과의 신선도**: `impl check`는 돌린 때 작업 경로(breakdown의 작업 줄에 적힌 경로와 함께 돈 테스트 작업의 경로)의 내용 해시를 함께 적는다. `impl verify`와 `impl final`은 지금의 해시와 맞춰 보고, 다르면 그 결과를 버리고 다시 돌리라고 거부한다. 디자인만 다시 적는 때에도 앞서 적힌 빌드·Lint의 통과는 그 사이 코드가 바뀌었으면 쓰지 않는다. 커밋이 아니라 내용으로 보므로 스토리마다 커밋해도 코드가 같으면 같은 결과다. 작업 경로 밖의 파일은 보지 않는다.
-- 설정이 없으면 `impl start`가 거부한다. `check`는 `android`가 설치됐는데 설정이 없으면 경고한다.
+- 설정이 없으면 `impl start`가 거부하고 `check`가 경고한다.
 
 주의할 것:
 - **이미 있던 Lint 위반**: Lint는 모듈 단위로 돈다. 이번 작업과 무관한 기존 위반이 있으면 모든 작업이 Lint 실패가 된다. detekt의 baseline처럼 기존 위반을 빼는 설정을 먼저 둔다.
