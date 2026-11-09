@@ -15,7 +15,7 @@
 | `init` | 설치. `--language ko`, `--prefix <접두사>`, `--yes`(묻지 않고 기본값) |
 | `upgrade` | 설치된 파일을 실행한 패키지의 버전으로 올린다 |
 | `status [feature]` | 문서의 상태, 체크리스트와 작업의 집계, 버전 체인 판정. feature의 구현 중과 구현 완료를 알린다 |
-| `check` | 설치 점검과 문서의 형식·일관성 검사. 문제가 있으면 0이 아닌 코드로 끝난다. CI에 둔다 |
+| `check` | 설치 점검과 문서의 형식·일관성 검사. 오류가 있으면 1로 끝나고, 경고만 있으면 0이다. CI에 둔다 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
 | `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
 | `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`, `--rules <명령\|none>`. [구현 단계](implementation.md#기계-검사) |
@@ -33,7 +33,7 @@
 | `doc restore <단계> [feature] [--from <커밋>]` | 단계 스킬 | 병합 뒤 메타데이터와 해시를 `HEAD` 쪽으로 되돌린다 |
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
-| `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 테스트를 CLI가 돌려 종료 코드로 적는다 |
+| `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 규칙(`rules`가 있으면), 테스트를 CLI가 돌려 종료 코드로 적는다 |
 | `openapi operations`, `openapi show <오퍼레이션>…` | `blueprint` | OpenAPI 문서를 조회해 오퍼레이션 목록을 내거나 고른 것을 펼친다. [OpenAPI 대조](openapi.md#조회-명령) |
 | `fix check <feature> <FIX-001> [--no-test <사유>]` | `fix` | 수정 단위가 작은 수정의 범위 안인지 계산한다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
@@ -46,7 +46,8 @@
 | `--acknowledged` | 확인 필요 판정을 사용자가 계속하기로 했다는 표시. 중단 판정에서는 이 옵션이 있어도 거부한다 |
 | `--grade <등급>`, `--grade <항목=등급>` | 개정 등급. prd와 constitution은 항목마다(`--grade CLI-001=minor --grade '*'=patch`), 그 밖은 하나(`--grade minor`) |
 | `--depends <ID,ID>` | spec이 의존하는 prd 항목 |
-| `--root <경로>` | 저장소 루트를 지정한다 |
+| `--root <경로>` | 저장소 루트를 지정한다. 없으면 환경 변수 `SDD_ANDROID_ROOT`를 보고, 그것도 없으면 저장소의 번들은 자기 위치에서, `npx`로 부른 CLI는 작업 디렉터리에서 위로 `.sdd-android/config.yaml`을 찾는다 |
+| `--version`, `--help`(`-h`) | 버전, 명령 목록 |
 
 ## `.sdd-android/`의 파일
 
@@ -104,7 +105,7 @@ figma:
 ## `check`가 보는 것
 
 - 환경: Node.js 22 이상.
-- 설치: 설치 기록이 있는지, 기록된 파일이 모두 있는지(없으면 오류), 설치한 뒤 바뀌었는지(경고).
+- 설치: 설치 기록이 있는지, 기록된 파일이 모두 있는지(없으면 오류), 설치한 뒤 바뀌었는지(경고). 설치 기록이 없으면 아래의 Figma, OpenAPI, 구현 단계 점검은 하지 않는다.
 - 문서: frontmatter 형식, `status`와 `version`, 개정 기록의 순서, 기준 버전이 상위의 개정 기록에 있는지, 의존 항목의 ID, 항목 ID의 중복, 미기록 변경, 해시 파일의 버전.
 - spec: 완료된 spec의 checklist가 `pass`이고 지금의 본문을 검증한 것인지.
 - breakdown: 작업 줄의 형식, 작업마다 경로가 있는지, `until`이 가리키는 작업이 있고 테스트 작업이 그보다 앞에 있는지, 마지막 확인 줄의 상태.
