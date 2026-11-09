@@ -24,7 +24,7 @@ import { implSetup } from "../src/core/impl-config.js";
 import { fixCheck, formatFixCheck } from "../src/commands/fix.js";
 import { status } from "../src/commands/status.js";
 import { matchTasks, parseTasks, setChecked, splitUnits, validateTasks } from "../src/core/breakdown.js";
-import { checkpointPath, readCheckpoint } from "../src/core/checkpoint.js";
+import { checkpointPath, readCheckpoint, writeCheckpoint } from "../src/core/checkpoint.js";
 import { docPath, loadDoc, openRepo, Refusal, type Repo } from "../src/core/repo.js";
 
 const BREAKDOWN = `# 작업 목록
@@ -358,6 +358,12 @@ describe("작업의 진행", () => {
     expect(failed.lowered).toEqual(["T003"]);
     expect(failed.redo).toEqual([{ id: "T003", kind: "logic", failure: "principles" }]);
     expect(failed.unmatched).toEqual(["app/Other.kt"]);
+    // 작업 없는 실패는 오케스트레이터가 멈추고 사람에게 넘기므로 그 자리에서 적힌다.
+    const failures = fs.readFileSync(failuresPath(repo, F), "utf8");
+    expect(failures).toContain("작업 없음 · 원칙 · 사람에게 넘김");
+    expect(failures).toContain("단위 US1의 검증에서 어느 작업의 경로에도 맞지 않는 파일이 실패했다");
+    expect(failures).toContain("- **파일**: `app/Other.kt`");
+    expect(failures).not.toContain("T003 · 원칙");
     expect(checked("T003")).toBe(false);
     expect(checked("T004")).toBe(true);
     expect(implNext(repo, F).task?.id).toBe("T003");
@@ -699,6 +705,10 @@ describe("수정 단위", () => {
     expect(implNext(repo, F).pendingUnit).toBe("FIX-001");
     implVerify(repo, F, undefined, { today: today(), unit: "FIX-001", checks: { principles: "pass" } });
 
+    // 단위 밖 작업의 기록이 체크포인트에 있어도 마지막 확인은 그 단위가 바꾼 모듈만 돈다.
+    const checkpoint = readCheckpoint(repo, F);
+    checkpoint!.tasks["T001"] = { ...checkpoint!.tasks["T001"], modules: [":app"] };
+    writeCheckpoint(repo, F, checkpoint!);
     ran = [];
     run(undefined);
     expect(ran).toEqual(["build :domain", "lint :domain", "test :domain"]);

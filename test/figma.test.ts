@@ -146,4 +146,14 @@ describe("Figma 설정", () => {
     expect(formatFigmaShow(shown)).toContain("개인 설정을 읽지 못해 기본값으로 냈다");
     expect(() => figmaSetup(repo, { server: "remote" })).toThrow(Refusal);
   });
+
+  it("check는 깨진 개인 설정을 오류로 싣고 나머지 점검을 계속한다", () => {
+    fs.writeFileSync(path.join(repo.root, ".sdd-android", "config.local.yaml"), "- 목록\n");
+    const result = check(repo);
+    expect(result.ok).toBe(false);
+    expect(result.problems).toContainEqual(expect.objectContaining({ level: "error", where: ".sdd-android/config.local.yaml" }));
+    // 개인 설정을 읽은 뒤에 하는 구현 단계의 점검까지 돈다.
+    expect(result.problems.map((problem) => problem.message).join()).toContain("구현 단계의 검사 명령이 없다");
+    expect(result.problems.map((problem) => problem.message).join()).not.toContain("Figma 설정이 없다");
+  });
 });

@@ -91,9 +91,18 @@ function checkInstall(repo: Repo, add: Add): void {
     if (!fs.existsSync(full)) add("error", file, "설치된 파일이 없다");
     else if (hashContent(fs.readFileSync(full)) !== entry.sha256) add("warn", file, "설치한 뒤 바뀐 파일이다");
   }
+  // 개인 설정 파일이 깨져 있어도 나머지 점검은 계속한다. 한 파일 때문에 다른 문제가 가려지지 않게 한다.
+  let local: ReturnType<typeof readLocalConfig>;
+  let unreadable = false;
+  try {
+    local = readLocalConfig(repo);
+  } catch (error) {
+    unreadable = true;
+    add("error", `.sdd-android/${LOCAL_CONFIG_FILE}`, error instanceof Error ? error.message : String(error));
+  }
   // spec에 Figma 줄이 있는 feature가 있으면 Figma 설정이 있어야 한다. 없으면 기본값으로 동작하지만 사람마다 다른 값이라 알린다(PRD SYS-006).
-  // Figma를 쓰지 않는 저장소는 조용하다.
-  if (!readLocalConfig(repo)?.figma) {
+  // Figma를 쓰지 않는 저장소는 조용하다. 설정 파일을 읽지 못했으면 위에서 이미 알렸다.
+  if (!unreadable && !local?.figma) {
     const withFigma = listFeatures(repo).filter((feature) => figmaStories(loadDoc(repo, "spec", feature)?.body ?? "").size > 0);
     if (withFigma.length > 0) {
       add("warn", `.sdd-android/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. sdd-android figma setup으로 정한다`);

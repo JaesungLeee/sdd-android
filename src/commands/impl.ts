@@ -209,6 +209,15 @@ export function appendFailure(repo: Repo, feature: string, entry: FailureEntry):
   writeFile(file, head + lines.join("\n") + "\n");
 }
 
+/**
+ * 어느 작업의 경로에도 맞지 않는 파일의 실패. 내릴 체크가 없어 오케스트레이터가 멈추고 사람에게 넘기므로,
+ * 그 자리에서 사람에게 넘긴 실패로 적는다. 마지막 확인에서 남은 같은 실패와 기록 규칙이 같다(PRD STG-007 「실패 기록」).
+ */
+function recordUnmatched(repo: Repo, context: Context, failed: Check[], unmatched: string[], today: string, where: string): void {
+  if (unmatched.length === 0) return;
+  for (const kind of failed) recordFailure(repo, context, undefined, kind, "handed", today, unmatched, `${where}에서 어느 작업의 경로에도 맞지 않는 파일이 실패했다`);
+}
+
 function recordFailure(repo: Repo, context: Context, id: string | undefined, kind: Check, state: FailureState, today: string, files: string[] = [], symptom?: string): void {
   const attempts = id ? context.checkpoint.tasks[id]?.attempts?.[kind] : undefined;
   appendFailure(repo, context.feature, {
@@ -288,7 +297,7 @@ function assertFixScope(repo: Repo, feature: string, fix: string): void {
   }
 }
 
-/** 수정 모드면 그 단위의 작업, 아니면 모든 작업. 배정과 디자인 대조가 보는 범위다. */
+/** 수정 모드면 그 단위의 작업, 아니면 모든 작업. 배정, 디자인 대조, 마지막 확인의 모듈과 신선도가 보는 범위다. */
 function scopedTasks(context: Context): Task[] {
   const fix = context.checkpoint.fix;
   return liveTasks(context.tasks).filter((task) => !fix || task.fix === fix);
@@ -597,6 +606,7 @@ export function implVerify(repo: Repo, feature: string, id: string | undefined, 
   if (failed.length > 0) {
     const { matched, unmatched } = matchFiles(context, options.files ?? []);
     result.unmatched = unmatched;
+    recordUnmatched(repo, context, failed, unmatched, options.today, `${id}의 검증`);
     result.lowered = lower(repo, context, [...matched.keys()].filter((other) => other !== id));
     for (const kind of failed) {
       // 테스트 게이트의 실패는 테스트 작업에 매긴다. 파일이 게이트의 테스트 작업을 가리키면 그것만, 아니면(구현 파일만 지목했거나 파일이 없으면) 게이트의 테스트 모두다.
@@ -640,6 +650,7 @@ function verifyUnit(repo: Repo, context: Context, options: VerifyOptions): Verif
   if (failed.length > 0) {
     const { matched, unmatched } = matchFiles(context, options.files ?? []);
     result.unmatched = unmatched;
+    recordUnmatched(repo, context, failed, unmatched, options.today, `단위 ${name}의 검증`);
     result.lowered = lower(repo, context, [...matched.keys()]);
     for (const kind of failed) {
       for (const id of matched.keys()) result.redo.push({ id, kind: context.checkpoint.assignments[id], failure: kind });
@@ -668,8 +679,9 @@ function taskScope(context: Context, id: string): string[] {
   return [...task.paths, ...testsOn(context, id).flatMap((test) => test.paths)];
 }
 
+/** 마지막 확인이 보는 경로. 수정 모드면 그 단위의 작업만이다(PRD STG-009). */
 function featureScope(context: Context): string[] {
-  return liveTasks(context.tasks).flatMap((task) => task.paths);
+  return scopedTasks(context).flatMap((task) => task.paths);
 }
 
 // ---------------------------------------------------------------------------
@@ -788,7 +800,8 @@ export function implCheck(repo: Repo, feature: string, id: string | undefined, o
   if (id === undefined) {
     const open = liveTasks(context.tasks).filter((task) => !task.checked).map((task) => task.id);
     if (open.length > 0) throw new Refusal(`체크되지 않은 작업이 있어 마지막 확인을 돌리지 않는다: ${open.join(", ")}`);
-    const modules = modulesOf(context, liveTasks(context.tasks).map((task) => task.id));
+    // 체크가 안 된 작업은 feature 전체에서 보지만, 돌릴 모듈은 수정 모드면 그 단위가 바꾼 것만이다.
+    const modules = modulesOf(context, scopedTasks(context).map((task) => task.id));
     if (modules.length === 0) throw new Refusal("작업들이 보고한 모듈이 없다. 구현 보고(impl report --modules)에 모듈이 적혀야 검사를 돌릴 수 있다.");
     const build = run("final", "build", modules);
     run("final", "lint", modules);
@@ -1047,7 +1060,7 @@ export function formatVerify(result: VerifyResult): string {
     lines.push("다시 고칠 작업 (치유 전에 impl attempt로 시도를 센다):");
     for (const redo of result.redo) lines.push(`- ${redo.id}${redo.kind ? ` (${redo.kind})` : ""}: ${CHECK_TEXT[redo.failure]} 실패`);
   }
-  if (result.unmatched.length > 0) lines.push(`어느 작업에도 대응하지 않는 파일: ${result.unmatched.join(", ")}. 작업 없는 실패라 사람에게 넘긴다.`);
+  if (result.unmatched.length > 0) lines.push(`어느 작업에도 대응하지 않는 파일: ${result.unmatched.join(", ")}. 작업 없는 실패라 사람에게 넘긴다. failures.md에 적었다.`);
   if (result.blockedBySkip.length > 0) {
     lines.push(`건너뜀으로는 체크를 올릴 수 없는 검사: ${result.blockedBySkip.map((kind) => CHECK_TEXT[kind]).join(", ")}. 환경 문제를 사용자에게 알리고 멈춘다. 고쳐진 뒤 다시 부르면 이 작업의 검증부터 이어 간다.`);
   }
