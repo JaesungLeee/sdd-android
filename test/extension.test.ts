@@ -20,7 +20,7 @@ const CORE: Record<string, string> = {
 const SAMPLE: Record<string, string> = {
   "extension.yaml": "name: sample\nkind: extension\nversion: 1.0.0\nrequires: \">=0.1.0\"\ndescription: 예시 확장\ndirectives:\n  spec: directives/spec.md\n",
   "skills/sample-ingest/SKILL.md": "---\nname: {{skill:sample-ingest}}\n---\n`/{{skill:spec}}` 뒤에 돈다.\n",
-  "directives/spec.md": "spec을 쓸 때 위키를 읽는다.\n",
+  "directives/spec.md": "spec을 쓸 때 용어집을 읽는다.\n",
   "scripts/lint.mjs": "console.log('lint');\n",
 };
 
@@ -211,6 +211,25 @@ describe("upgrade와 확장", () => {
     expect(readManifest(repo.root)?.version).toBe("0.3.0");
     expect(readManifest(repo.root)?.extensions?.sample).toBeDefined();
     expect(check(repo).ok).toBe(true);
+  });
+
+  it("새 버전에 없는 내장 확장은 지우고, 고친 파일은 남긴다", () => {
+    addExtension(repo, assets(), resolveBundle(repo, assets(), "sample").bundle, { origin: "builtin", homeDir: home });
+    fs.appendFileSync(path.join(repo.root, ".mob-sdd/extensions/sample/directives/spec.md"), "내가 더한 줄\n");
+
+    // 새 버전: 내장 확장 sample이 빠진다.
+    fs.rmSync(path.join(assetsDir, "ko/extensions/sample"), { recursive: true });
+    const bundle = path.join(tempDir("pkg2"), "mob-sdd.mjs");
+    fs.writeFileSync(bundle, "// bundle 2\n");
+
+    const result = upgrade({ target: repo.root, assets: assets(), bundlePath: bundle, version: "0.3.0" });
+    expect(result.retired).toMatchObject([{ name: "sample", kept: [".mob-sdd/extensions/sample/directives/spec.md"] }]);
+    expect(result.retired[0]?.removed).toContain(".claude/skills/sdd-sample-ingest/SKILL.md");
+    expect(result.local).toEqual([]);
+    expect(exists(".claude/skills/sdd-sample-ingest/SKILL.md")).toBe(false);
+    expect(read(".mob-sdd/extensions/sample/directives/spec.md")).toContain("내가 더한 줄");
+    expect(readManifest(repo.root)?.extensions?.sample).toBeUndefined();
+    expect(Object.values(readManifest(repo.root)?.files ?? {}).some((file) => file.source === "sample")).toBe(false);
   });
 
   it("지시의 대상 단계가 설치되어 있지 않으면 check가 경고한다", () => {

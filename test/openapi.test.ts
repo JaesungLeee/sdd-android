@@ -140,7 +140,7 @@ describe("OpenAPI 문서", () => {
 
 describe("openapi 출처 설정", () => {
   it("add와 remove가 설정의 다른 내용을 보존한 채 출처를 쓰고, 같은 이름은 바꾸며, 마지막을 빼면 키를 지운다", async () => {
-    const root = tempRepo("# 설정\nwiki:\n  categories:\n    domain: 도메인 # 주석\n");
+    const root = tempRepo("# 설정\nglossary:\n  terms:\n    domain: 도메인 # 주석\n");
     const repo = openRepo(root);
     const json = fakeFetch(JSON.stringify(SPEC));
     expect(listSources(repo)).toEqual([]);

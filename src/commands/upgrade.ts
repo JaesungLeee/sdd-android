@@ -6,7 +6,7 @@ import { LAUNCHER_PATH, markExecutable } from "../core/launcher.js";
 import { hashContent, readManifest, writeManifest, type Manifest } from "../core/manifest.js";
 import { openRepo, Refusal } from "../core/repo.js";
 import { compareVersions, isVersion } from "../core/version.js";
-import { addExtension, type AddResult } from "./extension.js";
+import { addExtension, removeExtension, type AddResult, type RemoveResult } from "./extension.js";
 import { coreFiles } from "./init.js";
 
 export interface UpgradeOptions {
@@ -38,6 +38,8 @@ export interface UpgradeResult {
   presetStale: { file: string; preset: string; next: string }[];
   /** 함께 올린 내장 확장. */
   extensions: AddResult[];
+  /** 새 버전에 없어 지운 내장 확장. 고친 파일은 남긴다. */
+  retired: RemoveResult[];
   /** 로컬 경로에서 설치해 손대지 않은 확장. 같은 경로로 add해 갱신한다. */
   local: string[];
   changes: string;
@@ -99,6 +101,7 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     orphaned: [],
     presetStale: [],
     extensions: [],
+    retired: [],
     local: [],
     changes: options.changelog ? changelogBetween(options.changelog, manifest.version, options.version) : "",
   };
@@ -169,7 +172,7 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
   next.extensions = manifest.extensions;
   writeManifest(target, next);
 
-  // 내장 확장은 새 버전의 묶음으로 함께 올린다. 로컬 확장은 원본 경로를 모르므로 건드리지 않는다.
+  // 내장 확장은 새 버전의 묶음으로 함께 올리고, 새 버전에 없으면 지운다. 로컬 확장은 원본 경로를 모르므로 건드리지 않는다.
   const builtin = options.assets.extensions(config.language);
   for (const [name, entry] of Object.entries(manifest.extensions ?? {})) {
     if (entry.origin !== "builtin") {
@@ -178,7 +181,7 @@ export function upgrade(options: UpgradeOptions): UpgradeResult {
     }
     const files = builtin.get(name);
     if (!files) {
-      result.local.push(name);
+      result.retired.push(removeExtension(repo, options.assets, name));
       continue;
     }
     result.extensions.push(addExtension(repo, options.assets, readBundle(files), { origin: "builtin" }));
@@ -204,6 +207,10 @@ export function formatUpgrade(result: UpgradeResult): string {
   for (const ext of result.extensions) {
     const changed = [...ext.added, ...ext.replaced, ...ext.removed, ...ext.kept.map((k) => k.file)];
     if (changed.length > 0) lines.push(`내장 확장 ${ext.name} ${ext.version}: ${changed.join(", ")}`);
+  }
+  for (const ext of result.retired) {
+    lines.push(`내장 확장 ${ext.name}은 새 버전에 없어 지웠다: ${[...ext.removed, ...ext.restored].join(", ") || "지운 파일 없음"}`);
+    if (ext.kept.length > 0) lines.push(`- 고친 파일이라 남겼다: ${ext.kept.join(", ")}`);
   }
   section("로컬 경로에서 설치한 확장이라 손대지 않았다. 같은 경로로 add해 갱신한다:", result.local);
   if (lines.length === 1) lines.push("바뀐 파일이 없다.");

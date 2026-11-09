@@ -7,24 +7,24 @@ extension은 코어에 없는 것을 더하고, preset은 코어의 스킬이나
 ```sh
 npx mob-sdd extension list                 # 내장 확장과 설치된 확장
 npx mob-sdd extension add android          # 내장 확장
-npx mob-sdd extension add ../team-wiki     # 로컬 경로
-npx mob-sdd extension remove team-wiki
+npx mob-sdd extension add ../team-glossary # 로컬 경로
+npx mob-sdd extension remove team-glossary
 npx mob-sdd preset add ../acme-preset
 npx mob-sdd preset remove acme
 npx mob-sdd directives spec                # spec 단계에 적용되는 지시 파일
 ```
 
 - 같은 이름을 다시 `add`하면 갱신이다. 파일의 처리는 `upgrade`와 같다.
-- 로컬 확장의 원본 경로는 기억하지 않는다. 코어를 `upgrade`해도 로컬 확장은 올라가지 않으므로 같은 경로로 다시 `add`한다. 내장 확장은 코어와 함께 올라간다.
+- 로컬 확장의 원본 경로는 기억하지 않는다. 코어를 `upgrade`해도 로컬 확장은 올라가지 않으므로 같은 경로로 다시 `add`한다. 내장 확장은 코어와 함께 올라가고, 새 버전에 없는 내장 확장은 `remove`처럼 지워진다.
 - `remove`는 고치지 않은 파일을 지우고, 고친 파일은 남기고 알린다. preset을 제거하면 코어 파일을 번들에서 되살린다.
 
 ## 묶음의 형식
 
 ```text
-team-wiki/
+team-glossary/
   extension.yaml
   skills/
-    wiki-ingest/SKILL.md
+    glossary-sync/SKILL.md
   directives/
     blueprint.md
   scripts/
@@ -32,11 +32,11 @@ team-wiki/
 ```
 
 ```yaml
-name: team-wiki
+name: team-glossary
 kind: extension            # extension | preset
 version: 1.0.0
 requires: ">=0.3.0"        # 필요한 mob-sdd의 최소 버전. 이 꼴만 받는다
-description: 팀 위키의 수집과 점검
+description: 팀 용어집의 정리와 대조
 directives:                # 단계 이름 → 묶음 안의 파일 경로
   blueprint: directives/blueprint.md
 ```
@@ -57,12 +57,12 @@ directives:                # 단계 이름 → 묶음 안의 파일 경로
 
 ```markdown
 ---
-name: {{skill:wiki-ingest}}
+name: {{skill:glossary-sync}}
 ---
 끝나면 `/{{skill:blueprint}}`를 안내한다.
 ```
 
-접두사 없이 설치한 저장소에서는 그대로 `wiki-ingest`, `blueprint`가 된다. `--prefix sdd`로 설치한 저장소에서는 `sdd-wiki-ingest`, `sdd-blueprint`가 된다. 이 표기를 쓰지 않으면 접두사가 있는 저장소에서 다른 스킬을 부르지 못한다.
+접두사 없이 설치한 저장소에서는 그대로 `glossary-sync`, `blueprint`가 된다. `--prefix sdd`로 설치한 저장소에서는 `sdd-glossary-sync`, `sdd-blueprint`가 된다. 이 표기를 쓰지 않으면 접두사가 있는 저장소에서 다른 스킬을 부르지 못한다.
 
 frontmatter의 `allowed-tools`에 적는 `Skill(…)`에도 같은 표기를 쓴다. Claude Code의 `$ARGUMENTS`나 `${…}`와는 겹치지 않는다.
 

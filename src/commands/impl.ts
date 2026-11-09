@@ -31,8 +31,7 @@ import {
   type Phase,
   type TaskRecord,
 } from "../core/checkpoint.js";
-import { sha256 } from "../core/hash.js";
-import { hashSource } from "../core/wiki.js";
+import { hashSource, sha256 } from "../core/hash.js";
 import { commandFor, isMachineCheck, MACHINE_CHECKS, NO_COMMAND, readImplChecks, requireImplChecks, type CommandSpec, type MachineCheck } from "../core/impl-config.js";
 import { assertFeatureName, docPath, loadDoc, loadDocs, Refusal, writeDoc, writeFile, type LoadedDoc, type Repo } from "../core/repo.js";
 import { currentVersions, describeReason, implementGate, type GateResult } from "./gate.js";
@@ -656,7 +655,7 @@ function verifyUnit(repo: Repo, context: Context, options: VerifyOptions): Verif
 
 /**
  * 작업 경로의 내용 해시. 기계 검사를 돌린 때의 코드와 판정하는 때의 코드가 같은지 본다.
- * 커밋이 아니라 내용으로 보므로, 스토리마다 커밋해도 코드가 같으면 같은 해시다(위키의 원본 해시와 같은 규칙).
+ * 커밋이 아니라 내용으로 보므로, 스토리마다 커밋해도 코드가 같으면 같은 해시다.
  */
 export function scopeHash(repo: Repo, paths: string[]): string {
   return sha256([...new Set(paths)].sort().map((rel) => `${rel} ${hashSource(repo, rel) ?? "-"}`).join("\n"));

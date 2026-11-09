@@ -1,8 +1,13 @@
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { formatDoc, formatMeta, parseDoc, type Meta } from "../src/core/frontmatter.js";
-import { diffHashes, formatHashFile, hashBody, isUnchanged, parseHashFile } from "../src/core/hash.js";
+import { diffHashes, formatHashFile, hashBody, hashSource, isUnchanged, parseHashFile } from "../src/core/hash.js";
 import { splitItems } from "../src/core/items.js";
 import { normalizeText } from "../src/core/normalize.js";
+import { openRepo, type Repo } from "../src/core/repo.js";
 import { bumpVersion, compareVersions, gradeBetween, maxGrade } from "../src/core/version.js";
 
 describe("version", () => {
@@ -149,6 +154,52 @@ describe("해시 파일", () => {
     const text = formatHashFile(file);
     expect(text).toBe("version 1.2.0\n* o\nCLI-001 a\nCLI-002 b\n");
     expect(parseHashFile(text)).toEqual(file);
+  });
+});
+
+describe("경로의 내용 해시", () => {
+  function gitRepo(): Repo {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-hash-"));
+    fs.mkdirSync(path.join(root, ".mob-sdd"));
+    fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nagent: claude-code\ndocs_dir: docs\nprefix: \"\"\n");
+    fs.writeFileSync(path.join(root, ".gitignore"), "build/\n");
+    execFileSync("git", ["-C", root, "init", "-q", "-b", "main"], { stdio: "ignore" });
+    return openRepo(root);
+  }
+  function write(repo: Repo, rel: string, text: string): void {
+    const file = path.join(repo.root, ...rel.split("/"));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+  }
+
+  it("파일은 줄바꿈, 줄 끝 공백, 끝의 빈 줄, NFC를 무시하고 바이너리는 바이트 그대로다", () => {
+    const repo = gitRepo();
+    write(repo, "core/A.kt", "class A\n");
+    const base = hashSource(repo, "core/A.kt");
+    write(repo, "core/A.kt", "class A  \r\n\r\n");
+    expect(hashSource(repo, "core/A.kt")).toBe(base);
+    write(repo, "core/A.kt", "class A2\n");
+    expect(hashSource(repo, "core/A.kt")).not.toBe(base);
+    write(repo, "assets/pic.bin", "\u0000\u0001");
+    const bin = hashSource(repo, "assets/pic.bin");
+    write(repo, "assets/pic.bin", "\u0000\u0002");
+    expect(hashSource(repo, "assets/pic.bin")).not.toBe(bin);
+    expect(hashSource(repo, "core/없음.kt")).toBeUndefined();
+  });
+
+  it("디렉터리는 git이 보는 파일 전체이고, 무시되는 파일은 들어가지 않으며, 커밋 전의 변경과 새 파일도 반영된다", () => {
+    const repo = gitRepo();
+    write(repo, "core/A.kt", "class A\n");
+    write(repo, "core/B.kt", "class B\n");
+    const base = hashSource(repo, "core/");
+    expect(hashSource(repo, "core")).toBe(base);
+    write(repo, "core/build/out.class", "x");
+    expect(hashSource(repo, "core/")).toBe(base);
+    write(repo, "core/C.kt", "class C\n");
+    const withNew = hashSource(repo, "core/");
+    expect(withNew).not.toBe(base);
+    write(repo, "core/B.kt", "class B2\n");
+    expect(hashSource(repo, "core/")).not.toBe(withNew);
   });
 });
 

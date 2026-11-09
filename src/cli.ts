@@ -19,7 +19,7 @@ import { check, formatCheck } from "./commands/check.js";
 import { fixCheck, formatFixCheck } from "./commands/fix.js";
 import { formatGate, gateAll, isGateStage, verdictText, type GateStage } from "./commands/gate.js";
 import { figmaSetup, figmaShow, formatFigmaSetup, formatFigmaShow } from "./commands/figma.js";
-import { formatHookOutput, hookWrite, hookWriteScoped, isHookScope } from "./commands/hook.js";
+import { formatHookOutput, hookWrite } from "./commands/hook.js";
 import {
   formatAssign,
   formatAttempt,
@@ -52,7 +52,6 @@ import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
 import { runScript } from "./commands/run.js";
 import { addSource, formatSources as formatOpenApiSources, listSources, removeSource } from "./commands/openapi.js";
-import { formatIndex, formatLint, formatRecord as formatWikiRecord, formatSources, wikiCategoryAdd, wikiIndex, wikiLint, wikiRecord, wikiSources } from "./commands/wiki.js";
 import { findRoot, isStage, localDate, openRepo, Refusal, type Repo, type Stage } from "./core/repo.js";
 import { readManifest } from "./core/manifest.js";
 import { isGrade, type Grade } from "./core/version.js";
@@ -76,7 +75,7 @@ const USAGE = `mob-sdd <명령>
   figma show|setup                 Figma 서버 설정과 읽기 도구의 권한 (--server, --name)
   preset list|add|remove           preset의 목록, 설치, 제거
   directives <단계>                그 단계에 적용되는 확장 지시 파일
-  hook write                       쓰기 hook (입력은 표준 입력의 JSON, --scope wiki면 위키 밖의 문서 쓰기를 막는다)
+  hook write                       쓰기 hook (입력은 표준 입력의 JSON)
   fix check <feature> <FIX-001>    /fix가 더한 수정 단위가 작은 수정의 범위 안인지 판정한다 (--no-test <사유>)
   impl start <feature>             착수 게이트를 확인하고 체크포인트를 만든다 (--fix <FIX-001>이면 그 수정 단위만)
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
@@ -91,11 +90,6 @@ const USAGE = `mob-sdd <명령>
   impl show <feature>              체크포인트
   openapi list|add|remove          OpenAPI 출처의 목록, 추가(--url이나 --path), 제거. config.yaml의 openapi.sources를 쓴다
   run <확장> <스크립트> [인자…]    확장의 scripts/ 아래 .mjs를 실행한다 (뒤의 인자는 --root까지 그대로 넘긴다)
-  wiki index                       위키 색인을 다시 만든다
-  wiki record <페이지>…            페이지의 원본 해시와 commit을 적고 색인을 다시 만든다
-  wiki lint                        위키 점검의 계산 부분 (형식, 깨진 링크, 원본 없음, 낡음 후보, 고아, 색인)
-  wiki sources                     미수집 원본과 낡음 후보
-  wiki category add <이름>         갈래를 설정에 더한다 (--description)
 
 옵션: --json, --acknowledged, --grade <등급|항목=등급>, --depends <ID,ID>, --root <경로>, --version`;
 
@@ -129,8 +123,6 @@ const OPTIONS = {
   extension: { type: "string", multiple: true },
   server: { type: "string" },
   name: { type: "string" },
-  description: { type: "string" },
-  scope: { type: "string" },
   url: { type: "string" },
   path: { type: "string" },
   version: { type: "boolean", default: false },
@@ -286,7 +278,7 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     return { text: formatStatus(result), data: result };
   }
   if (command === "check") {
-    const result = check(repo, undefined, loadAssets(SELF));
+    const result = check(repo);
     return { text: formatCheck(result), data: result, exitCode: result.ok ? 0 : 1 };
   }
   if (command === "gate") {
@@ -429,33 +421,6 @@ ${formatOpenApiSources(result.sources)}`, data: result };
     }
     throw new Refusal("openapi 명령은 list, add <이름> --url <주소>|--path <경로>, remove <이름> 가운데 하나다");
   }
-  if (command === "wiki") {
-    const [action, ...args] = rest;
-    switch (action) {
-      case "index": {
-        const result = wikiIndex(repo);
-        return { text: formatIndex(result), data: result };
-      }
-      case "record": {
-        const result = wikiRecord(repo, args);
-        return { text: formatWikiRecord(result), data: result };
-      }
-      case "lint": {
-        const result = wikiLint(repo);
-        return { text: formatLint(result), data: result };
-      }
-      case "sources": {
-        const result = wikiSources(repo);
-        return { text: formatSources(result), data: result };
-      }
-      case "category": {
-        if (args[0] !== "add") throw new Refusal("wiki category 명령은 add <이름> --description <설명>이다");
-        const result = wikiCategoryAdd(repo, args[1], values.description);
-        return { text: `갈래를 더했다: ${result.name} (${result.description})`, data: result };
-      }
-    }
-    throw new Refusal("wiki 명령은 index, record, lint, sources, category add 가운데 하나다");
-  }
   if (command === "directives") {
     if (!rest[0]) throw new Refusal("단계 이름이 필요하다");
     const found = directives(repo, rest[0]);
@@ -464,9 +429,7 @@ ${formatOpenApiSources(result.sources)}`, data: result };
   if (command === "hook" && rest[0] === "write") {
     const input = JSON.parse(fs.readFileSync(0, "utf8")) as { tool_input?: { file_path?: string } };
     const file = input.tool_input?.file_path;
-    const scope = values.scope;
-    if (scope !== undefined && !isHookScope(scope)) throw new Refusal(`--scope는 wiki다: ${scope}`);
-    const decision = !file ? { allow: true } : scope ? hookWriteScoped(repo, file, scope) : hookWrite(repo, file);
+    const decision = file ? hookWrite(repo, file) : { allow: true };
     return { text: formatHookOutput(decision), data: decision };
   }
   if (command === "doc") {
@@ -567,15 +530,11 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     ...result.files.map((file) => `- ${file}`),
     ...result.backedUp.map((moved) => `옮겼다: ${moved.from} → ${moved.to}`),
     result.extensions.length > 0 ? `함께 설치한 확장: ${result.extensions.join(", ")}` : "구현 단계는 확장으로 더한다: mob-sdd extension add android",
-    ...(result.existingCode && !result.extensions.includes("wiki")
-      ? ["기존 코드가 있다. mob-sdd extension add wiki로 위키를 설치하고 /wiki-ingest로 첫 수집을 하면 단계들이 코드베이스의 서술을 읽는다."]
-      : []),
     "",
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
     ...(result.extensions.includes("android") ? ["Figma를 쓰면 mob-sdd figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다."] : []),
-    ...(result.extensions.includes("wiki") && result.existingCode ? ["첫 수집: /wiki-ingest 로 architecture/overview.md부터 만든다."] : []),
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
 }

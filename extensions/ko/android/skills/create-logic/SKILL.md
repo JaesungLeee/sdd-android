@@ -43,7 +43,6 @@ breakdown의 작업 하나를 구현한다. 맡는 것은 도메인과 데이터
 - `docs/specs/{feature}/blueprint.md`와 있으면 `data-model.md`, `contracts/`. 설계가 정한 이름, 계층, 인터페이스를 그대로 쓴다.
 - `docs/specs/{feature}/spec.md`에서 이 작업의 스토리에 해당하는 요구사항.
 - `docs/constitution.md`가 있으면 읽는다. 원칙은 지켜야 하는 것이다.
-- `docs/wiki/conventions/`가 있으면 읽는다. 관찰된 규약이며 힌트다.
 - 작업과 같은 모듈의 기존 코드. 같은 계층의 비슷한 클래스 하나를 찾아 구조, 이름 붙이기, 에러 처리의 방식을 따른다. 광역 탐색이 필요하면 서브에이전트에 맡기고 요약만 받는다.
 
 ## 만드는 방법

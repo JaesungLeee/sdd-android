@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { splitItems } from "./items.js";
 import { normalizeText } from "./normalize.js";
+import type { Repo } from "./repo.js";
 
 export type DocKind = "constitution" | "prd" | "spec" | "checklist" | "blueprint" | "breakdown";
 
@@ -84,4 +88,65 @@ export function parseHashFile(text: string): HashFile {
     else file.hashes[name] = value;
   }
   return file;
+}
+
+// 경로의 내용 해시
+
+/**
+ * 저장소 안 경로의 내용 해시. 파일은 사슬 문서의 정규화 가운데 앞의 네 규칙(LF, 줄 끝 공백, 끝의 빈 줄, NFC)을 거치고,
+ * 바이너리는 바이트 그대로, 디렉터리는 git이 보는 파일의 `경로 해시` 줄을 이은 것이다. 경로가 없으면 비어 있다.
+ */
+export function hashSource(repo: Repo, source: string): string | undefined {
+  const rel = normalizeSource(source);
+  const full = path.join(repo.root, rel);
+  if (!fs.existsSync(full)) return undefined;
+  return fs.statSync(full).isDirectory() ? hashDirectory(repo, rel) : hashFile(full);
+}
+
+function normalizeSource(source: string): string {
+  return source.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+}
+
+function hashFile(full: string): string {
+  const bytes = fs.readFileSync(full);
+  if (bytes.includes(0)) return createHash("sha256").update(bytes).digest("hex");
+  return sha256(normalizeText(bytes.toString("utf8")));
+}
+
+function hashDirectory(repo: Repo, rel: string): string {
+  const files = [...new Set(filesUnder(repo, rel))]
+    .filter((file) => {
+      const full = path.join(repo.root, file);
+      return fs.existsSync(full) && fs.statSync(full).isFile();
+    })
+    .sort();
+  return sha256(files.map((file) => `${file} ${hashFile(path.join(repo.root, file))}`).join("\n"));
+}
+
+/** 추적 중인 파일과 무시되지 않은 미추적 파일. 작업 트리의 내용을 읽으므로 커밋 전의 변경도 반영된다. */
+function filesUnder(repo: Repo, rel: string): string[] {
+  try {
+    const out = execFileSync("git", ["-C", repo.root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", rel], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return out.split("\0").filter(Boolean);
+  } catch {
+    return walkFiles(repo.root, rel);
+  }
+}
+
+function walkFiles(root: string, rel: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) found.push(path.relative(root, full).split(path.sep).join("/"));
+    }
+  };
+  walk(path.join(root, rel));
+  return found;
 }

@@ -5,7 +5,6 @@ import { checkpointPath } from "../core/checkpoint.js";
 import type { DocKind } from "../core/hash.js";
 import { listFeatures, loadDoc, loadDocs, toStates, type LoadedDoc, type Repo } from "../core/repo.js";
 import { countPrinciples, parsePrinciples, type PrincipleCount } from "../core/principles.js";
-import { wikiSummary } from "../core/wiki.js";
 import { countChecks } from "./doc.js";
 import { verdictText } from "./gate.js";
 
@@ -31,8 +30,6 @@ export interface StatusResult {
   /** constitution의 원칙을 무엇이 판정하는지. 도구의 규칙이 아닌 것은 LLM의 감사에 기댄다. */
   principles?: PrincipleCount;
   features: FeatureStatus[];
-  /** 위키가 있을 때만. 없는 저장소의 출력은 바뀌지 않는다(PRD §4 「확장」). */
-  wiki?: { pages: number; stale: number; uncollected: number };
 }
 
 function summarize(doc: LoadedDoc): DocSummary {
@@ -74,8 +71,7 @@ export function status(repo: Repo, only?: string): StatusResult {
     }
     features.push(feature);
   }
-  const wiki = wikiSummary(repo);
-  return { project, ...(principles && principles.total > 0 ? { principles } : {}), features, ...(wiki ? { wiki } : {}) };
+  return { project, ...(principles && principles.total > 0 ? { principles } : {}), features };
 }
 
 function describeDoc(kind: string, doc: DocSummary | undefined): string {
@@ -112,6 +108,5 @@ export function formatStatus(result: StatusResult): string {
       lines.push(`  ${relation.lower} → ${relation.upper}: ${verdictText(relation.verdict)} (${kind})`);
     }
   }
-  if (result.wiki) lines.push("", `위키: 페이지 ${result.wiki.pages}, 낡음 후보 ${result.wiki.stale}, 미수집 원본 ${result.wiki.uncollected}`);
   return lines.join("\n");
 }

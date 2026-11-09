@@ -165,6 +165,12 @@ describe("init", () => {
     expect(manifest?.files[".mob-sdd/templates/prd.md"]?.source).toBe("core");
   });
 
+  it("실행 스크립트는 실행 비트를 갖는다", () => {
+    const target = gitRepo();
+    init(options(target));
+    if (process.platform !== "win32") expect(fs.statSync(path.join(target, ".mob-sdd/bin/mob-sdd")).mode & 0o111).not.toBe(0);
+  });
+
   it("접두사를 붙이면 스킬의 이름과 서로를 가리키는 이름이 모두 바뀐다", () => {
     const target = gitRepo();
     expect(init(options(target, "sdd")).skills).toEqual(["sdd-blueprint", "sdd-spec"]);
@@ -589,14 +595,14 @@ describe("upgrade", () => {
     fs.writeFileSync(path.join(pkg, "mob-sdd.mjs"), "// bundle 2\n");
     fs.writeFileSync(asset("skills", "spec", "SKILL.md"), SKILLS.spec + "새 문단. `/{{skill:blueprint}}`\n");
     fs.rmSync(asset("templates", "research.md"));
-    fs.writeFileSync(asset("templates", "wiki.md"), "# 위키\n");
+    fs.writeFileSync(asset("templates", "glossary.md"), "# 용어집\n");
   });
 
   it("고치지 않은 파일은 새 버전으로 바꾸고 설정의 접두사를 그대로 쓴다", () => {
     const result = run();
     expect(result).toMatchObject({ from: "0.1.0", to: "0.2.0" });
     expect(result.replaced).toEqual([".mob-sdd/bin/mob-sdd.mjs", ".claude/skills/sdd-spec/SKILL.md"]);
-    expect(result.added).toEqual([".mob-sdd/templates/wiki.md"]);
+    expect(result.added).toEqual([".mob-sdd/templates/glossary.md"]);
     expect(result.removed).toEqual([".mob-sdd/templates/research.md"]);
     expect(fs.readFileSync(skill(), "utf8")).toContain("새 문단. `/sdd-blueprint`");
     expect(fs.existsSync(path.join(target, ".mob-sdd", "templates", "research.md"))).toBe(false);

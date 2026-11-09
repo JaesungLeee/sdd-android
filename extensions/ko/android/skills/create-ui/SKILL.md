@@ -49,7 +49,7 @@ breakdown의 UI 작업 하나를 구현한다. 맡는 것은 화면(Composable),
 - `docs/specs/{feature}/spec.md`에서 이 스토리의 요구사항, UX 규칙, 화면의 상태.
 - `docs/specs/{feature}/blueprint.md`에서 화면의 구조, 상태의 설계, 컴포넌트의 소속 모듈.
 - **디자인 원본**: 인자의 분석 파일(있으면)과 Figma 노드. 화면 프레임만 주어진 컴포넌트 작업은 화면의 `get_metadata`에서 해당 자식 노드로 내려간다. 분석 파일에 없는 값이 필요하면 Figma를 직접 읽는다.
-- `docs/constitution.md`의 디자인 토큰과 컴포넌트 소속에 관한 원칙. `docs/wiki/conventions/`가 있으면 힌트로 읽는다.
+- `docs/constitution.md`의 디자인 토큰과 컴포넌트 소속에 관한 원칙.
 - 같은 모듈의 기존 화면 하나. 상태 홀더의 패턴(MVI, MVVM), 내비게이션 인자의 전달, 프리뷰의 작성 방식을 따른다.
 
 ## 만드는 방법

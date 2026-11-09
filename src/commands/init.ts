@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -55,16 +54,6 @@ export interface InitResult {
   backedUp: { from: string; to: string }[];
   /** 함께 설치한 확장의 이름. */
   extensions: string[];
-  /** git이 추적하는 파일이 있는 저장소다. 위키의 첫 수집을 권하는 근거다(PRD CLI-001). */
-  existingCode: boolean;
-}
-
-function hasTrackedFiles(target: string): boolean {
-  try {
-    return execFileSync("git", ["-C", target, "ls-files", "-z"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).length > 0;
-  } catch {
-    return false;
-  }
 }
 
 /** 함께 설치할 내장 확장의 묶음. 이름이 내장 확장에 없거나 이 버전이 요건을 만족하지 못하면 거부한다. */
@@ -224,6 +213,5 @@ export function init(options: InitOptions): InitResult {
     skills,
     backedUp,
     extensions,
-    existingCode: hasTrackedFiles(target),
   };
 }

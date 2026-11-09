@@ -39,7 +39,6 @@
 | `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 테스트를 CLI가 돌려 종료 코드로 적는다 |
 | `fix check <feature> <FIX-001> [--no-test <사유>]` | `fix` | 수정 단위가 작은 수정의 범위 안인지 계산한다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |
-| `wiki index\|record\|lint\|sources\|category add` | `wiki-ingest`, `wiki-lint` | 위키의 색인, 원본 해시 기록, 점검 계산, 미수집 원본, 갈래 추가 |
 
 공통 옵션은 다음과 같다.
 
@@ -76,9 +75,6 @@ language: ko          # 설치 언어. 1.0부터 en
 agent: claude-code
 docs_dir: docs        # 산출물의 자리
 prefix: ""            # 스킬 이름 접두사
-wiki:                 # 위키 갈래 가운데 사용자가 더한 것. 기본 네 갈래는 CLI가 안다
-  categories:
-    domain: 도메인 용어와 업무 규칙
 ```
 
 `openapi.sources`는 [OpenAPI 대조](openapi.md)에, `impl.checks`는 [구현 단계](implementation.md#기계-검사)에 있다.

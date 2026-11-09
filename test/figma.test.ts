@@ -127,7 +127,7 @@ describe("Figma 설정", () => {
   it("setup이 개인 설정 파일 둘을 쓰고, 다른 내용은 보존하며, 두 번째에는 더할 것이 없다", () => {
     fs.mkdirSync(path.join(repo.root, ".claude"), { recursive: true });
     fs.writeFileSync(path.join(repo.root, SETTINGS_LOCAL), JSON.stringify({ permissions: { allow: ["Bash(ls *)"], deny: ["Bash(rm *)"] }, other: 1 }));
-    fs.writeFileSync(path.join(repo.root, ".mob-sdd", "config.local.yaml"), "wiki:\n  branch: x\n");
+    fs.writeFileSync(path.join(repo.root, ".mob-sdd", "config.local.yaml"), "team:\n  branch: x\n");
 
     const result = figmaSetup(repo, { server: "remote", name: "plugin:figma:figma" });
     expect(result.config).toEqual({ server: "remote", desktop_name: "figma-desktop", remote_name: "plugin:figma:figma" });
@@ -141,7 +141,7 @@ describe("Figma 설정", () => {
     expect(settings.permissions.allow[0]).toBe("Bash(ls *)");
     expect(settings.permissions.deny).toEqual(["Bash(rm *)"]);
     expect(settings.other).toBe(1);
-    expect(readLocalConfig(repo)).toEqual({ wiki: { branch: "x" }, figma: { server: "remote", desktop_name: "figma-desktop", remote_name: "plugin:figma:figma" } });
+    expect(readLocalConfig(repo)).toEqual({ team: { branch: "x" }, figma: { server: "remote", desktop_name: "figma-desktop", remote_name: "plugin:figma:figma" } });
     expect(figmaShow(repo).missingPermissions).toEqual([]);
     expect(check(repo).problems.map((p) => p.message)).not.toContainEqual(expect.stringContaining("Figma 설정이 없다"));
 

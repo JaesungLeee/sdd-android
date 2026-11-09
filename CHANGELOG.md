@@ -12,19 +12,18 @@
 - 선택 검사 `impl.checks.rules`: Lint 밖의 규칙 도구(Konsist 등)를 CLI가 작업마다와 마지막 확인에서 돌린다. 실패 종류 `rules`.
 - `verify-principles`는 도구 줄이 없는 원칙만 감사하고, 원칙마다 확인한 곳이나 닿지 않는 이유를 보고한다.
 - `android`의 새 스킬 `sync-rules`: 원칙의 검사를 detekt, ktlint, Konsist의 규칙으로 옮긴다. constitution은 고치지 않는다.
-- 새 단계 `/fix`: 구현이 끝난 feature의 버그 수정과 작은 변경. 정책을 먼저 확인하고, spec은 PATCH 개정일 때만 고치며, breakdown에 수정 단위(`## 수정: FIX-001`, 작업 `[FIX-001]`)를 더한다. 범위는 새 명령 `fix check <feature> <FIX-001>`이 계산하고, 넘으면 정식 경로로 돌려보낸다. 위키가 있으면 `adr/`의 결정을 함께 본다.
+- 새 단계 `/fix`: 구현이 끝난 feature의 버그 수정과 작은 변경. 정책을 먼저 확인하고, spec은 PATCH 개정일 때만 고치며, breakdown에 수정 단위(`## 수정: FIX-001`, 작업 `[FIX-001]`)를 더한다. 범위는 새 명령 `fix check <feature> <FIX-001>`이 계산하고, 넘으면 정식 경로로 돌려보낸다.
 - `impl start --fix FIX-001`: 수정 단위만 구현한다. 배정은 그 단위의 작업만이고, 마지막 확인은 그 단위가 바꾼 모듈만 돈다. `/impl-orchestrator {feature} --fix FIX-001`.
 - **동작 변경**: breakdown에서 한 스토리의 작업이 다른 스토리를 사이에 두고 다시 나오면 `check`가 오류로 본다. 같은 이름의 단위가 둘 생겨 단위 검증의 기록이 섞이던 문제다. 끝난 스토리에 작업을 더할 때는 그 스토리 섹션 안에 넣거나 `/fix`의 수정 단위를 쓴다.
 - `impl setup`: 검사 명령을 설정에 적는다. 모듈마다 다른 명령은 `"*"`를 기본으로 하는 묶음으로 손으로 적는다.
 - `check`가 `impl.checks`의 형식을 보고, `android`가 설치됐는데 없으면 경고한다.
+- `upgrade`가 새 버전에 없는 내장 확장을 지운다. 고친 파일은 남기고 알린다.
 
 ## 0.4.0
 
-- 내장 확장 `wiki`: 지식 계층의 위키(`docs/wiki/`). 스킬 `wiki-ingest`(수집)와 `wiki-lint`(점검). constitution, blueprint, `android`의 `create-*`와 `heal-*`에 위키를 읽는 지시를 더한다. 두 스킬은 위키 아래만 쓰며 `hook write --scope wiki`가 그 밖의 문서 쓰기를 막는다.
-- 위키의 계산 명령 `wiki index|record|lint|sources|category add`. 낡음은 원본의 내용 해시로 판정한다. `status`가 위키가 있으면 페이지, 낡음 후보, 미수집 원본의 수를 한 줄 더한다.
 - 내장 확장 `openapi`: blueprint가 서버의 OpenAPI 문서를 조회해 계약의 근거로 삼는다. 출처는 `config.yaml`의 `openapi.sources`. 조회 스크립트는 `run openapi openapi.mjs list|show`.
 - `run <확장> <스크립트> [인자…]`: 확장의 `scripts/` 아래 `.mjs`를 실행 스크립트가 찾은 `node`로 돌린다.
-- `check`가 `openapi.sources`의 형식을 보고, 지시의 대상으로 내장 확장의 스킬 이름을 안다. `init`이 기존 코드가 있는 저장소에서 위키를 권한다.
+- `check`가 `openapi.sources`의 형식을 본다.
 
 ## 0.3.0
 

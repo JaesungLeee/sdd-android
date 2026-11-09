@@ -35,8 +35,6 @@ export interface Config {
   agent: string;
   docs_dir: string;
   prefix: string;
-  /** 위키의 갈래 가운데 사용자가 더한 것. 기본 갈래는 CLI가 안다(`src/core/wiki.ts`). */
-  wiki?: { categories?: Record<string, string> };
 }
 
 export interface Repo {
@@ -67,21 +65,8 @@ export function openRepo(root: string): Repo {
       agent: data.agent ?? "claude-code",
       docs_dir: data.docs_dir ?? "docs",
       prefix: data.prefix ?? "",
-      ...(wikiConfig(data.wiki) ? { wiki: wikiConfig(data.wiki) } : {}),
     },
   };
-}
-
-/** `wiki.categories`는 이름에서 설명으로의 묶음만 받는다. 형식이 어긋나면 없는 것으로 본다. */
-function wikiConfig(raw: unknown): Config["wiki"] | undefined {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const given = (raw as { categories?: unknown }).categories;
-  if (!given || typeof given !== "object" || Array.isArray(given)) return undefined;
-  const categories: Record<string, string> = {};
-  for (const [name, description] of Object.entries(given as Record<string, unknown>)) {
-    if (typeof description === "string") categories[name] = description;
-  }
-  return { categories };
 }
 
 const FEATURE_NAME = /^[a-z0-9][a-z0-9-]*$/;

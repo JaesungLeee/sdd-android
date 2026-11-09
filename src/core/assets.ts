@@ -7,7 +7,7 @@ export type FileMap = Map<string, string>;
 /**
  * 패키지에 실린 스킬, 템플릿, 내장 확장.
  * 번들 안에 들어 있어 저장소의 번들이 자기 버전의 원본을 언제나 갖는다(PRD CLI-004).
- * 키는 `ko/skills/prd/SKILL.md`, `ko/templates/prd.md`, `ko/extensions/wiki/extension.yaml` 꼴이다.
+ * 키는 `ko/skills/prd/SKILL.md`, `ko/templates/prd.md`, `ko/extensions/android/extension.yaml` 꼴이다.
  */
 export interface Assets {
   languages(): string[];
