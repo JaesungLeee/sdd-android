@@ -45,7 +45,7 @@ breakdown의 작업 하나를 구현한다. 맡는 것은 feature의 내용이 �
 
 - 골격은 설계가 정한 모듈 이름과 패키지로 만든다. 비어 있는 모듈이라도 빌드가 서야 한다.
 - 배선은 등록 누락 없이 연결한다: 내비게이션 그래프의 경로, DI의 바인딩, 에러를 받는 곳. 등록할 대상이 아직 없으면(앞의 작업이 안 끝남) `blocked`로 보고한다.
-- 끝나면 빌드로 확인한다: 골격이면 `./gradlew :{모듈}:compileDebugKotlin`, 배선이면 그 배선을 포함하는 앱 모듈의 `assembleDebug`가 무거우면 `compileDebugKotlin`까지. 실패는 이 작업의 파일 안에서 고친다.
+- 끝나면 빌드로 확인한다: 골격이면 `./gradlew {모듈}:compileDebugKotlin`, 배선이면 그 배선을 포함하는 앱 모듈의 `assembleDebug`가 무거우면 `compileDebugKotlin`까지. 실패는 이 작업의 파일 안에서 고친다.
 - 테스트는 돌리지 않는다.
 
 {{> impl-report}}

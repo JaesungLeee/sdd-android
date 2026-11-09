@@ -25,9 +25,7 @@ constitution 원칙의 판정을 LLM의 감사에서 도구로 옮긴다. 원칙
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" check`
-
-위에 결과 대신 명령이 글자 그대로 보이면 `sdd-android check`를 직접 불러 확인한다. `P-…의 … 검사:`로 시작하는 줄이 원칙의 검사 줄과 설정이 어긋난 곳이다.
+먼저 `sdd-android check`를 부른다. 이 스킬이 다루는 어긋남은 오류로 나오므로 종료 코드가 1이어도 실패한 것이 아니다. `[오류] docs/constitution.md: P-001의 detekt 검사: …`처럼 `P-…의 {도구} 검사:`가 든 줄이 원칙의 검사 줄과 설정이 어긋난 곳이다.
 
 ## 후보
 
@@ -61,7 +59,7 @@ constitution 원칙의 판정을 LLM의 감사에서 도구로 옮긴다. 원칙
     - 규칙이 실제로 읽혔는지: 설정 오류나 테스트 컴파일 오류가 없어야 한다. 있으면 고친다.
     - 기존 코드의 위반: 위반이 나오면 고치지 않고 파일과 줄을 모은다. 구현 단계의 검사는 모듈 단위로 돌기 때문에, 기존 위반이 남아 있으면 그 모듈의 모든 작업이 실패한다. baseline(detekt의 `baseline.xml` 등)으로 기존 위반을 뺄지 사용자에게 묻는다. 만들면 그 사실을 보고에 적는다.
 3. `sdd-android check`를 다시 부른다. 1의 결과로 「빠진 규칙」이 사라졌는지 본다. 감사에서 옮긴 원칙은 아직 검사 줄이 `감사`라서 check에 나오지 않는다.
-4. 구현 단계가 그 규칙을 돌리는지 본다. `.sdd-android/config.yaml`의 `impl.checks`에서 Lint 명령이 그 도구를 돌리는지(detekt, ktlint), 규칙 명령(`rules`)이 Konsist 테스트를 돌리는지 확인한다. 돌리지 않으면 사용자가 칠 명령을 안내한다. 예: `sdd-android impl setup --rules "./gradlew :konsist:test"`.
+4. 구현 단계가 그 규칙을 돌리는지 본다. `.sdd-android/config.yaml`의 `impl.checks`에서 Lint 명령이 그 도구를 돌리는지(detekt, ktlint), 규칙 명령(`rules`)이 Konsist 테스트를 돌리는지 확인한다. 돌리지 않으면 사용자가 칠 명령을 안내한다. 예: `sdd-android impl setup --rules "./gradlew :konsist:test"`. Lint 명령이 아직 설정에 없으면 이 명령이 거부되므로 `--lint`도 함께 준다.
 
 ## 보고
 

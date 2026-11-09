@@ -109,7 +109,7 @@ CLI가 거부하면 인자를 바꿔 다시 시도하지 않는다. 특히 `impl
 2. 판정을 기록한다: `sdd-android impl verify {feature} {ID}`. 빌드, Lint, 테스트의 결과는 `verify-build`가 부른 `impl check`가 이미 적었으므로 CLI가 그것을 가져간다. 인자로 다시 적지 않는다. 더하는 것은 다음뿐이다.
     - 실패한 검사의 파일이 다른 작업의 것이면 `--check {검사}=fail --files {실패 파일}`. CLI가 그 파일을 맡은 작업의 체크를 내린다.
     - 보고가 실패를 **환경 문제**로 분류했으면 `--check {검사}=skip`. 빌드와 테스트의 건너뜀은 체크를 올리지 않으므로 아래의 "건너뜀으로는 체크를 올릴 수 없는 검사"로 멈춘다. Lint의 실패는 환경 문제로 돌릴 수 없다(CLI가 거부한다). 보고가 `impl check`가 끊겼다고 하면 기록하지 않고 멈춰 보고한다.
-    - `ui` 작업이면 디자인 검사도 필요하다. 노드가 있으면 `/{{skill:verify-ui}}`를 `대조: 값, 작업: {ID}, 노드: {노드}, 파일: {바꾼 파일}`로 부르고 결과를 `--check design=pass|fail|skip [--files {차이 파일}]`로 적는다. 노드가 없으면 `--check design=skip`으로 적고 완료 보고에 UI 미검증으로 남긴다. 디자인 불일치의 치유는 치유 스킬이 아니라 `/{{skill:create-ui}}`를 `차이: {차이 목록}`과 함께 다시 부르는 것이다(`impl attempt --failure design` 뒤에).
+    - `ui` 작업이면 디자인 검사도 필요하다. 노드가 있으면 `/{{skill:verify-ui}}`를 `feature: {feature}, 대조: 값, 작업: {ID}, 노드: {노드}, 파일: {바꾼 파일}`로 부르고 결과를 `--check design=pass|fail|skip [--files {차이 파일}]`로 적는다. 노드가 없으면 `--check design=skip`으로 적고 완료 보고에 UI 미검증으로 남긴다. 디자인 불일치의 치유는 치유 스킬이 아니라 `/{{skill:create-ui}}`를 `차이: {차이 목록}`과 함께 다시 부르는 것이다(`impl attempt --failure design` 뒤에).
     - "impl check 뒤에 … 파일이 바뀌어 그 결과를 버렸다"로 거부되거나 "검사 뒤에 작업의 파일이 바뀌어 버린 결과"가 나오면 그 사이 코드가 바뀐 것이다. `verify-build`부터 다시 부른다. 거부를 피해 인자를 바꾸지 않는다.
     - "체크를 올렸다"가 나오면 끝난 것이다. "이 작업이 단위의 마지막"이었으면 「단위 검증」으로, 아니면 다음 작업으로 간다.
     - "건너뜀으로는 체크를 올릴 수 없는 검사"가 나오면(빌드나 테스트를 환경 문제로 돌리지 못함) 멈추고 그 환경 문제(SDK 없음 등)를 사용자에게 알린다. 다른 수단으로 대신 돌리지 않는다. 고쳐진 뒤 다시 부르면 이 작업의 검증부터 이어 간다.
@@ -127,8 +127,8 @@ CLI가 거부하면 인자를 바꿔 다시 시도하지 않는다. 특히 `impl
     - 원칙 위반: 치유 스킬 없이 그 작업의 `create-*`를 위반 목록과 함께 다시 부른다.
     - 규칙 위반(`rules`, constitution 원칙의 도구 규칙): 원칙 위반과 같다. `verify-build`의 보고에 있는 규칙과 파일·줄을 위반 목록으로 그 작업의 `create-*`에 넘긴다.
     - 디자인 불일치: `/{{skill:create-ui}}`를 차이 목록과 함께 다시 부른다.
-3. 보고가 `fixed`면 verify 단계로 돌아가 **다시 검증한다.** 치유 스킬의 "고쳤다"는 판정이 아니다.
-4. 보고가 `handed`(의존성 변경 필요, 테스트가 틀림, 범위 밖)면 `sdd-android impl report {feature} {ID} --status handed --failure {종류} --symptom "{사유}"`로 적고 멈춘다.
+3. 보고가 `fixed`면(`create-*`로 되돌렸으면 `done`) verify 단계로 돌아가 **다시 검증한다.** 고쳤다는 보고는 판정이 아니다.
+4. 보고가 `handed`면(`create-*`로 되돌렸으면 `blocked`. 의존성 변경 필요, 테스트가 틀림, 범위 밖) `sdd-android impl report {feature} {ID} --status handed --failure {종류} --symptom "{사유}"`로 적고 멈춘다.
 
 ### 4. 단위 검증
 
@@ -136,7 +136,7 @@ CLI가 거부하면 인자를 바꿔 다시 시도하지 않는다. 특히 `impl
 
 1. `/{{skill:verify-principles}}`를 부른다. 인자는 `feature: {feature}, 단위: {단위}, 파일: {단위의 작업들이 바꾼 파일}, 모듈: {바꾼 모듈}`이다. 파일과 모듈은 `impl show {feature} --json`의 작업 기록에서 모은다. 결과를 `sdd-android impl verify {feature} --unit {단위} --check principles=pass|fail|skip [--files {위반 파일}]`로 적는다. 보고가 결과 대신 입력을 되물으면 한 번만 다시 부르고, 그래도 없으면 멈춘다.
 2. 보고에 **작업 밖의 변경**이 있으면 그 파일을 `--files`에 함께 넣는다. CLI가 "어느 작업에도 대응하지 않는 파일"로 돌려주면 내릴 체크가 없으므로 멈추고 보고한다. 사람이 그 변경을 되돌리거나 breakdown에 작업을 더한다.
-3. 단위에 노드가 있는 `ui` 작업이 있으면 `/{{skill:verify-ui}}`를 `대조: 캡처, 노드: {그 작업들의 노드}, 프리뷰: {impl show의 previews}, 앱: {애플리케이션 ID와 앱 모듈}`로 부르고 (체크포인트에 그 작업의 previews가 없으면 — 이전 실행에서 끝난 작업 — 작업의 파일에서 `@Preview`가 붙은 함수를 찾아 `패키지.파일이름Kt.함수이름`으로 적는다. 파일 클래스의 `Kt`를 빠뜨리면 PreviewActivity가 화면을 띄우지 않는다) `--check design=pass|fail|skip [--files {차이 파일}]`로 적는다. 애플리케이션 ID와 앱 모듈은 blueprint나 앱 모듈의 빌드 스크립트에서 읽는다. `ui` 작업이 없거나 노드가 없으면 `design=skip`이다. 기기가 없어 건너뛴 것은 통과를 막지 않지만 보고에 적는다.
+3. 단위에 노드가 있는 `ui` 작업이 있으면 `/{{skill:verify-ui}}`를 `feature: {feature}, 대조: 캡처, 노드: {그 작업들의 노드}, 프리뷰: {impl show의 previews}, 앱: {애플리케이션 ID와 앱 모듈}`로 부르고 (체크포인트에 그 작업의 previews가 없으면 — 이전 실행에서 끝난 작업 — 작업의 파일에서 `@Preview`가 붙은 함수를 찾아 `패키지.파일이름Kt.함수이름`으로 적는다. 파일 클래스의 `Kt`를 빠뜨리면 PreviewActivity가 화면을 띄우지 않는다) `--check design=pass|fail|skip [--files {차이 파일}]`로 적는다. 애플리케이션 ID와 앱 모듈은 blueprint나 앱 모듈의 빌드 스크립트에서 읽는다. `ui` 작업이 없거나 노드가 없으면 `design=skip`이다. 기기가 없어 건너뛴 것은 통과를 막지 않지만 보고에 적는다.
 4. 실패가 "다시 고칠 작업"으로 나오면 그 작업마다 heal 단계로 간다. CLI가 그 작업의 체크를 이미 내렸다. 원칙 위반은 그 작업의 `create-*`를 위반 목록(원칙 ID, 파일과 줄, 고칠 방향)과 함께 다시 부르는 것이다. 다시 고친 작업은 `verify-build`부터 다시 거쳐 체크가 올라간 뒤, 단위 검증을 다시 한다.
 5. 통과하면 **멈춰 보고한다**(「보고」). `--all`이면 멈추지 않고 작업 루프로 돌아간다.
 
