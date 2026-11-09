@@ -22,7 +22,7 @@ export async function promptInit(base: InitOptions, prompt: PromptOptions): Prom
   // 설치할 수 없는 곳이면 묻기 전에 멈춘다.
   planInit(options);
 
-  print(`mob-sdd ${options.version}을 ${options.target} 에 설치한다.`);
+  print(`sdd-android ${options.version}을 ${options.target} 에 설치한다.`);
   if (!prompt.prefixGiven) options.prefix = await askPrefix(options, ask, print, "스킬 이름 접두사 (없으면 Enter): ");
   // 구현 단계의 확장은 명시했을 때만 설치한다. 코어는 스택을 전제하지 않는다(PRD CLI-001). 선택지는 내장 확장의 이름이다.
   const builtin = [...options.assets.extensions(options.language).keys()].sort();
@@ -54,7 +54,7 @@ export async function promptInit(base: InitOptions, prompt: PromptOptions): Prom
   const skills = plan.skills.map((name) => `/${name}`).join(", ");
   print(`설치할 파일 ${plan.files.size + 2}개. 스킬: ${skills}`);
   if (plan.bundles.length > 0) print(`함께 설치할 확장: ${plan.bundles.map((bundle) => `${bundle.manifest.name} ${bundle.manifest.version}`).join(", ")}`);
-  if (options.backup) print(`백업으로 옮길 스킬: ${plan.conflicts.skills.join(", ")} (.mob-sdd/backup/ 아래)`);
+  if (options.backup) print(`백업으로 옮길 스킬: ${plan.conflicts.skills.join(", ")} (.sdd-android/backup/ 아래)`);
   const confirm = (await ask("진행할까? (Y/n): ")).trim().toLowerCase();
   return confirm === "" || confirm === "y" || confirm === "yes" ? options : undefined;
 }

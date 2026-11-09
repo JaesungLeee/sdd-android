@@ -23,13 +23,13 @@ breakdown의 테스트 작업 하나를 쓴다. 대응하는 구현보다 **먼�
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate implement`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate implement`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate implement`를 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate implement`를 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives create-test`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives create-test`
 
 {{> directives}}
 

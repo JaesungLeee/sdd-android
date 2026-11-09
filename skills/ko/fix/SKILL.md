@@ -8,14 +8,14 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android\" hook write"
 ---
 
 # fix
 
 구현이 끝난 feature에 대한 버그 수정과 작은 변경을 받는다. 문서를 건너뛰는 경로가 아니라 **문서의 수정을 작게 하는 경로**다. spec이 개정되면 그대로 기록하고, breakdown에 수정 단위(`[FIX-001]`)를 더한 뒤 구현 단계에 넘긴다. 검증은 줄이지 않는다.
 
-작은지 아닌지는 사용자나 에이전트가 고르지 않는다. `mob-sdd fix check`가 계산으로 정하고, 넘으면 정식 경로로 간다.
+작은지 아닌지는 사용자나 에이전트가 고르지 않는다. `sdd-android fix check`가 계산으로 정하고, 넘으면 정식 경로로 간다.
 
 {{> input}}
 
@@ -33,19 +33,19 @@ hooks:
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate breakdown`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate breakdown`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate breakdown`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate breakdown`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives fix`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives fix`
 
 {{> directives}}
 
 {{> feature-target}}
 
-대상 feature의 줄이 **중단**이면 시작하지 않는다. 사유와 먼저 다시 실행할 단계를 알리고 끝낸다. `mob-sdd status {feature}`에서 작업이 "구현 완료"가 아니면 이 경로의 대상이 아니다.
+대상 feature의 줄이 **중단**이면 시작하지 않는다. 사유와 먼저 다시 실행할 단계를 알리고 끝낸다. `sdd-android status {feature}`에서 작업이 "구현 완료"가 아니면 이 경로의 대상이 아니다.
 
 ## 흐름
 
@@ -63,9 +63,9 @@ hooks:
 ### 2. spec의 PATCH 개정 (필요할 때만)
 
 1. spec에서 그 부분만 고친다.
-2. `mob-sdd doc changes spec {feature}`로 바뀐 곳을 보고 등급을 근거와 함께 제안한다. **PATCH가 아니면** 작은 수정이 아니다. 고친 것을 되돌리고 `/{{skill:spec}}`의 개정으로 안내하고 끝낸다.
-3. `docs/specs/{feature}/checklist.md`를 바뀐 spec으로 다시 확인하고 `mob-sdd doc checklist {feature}`를 부른다.
-4. 사용자가 PATCH를 승인하면 `mob-sdd doc revise spec {feature} --grade patch`로 기록한다.
+2. `sdd-android doc changes spec {feature}`로 바뀐 곳을 보고 등급을 근거와 함께 제안한다. **PATCH가 아니면** 작은 수정이 아니다. 고친 것을 되돌리고 `/{{skill:spec}}`의 개정으로 안내하고 끝낸다.
+3. `docs/specs/{feature}/checklist.md`를 바뀐 spec으로 다시 확인하고 `sdd-android doc checklist {feature}`를 부른다.
+4. 사용자가 PATCH를 승인하면 `sdd-android doc revise spec {feature} --grade patch`로 기록한다.
 
 ### 3. 수정 단위 쓰기
 
@@ -91,8 +91,8 @@ hooks:
 ### 4. 범위 판정
 
 ```bash
-mob-sdd fix check {feature} FIX-001                       # 재현 테스트가 있을 때
-mob-sdd fix check {feature} FIX-001 --no-test "문구만 바꾼다"  # 테스트로 재현할 동작이 없을 때
+sdd-android fix check {feature} FIX-001                       # 재현 테스트가 있을 때
+sdd-android fix check {feature} FIX-001 --no-test "문구만 바꾼다"  # 테스트로 재현할 동작이 없을 때
 ```
 
 - **통과**: 5로 간다.
@@ -100,8 +100,8 @@ mob-sdd fix check {feature} FIX-001 --no-test "문구만 바꾼다"  # 테스트
 
 ### 5. 기록
 
-1. `mob-sdd doc changes breakdown {feature}`로 바뀐 곳이 수정 단위뿐인지 본다.
-2. `mob-sdd doc revise breakdown {feature} --grade minor`로 기록한다. 작업을 더하는 개정은 MINOR이다. 이 기록으로 마지막 확인 줄이 내려간다.
+1. `sdd-android doc changes breakdown {feature}`로 바뀐 곳이 수정 단위뿐인지 본다.
+2. `sdd-android doc revise breakdown {feature} --grade minor`로 기록한다. 작업을 더하는 개정은 MINOR이다. 이 기록으로 마지막 확인 줄이 내려간다.
 
 ## 보고
 

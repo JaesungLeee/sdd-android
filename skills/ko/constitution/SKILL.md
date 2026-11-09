@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android\" hook write"
 ---
 
 # constitution 단계
@@ -25,19 +25,19 @@ hooks:
 
 ## 위치
 
-- **산출물**: `docs/constitution.md`. 산출물 디렉터리는 `.mob-sdd/config.yaml`의 `docs_dir`을 따른다.
-- **템플릿**: `.mob-sdd/templates/constitution.md`. 직접 복사하지 않고 `mob-sdd doc new constitution`으로 만든다.
+- **산출물**: `docs/constitution.md`. 산출물 디렉터리는 `.sdd-android/config.yaml`의 `docs_dir`을 따른다.
+- **템플릿**: `.sdd-android/templates/constitution.md`. 직접 복사하지 않고 `sdd-android doc new constitution`으로 만든다.
 - **하위 문서**: `docs/specs/{feature}/blueprint.md`. blueprint는 기준으로 삼은 헌법의 버전을 적는다.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate constitution`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate constitution`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate constitution`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate constitution`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives constitution`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives constitution`
 
 {{> directives}}
 
@@ -58,7 +58,7 @@ hooks:
 - 원칙마다 **검사** 줄을 적는다. 이 원칙을 무엇이 판정하는지다.
     - 도구로 표현할 수 있으면(쓰면 안 되는 API, 의존 방향, 파일 이름 규칙처럼 코드만 보고 기계로 가릴 수 있는 것) `**검사**: 도구 \`규칙 이름\` (설정 파일)`로 적는다. 예: `**검사**: detekt \`ForbiddenImport\` (config/detekt.yml)`. 도구 줄은 여럿 둘 수 있다.
     - 도구로 표현할 수 없으면(책임의 나눔, 상태의 흐름처럼 판단이 필요한 것) `**검사**: 감사`로 적는다. 구현 단계의 원칙 감사가 본다.
-    - 도구로 표현할 수 있는지는 에이전트가 제안하고 사용자가 정한다. 도구 줄은 그 규칙이 설정 파일에 **이미 있을 때만** 적는다. `mob-sdd check`가 대조해 없으면 오류로 본다. 아직 없는 규칙은 `감사`로 두고, 보고에 도구로 옮길 후보로 적는다. 설정 파일을 만들거나 고치는 것은 이 단계가 아니다(`android` 확장이 있으면 `/{{skill:sync-rules}}`).
+    - 도구로 표현할 수 있는지는 에이전트가 제안하고 사용자가 정한다. 도구 줄은 그 규칙이 설정 파일에 **이미 있을 때만** 적는다. `sdd-android check`가 대조해 없으면 오류로 본다. 아직 없는 규칙은 `감사`로 두고, 보고에 도구로 옮길 후보로 적는다. 설정 파일을 만들거나 고치는 것은 이 단계가 아니다(`android` 확장이 있으면 `/{{skill:sync-rules}}`).
     - 도구 줄이 많을수록 구현 단계가 LLM의 판단에 덜 기댄다. 그렇다고 도구가 원칙의 뜻을 다 담지 못하면 도구 줄과 함께 `감사`를 남기지 않는다. 이때는 원칙을 둘로 나눌지 사용자에게 묻는다.
 - 특정 feature에만 해당하는 규칙은 쓰지 않는다. 그것은 그 feature의 blueprint가 정한다.
 - 원칙의 수는 사용자가 정한다. 템플릿의 자리 수에 맞추지 않는다.
@@ -89,14 +89,14 @@ hooks:
 
 ## 새로 쓰기
 
-1. `mob-sdd doc new constitution`을 부른다. 템플릿이 `docs/constitution.md`로 복사된다.
+1. `sdd-android doc new constitution`을 부른다. 템플릿이 `docs/constitution.md`로 복사된다.
 2. 「원칙의 후보」에 따라 후보를 모아 보여 주고 사용자의 선택을 받는다.
 3. 선택된 원칙으로 자리표시자를 채운다.
     - **핵심 원칙**: 원칙마다 ID, 이름, 규칙, 근거를 쓴다.
     - **추가 섹션**: 원칙으로 쓰기에는 구체적인 제약(기술 스택, 보안 요구, 개발 절차)이 있을 때만 둔다. 없으면 제목까지 지운다.
     - **거버넌스**: 개정 절차, 준수 확인의 방법, 예외의 처리를 쓴다. 입력에 없으면 사용자에게 묻는다.
     - 다 채운 뒤 템플릿의 주석(`<!-- … -->`)을 지운다.
-4. 「끝내기 전 확인」을 통과하면 `mob-sdd doc complete constitution`을 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다.
+4. 「끝내기 전 확인」을 통과하면 `sdd-android doc complete constitution`을 부른다. 이 명령이 문서를 완료로 기록하고 버전 `1.0.0`을 준다.
 5. 「보고」를 따른다.
 
 ## 개정
@@ -105,14 +105,14 @@ hooks:
 2. 입력이 지목한 부분만 고친다. 지목하지 않은 원칙의 문장을 다듬지 않는다.
     - 새 원칙에는 지금까지 쓴 가장 큰 번호의 다음 번호를 준다. 새 원칙도 「원칙의 후보」의 승인을 거친다.
     - 원칙을 없애면 그 항목을 지운다. 번호는 비워 둔다.
-3. `mob-sdd doc changes constitution`을 부른다. 바뀐 원칙, 새 원칙, 지워진 원칙이 나온다. 원칙 밖(추가 섹션, 거버넌스)이 바뀌었으면 `*`로 나온다.
+3. `sdd-android doc changes constitution`을 부른다. 바뀐 원칙, 새 원칙, 지워진 원칙이 나온다. 원칙 밖(추가 섹션, 거버넌스)이 바뀌었으면 `*`로 나온다.
     - 바뀐 곳이 없다고 나오면 기록할 개정이 없다. 그 사실을 보고하고 끝낸다.
     - 고치려 하지 않은 원칙이 나오면 원래대로 되돌릴지 사용자에게 묻는다.
 4. 나온 항목마다 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다.
 5. 「끝내기 전 확인」을 통과하면 승인된 등급으로 개정을 기록한다. 등급은 `doc changes`가 낸 항목마다 하나씩, 빠짐없이 준다.
 
     ```bash
-    mob-sdd doc revise constitution --grade P-002=major --grade P-006=minor --grade '*=patch'
+    sdd-android doc revise constitution --grade P-002=major --grade P-006=minor --grade '*=patch'
     ```
 
 6. 「보고」를 따른다.
@@ -130,7 +130,7 @@ hooks:
 
 - [ ] 템플릿의 자리표시자(`[원칙 이름]`처럼 대괄호 안에 설명이 든 것)와 주석이 남아 있지 않다
 - [ ] 모든 원칙에 ID와 근거 한 줄이 있다
-- [ ] 모든 원칙에 검사 줄이 있고, 도구 줄의 규칙은 `mob-sdd check`가 오류 없이 대조한다
+- [ ] 모든 원칙에 검사 줄이 있고, 도구 줄의 규칙은 `sdd-android check`가 오류 없이 대조한다
 - [ ] 모든 원칙이 사용자가 확정한 것이다
 - [ ] 원칙마다 지켰는지 어겼는지를 판정할 수 있다
 - [ ] 거버넌스에 개정 절차와 준수 확인의 방법이 적혀 있다

@@ -51,11 +51,11 @@ function messages(): string[] {
 }
 
 beforeEach(() => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-principles-"));
-  fs.mkdirSync(path.join(root, ".mob-sdd", "templates"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\ndocs_dir: docs\n");
-  fs.writeFileSync(path.join(root, ".mob-sdd", "manifest.json"), JSON.stringify({ version: "0.5.0", files: {} }));
-  fs.writeFileSync(path.join(root, ".mob-sdd", "templates", "constitution.md"), CONSTITUTION);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-principles-"));
+  fs.mkdirSync(path.join(root, ".sdd-android", "templates"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  fs.writeFileSync(path.join(root, ".sdd-android", "manifest.json"), JSON.stringify({ version: "0.5.0", files: {} }));
+  fs.writeFileSync(path.join(root, ".sdd-android", "templates", "constitution.md"), CONSTITUTION);
   repo = openRepo(root);
   docNew(repo, "constitution", undefined, { today: "2026-11-05" });
 });
@@ -120,7 +120,7 @@ describe("원칙의 검사 줄", () => {
     write("config/detekt.yml", "style:\n  ForbiddenImport:\n    active: true\n");
     write("konsist/src/test/kotlin/LayerTest.kt", "ui does not import data\n");
     write(".editorconfig", "standard:filename\n");
-    const config = path.join(repo.root, ".mob-sdd", "config.yaml");
+    const config = path.join(repo.root, ".sdd-android", "config.yaml");
     fs.writeFileSync(config, 'language: ko\ndocs_dir: docs\nimpl:\n  checks:\n    build: "b"\n    lint: none\n    test: "t"\n');
     expect(messages()).toEqual(["도구로 검사하는 원칙이 있는데 구현 단계가 돌릴 명령이 없다(lint가 none이고 rules가 없다). 규칙은 설정에 있어도 검사가 돌지 않는다"]);
     fs.writeFileSync(config, fs.readFileSync(config, "utf8") + '    rules: "./gradlew :konsist:test"\n');

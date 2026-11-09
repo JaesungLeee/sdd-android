@@ -22,13 +22,13 @@ model: sonnet
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives verify-build`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives verify-build`
 
 {{> directives}}
 
 ## 규칙
 
-- **명령을 직접 돌리지 않는다.** `./gradlew`나 다른 빌드 명령을 부르지 않는다. 검사는 `mob-sdd impl check`만 돌린다. 명령은 `.mob-sdd/config.yaml`의 `impl.checks`에 있고, CLI가 그 종료 코드로 통과와 실패를 적는다.
+- **명령을 직접 돌리지 않는다.** `./gradlew`나 다른 빌드 명령을 부르지 않는다. 검사는 `sdd-android impl check`만 돌린다. 명령은 `.sdd-android/config.yaml`의 `impl.checks`에 있고, CLI가 그 종료 코드로 통과와 실패를 적는다.
 - **판정을 바꾸지 않는다.** CLI가 실패로 적은 것을 통과로 보고하지 않는다. 통과는 인자로 다시 적을 수도 없다. 이 스킬이 더하는 것은 실패의 분류와 파일뿐이다.
 - **같은 검사를 다시 돌려 결과가 바뀌기를 기대하지 않는다.** `impl check`는 한 번만 부른다.
 - **실패를 분류한다.** 이번 구현이 만든 실패, 환경 문제(SDK 없음, 네트워크, 명령을 찾지 못함), 이전부터 있던 실패로 나눈다. 이전부터 있던 실패인지는 실패한 파일이 작업의 경로 밖이고 이번 변경과 무관할 때만 그렇게 본다. 확신이 없으면 이번 구현의 실패로 둔다.
@@ -37,9 +37,9 @@ model: sonnet
 
 ## 실행
 
-1. `mob-sdd impl check {feature} {작업}`을 부른다. 마지막 확인이면 `mob-sdd impl check {feature} --final`이다. CLI가 빌드, Lint, 규칙(설정에 `rules`가 있으면), 테스트(연결된 테스트가 있으면)를 돌리고 검사마다 결과와 로그의 경로, 실패면 로그에서 추린 줄을 낸다. 빌드가 실패하면 테스트는 돌지 않는다.
+1. `sdd-android impl check {feature} {작업}`을 부른다. 마지막 확인이면 `sdd-android impl check {feature} --final`이다. CLI가 빌드, Lint, 규칙(설정에 `rules`가 있으면), 테스트(연결된 테스트가 있으면)를 돌리고 검사마다 결과와 로그의 경로, 실패면 로그에서 추린 줄을 낸다. 빌드가 실패하면 테스트는 돌지 않는다.
     - 빌드가 오래 걸려 명령이 시간 제한으로 끊겼으면 결과는 적히지 않았다. 다시 부르지 말고 끊겼다고 보고한다.
-    - CLI가 "검사 명령이 설정되어 있지 않다"로 거부하면 그 안내를 그대로 보고한다. 사용자가 `mob-sdd impl setup`으로 정해야 한다.
+    - CLI가 "검사 명령이 설정되어 있지 않다"로 거부하면 그 안내를 그대로 보고한다. 사용자가 `sdd-android impl setup`으로 정해야 한다.
 2. 실패한 검사가 있으면 그 로그 파일을 읽는다. 길면 `error:`, `e: `, `FAILED`, `What went wrong` 줄과 그 앞뒤만 본다. 테스트 실패면 실패한 테스트의 이름과 메시지를 모은다.
 3. 실패마다 분류하고 파일을 지목한다. 테스트 실패의 「실패 파일」은 실패한 테스트 클래스의 파일이다. 원인이 구현에 있어 보여도 구현 파일을 대신 적지 않는다. CLI가 테스트 파일로 테스트 작업을 찾아 횟수를 매기고, 고칠 파일은 치유 스킬이 정한다.
 4. 규칙(`rules`)이 실패하면 로그에서 어긴 규칙의 이름과 파일·줄을 모아 「실패 요약」에 적는다. 규칙 이름으로 `docs/constitution.md`에서 그 규칙을 가리키는 원칙의 ID를 찾아 함께 적는다. 오케스트레이터가 이것을 위반 목록으로 구현 스킬에 넘긴다.

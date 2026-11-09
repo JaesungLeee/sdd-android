@@ -183,7 +183,7 @@ async function main() {
     platform: "node",
     format: "esm",
     target: "node22",
-    outfile: path.join(dist, "mob-sdd.mjs"),
+    outfile: path.join(dist, "sdd-android.mjs"),
     // 스킬, 템플릿, 내장 확장을 번들 안에 넣는다. 저장소의 번들이 자기 버전의 원본을 갖는다(PRD CLI-004).
     define: { __VERSION__: JSON.stringify(version), __ASSETS__: JSON.stringify(assets) },
     // yaml 패키지가 번들 안에서 require를 쓴다. ESM 번들에는 require가 없어 만들어 준다.
@@ -194,7 +194,7 @@ async function main() {
   const languages = [...new Set(Object.keys(assets).map((key) => key.split("/")[0]))].sort();
   // upgrade가 설치된 버전부터 새 버전까지의 변경 내역을 보여 준다.
   fs.writeFileSync(path.join(dist, "CHANGELOG.md"), readText(path.join(ROOT, "CHANGELOG.md")));
-  console.log(`dist/mob-sdd.mjs ${version}, assets: ${languages.join(", ") || "없음"}`);
+  console.log(`dist/sdd-android.mjs ${version}, assets: ${languages.join(", ") || "없음"}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

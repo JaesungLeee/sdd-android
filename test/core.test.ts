@@ -159,9 +159,9 @@ describe("해시 파일", () => {
 
 describe("경로의 내용 해시", () => {
   function gitRepo(): Repo {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-hash-"));
-    fs.mkdirSync(path.join(root, ".mob-sdd"));
-    fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nagent: claude-code\ndocs_dir: docs\nprefix: \"\"\n");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-hash-"));
+    fs.mkdirSync(path.join(root, ".sdd-android"));
+    fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\nagent: claude-code\ndocs_dir: docs\nprefix: \"\"\n");
     fs.writeFileSync(path.join(root, ".gitignore"), "build/\n");
     execFileSync("git", ["-C", root, "init", "-q", "-b", "main"], { stdio: "ignore" });
     return openRepo(root);

@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android\" hook write"
 ---
 
 # blueprint 단계
@@ -28,19 +28,19 @@ feature 하나의 설계를 만들거나 개정한다. spec의 **무엇을, 왜*
 ## 위치
 
 - **산출물**: `docs/specs/{feature}/` 아래의 `blueprint.md`와 `research.md`(필수), 해당할 때만 `data-model.md`, `contracts/`, `quickstart.md`.
-- **템플릿**: `.mob-sdd/templates/blueprint.md`, `.mob-sdd/templates/research.md`. 직접 복사하지 않고 `mob-sdd doc new blueprint {feature}`로 만든다. 두 파일이 함께 만들어진다.
+- **템플릿**: `.sdd-android/templates/blueprint.md`, `.sdd-android/templates/research.md`. 직접 복사하지 않고 `sdd-android doc new blueprint {feature}`로 만든다. 두 파일이 함께 만들어진다.
 - **상위 문서**: 같은 디렉터리의 `spec.md`(게이트), `docs/constitution.md`(보고만. 없어도 된다).
 - **하위 문서**: 같은 디렉터리의 `breakdown.md`.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate blueprint`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate blueprint`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate blueprint`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate blueprint`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives blueprint`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives blueprint`
 
 {{> directives}}
 
@@ -87,10 +87,10 @@ feature 하나의 설계를 만들거나 개정한다. spec의 **무엇을, 왜*
 
 ## 새로 쓰기
 
-1. `mob-sdd doc new blueprint {feature}`를 부른다.
+1. `sdd-android doc new blueprint {feature}`를 부른다.
 2. 「설계의 순서」를 따라 `blueprint.md`와 `research.md`를 제자리에서 채운다. 다 채운 뒤 템플릿의 주석과 쓰지 않는 조건부 섹션을 지운다.
 3. 「미정 항목」의 절차를 따른다. 문답은 `blueprint.md` 끝의 「미정 항목」 섹션에 적는다.
-4. 「끝내기 전 확인」을 통과하면 `mob-sdd doc complete blueprint {feature}`를 부른다.
+4. 「끝내기 전 확인」을 통과하면 `sdd-android doc complete blueprint {feature}`를 부른다.
 5. 「보고」를 따른다.
 
 ## 개정
@@ -98,9 +98,9 @@ feature 하나의 설계를 만들거나 개정한다. spec의 **무엇을, 왜*
 1. `blueprint.md`와 `research.md`를 읽는다. spec에서 기준 버전 뒤에 무엇이 바뀌었는지 확인한다.
 2. spec의 변경과 입력이 지목한 부분만 고친다. 확정된 설계를 근거 없이 다시 쓰지 않는다. 「설계의 순서」에서 변경이 닿는 단계만 다시 한다.
 3. 부속 산출물은 변경이 닿는 것만 고친다. `research.md`의 기존 항목은 지우지 않는다.
-4. `mob-sdd doc changes blueprint {feature}`를 불러 바뀌었는지 확인한다. 바뀐 곳이 없으면 「영향 없음 확인」으로 간다.
+4. `sdd-android doc changes blueprint {feature}`를 불러 바뀌었는지 확인한다. 바뀐 곳이 없으면 「영향 없음 확인」으로 간다.
 5. 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다. 설계를 끝내기 전에는 얼마나 바뀌는지 알 수 없으므로 등급은 고친 뒤에 정한다.
-6. 「끝내기 전 확인」을 통과하면 `mob-sdd doc revise blueprint {feature} --grade minor`처럼 승인된 등급으로 기록한다.
+6. 「끝내기 전 확인」을 통과하면 `sdd-android doc revise blueprint {feature} --grade minor`처럼 승인된 등급으로 기록한다.
 7. 「보고」를 따른다.
 
 ## 영향 없음 확인
@@ -109,7 +109,7 @@ spec이나 헌법이 개정되어 이 blueprint가 뒤처졌지만 설계에 고
 
 1. 상위 문서에서 기준 버전 뒤에 바뀐 것을 읽고, 설계의 어느 부분과도 어긋나지 않는지 확인한다. 헌법이 바뀌었으면 「헌법 준수 확인」의 판정이 그대로인지 본다.
 2. 확인한 내용을 사용자에게 보여 주고 승인을 받는다.
-3. `mob-sdd doc confirm blueprint {feature}`를 부른다. blueprint의 버전은 그대로이고 기준 버전만 올라간다.
+3. `sdd-android doc confirm blueprint {feature}`를 부른다. blueprint의 버전은 그대로이고 기준 버전만 올라간다.
 
 {{> revision-grade}}
 

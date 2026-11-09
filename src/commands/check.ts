@@ -86,7 +86,7 @@ function rel(repo: Repo, file: string): string {
 function checkInstall(repo: Repo, add: Add): void {
   const manifest = readManifest(repo.root);
   if (!manifest) {
-    add("error", ".mob-sdd/manifest.json", "설치 기록이 없다");
+    add("error", ".sdd-android/manifest.json", "설치 기록이 없다");
     return;
   }
   for (const [file, entry] of Object.entries(manifest.files)) {
@@ -101,26 +101,26 @@ function checkInstall(repo: Repo, add: Add): void {
   if (!readLocalConfig(repo)?.figma) {
     const withFigma = listFeatures(repo).filter((feature) => figmaStories(loadDoc(repo, "spec", feature)?.body ?? "").size > 0);
     if (withFigma.length > 0) {
-      add("warn", `.mob-sdd/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. mob-sdd figma setup으로 정한다`);
+      add("warn", `.sdd-android/${LOCAL_CONFIG_FILE}`, `${withFigma.join(", ")}의 spec에 Figma 줄이 있는데 Figma 설정이 없다. 기본값(desktop, figma-desktop)으로 동작한다. sdd-android figma setup으로 정한다`);
     }
   }
   checkOpenApi(repo, add);
   checkImpl(repo, add, "android" in (manifest.extensions ?? {}));
   for (const name of Object.keys(manifest.extensions ?? {}).sort()) {
-    const dir = path.join(repo.root, ".mob-sdd", "extensions", name);
+    const dir = path.join(repo.root, ".sdd-android", "extensions", name);
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) {
-      add("error", `.mob-sdd/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
+      add("error", `.sdd-android/extensions/${name}/${MANIFEST_FILE}`, "설치된 확장의 선언 파일이 없다");
       continue;
     }
     for (const stage of Object.keys(readBundle(bundleFromDir(dir)).manifest.directives)) {
-      if (!stages.has(stage)) add("warn", `.mob-sdd/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
+      if (!stages.has(stage)) add("warn", `.sdd-android/extensions/${name}/${MANIFEST_FILE}`, `지시의 대상 단계가 설치되어 있지 않다: ${stage}`);
     }
   }
 }
 
 /** `openapi.sources`의 형식과 `path` 출처의 파일. 네트워크는 쓰지 않는다(구현 설계 「0.4 구현의 진행」). */
 function checkOpenApi(repo: Repo, add: Add): void {
-  const where = ".mob-sdd/config.yaml";
+  const where = ".sdd-android/config.yaml";
   let raw: unknown;
   try {
     raw = (parse(fs.readFileSync(path.join(repo.root, where), "utf8")) as { openapi?: unknown } | null)?.openapi;
@@ -139,7 +139,7 @@ function checkOpenApi(repo: Repo, add: Add): void {
 
 /** `impl.checks`의 형식. 구현 단계(android)가 설치되어 있는데 없으면 알린다. 명령은 돌리지 않는다. */
 function checkImpl(repo: Repo, add: Add, installed: boolean): void {
-  const where = ".mob-sdd/config.yaml";
+  const where = ".sdd-android/config.yaml";
   let raw: unknown;
   try {
     raw = (parse(fs.readFileSync(path.join(repo.root, where), "utf8")) as { impl?: unknown } | null)?.impl;
@@ -148,7 +148,7 @@ function checkImpl(repo: Repo, add: Add, installed: boolean): void {
   }
   try {
     const { checks, missing } = validateImplChecks(raw);
-    if (!checks && installed) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. mob-sdd impl setup으로 정한다. 없으면 impl start가 거부한다`);
+    if (!checks && installed) add("warn", where, `구현 단계의 검사 명령이 없다: ${missing.join(", ")}. sdd-android impl setup으로 정한다. 없으면 impl start가 거부한다`);
   } catch (error) {
     add("error", where, error instanceof Error ? error.message : String(error));
   }
@@ -172,7 +172,7 @@ function checkPrinciples(repo: Repo, doc: LoadedDoc, add: Add): void {
   }
   const checks = readImplChecks(repo);
   if (checks && principles.some((principle) => principle.tools.length > 0) && checks.lint === "none" && checks.rules === undefined) {
-    add("warn", ".mob-sdd/config.yaml", "도구로 검사하는 원칙이 있는데 구현 단계가 돌릴 명령이 없다(lint가 none이고 rules가 없다). 규칙은 설정에 있어도 검사가 돌지 않는다");
+    add("warn", ".sdd-android/config.yaml", "도구로 검사하는 원칙이 있는데 구현 단계가 돌릴 명령이 없다(lint가 none이고 rules가 없다). 규칙은 설정에 있어도 검사가 돌지 않는다");
   }
 }
 

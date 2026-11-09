@@ -530,7 +530,7 @@ export function assertClaims(checks: Partial<Record<Check, CheckResult>>): void 
       throw new Refusal(`${CHECK_TEXT[kind]}의 통과는 인자로 적을 수 없다. impl check가 명령을 돌려 종료 코드로 적는다.`);
     }
     if (result === "skip" && kind === "lint") {
-      throw new Refusal("Lint의 건너뜀은 인자로 적을 수 없다. Lint 도구가 없는 프로젝트면 사용자가 mob-sdd impl setup --lint none으로 설정한다.");
+      throw new Refusal("Lint의 건너뜀은 인자로 적을 수 없다. Lint 도구가 없는 프로젝트면 사용자가 sdd-android impl setup --lint none으로 설정한다.");
     }
   }
 }

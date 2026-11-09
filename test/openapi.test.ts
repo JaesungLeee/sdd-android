@@ -34,9 +34,9 @@ const SPEC = {
 };
 
 function tempRepo(config: string): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-openapi-"));
-  fs.mkdirSync(path.join(root, ".mob-sdd"));
-  fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), `language: ko\ndocs_dir: docs\nprefix: ""\n${config}`);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-openapi-"));
+  fs.mkdirSync(path.join(root, ".sdd-android"));
+  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), `language: ko\ndocs_dir: docs\nprefix: ""\n${config}`);
   return root;
 }
 const fakeFetch = (body: string | number): Fetch => async () => (typeof body === "number" ? { ok: false, status: body, text: async () => "" } : { ok: true, status: 200, text: async () => body });
@@ -127,10 +127,10 @@ describe("OpenAPI 문서", () => {
   it("check는 출처의 형식과 path의 파일을 본다", () => {
     const root = tempRepo("openapi:\n  sources:\n    - name: api\n      path: contracts/openapi.yaml\n    - name: bad\n");
     fs.mkdirSync(path.join(root, ".git"));
-    fs.writeFileSync(path.join(root, ".mob-sdd", "manifest.json"), JSON.stringify({ version: "0.4.0", files: {} }));
-    const messages = () => check(openRepo(root)).problems.filter((p) => p.where === ".mob-sdd/config.yaml").map((p) => p.message);
+    fs.writeFileSync(path.join(root, ".sdd-android", "manifest.json"), JSON.stringify({ version: "0.4.0", files: {} }));
+    const messages = () => check(openRepo(root)).problems.filter((p) => p.where === ".sdd-android/config.yaml").map((p) => p.message);
     expect(messages()).toEqual(["openapi.sources[1]: url과 path 가운데 하나만 적는다"]);
-    fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nopenapi:\n  sources:\n    - name: api\n      path: contracts/openapi.yaml\n");
+    fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\nopenapi:\n  sources:\n    - name: api\n      path: contracts/openapi.yaml\n");
     expect(messages()).toEqual(["openapi 출처 api의 파일이 없다: contracts/openapi.yaml"]);
     fs.mkdirSync(path.join(root, "contracts"));
     fs.writeFileSync(path.join(root, "contracts", "openapi.yaml"), "openapi: 3.0.0\n");
@@ -148,14 +148,14 @@ describe("openapi 출처 설정", () => {
     fs.writeFileSync(path.join(root, "openapi.json"), "{}");
     expect((await addSource(repo, "local", { path: "openapi.json" })).sources.map((s) => s.name)).toEqual(["mino", "local"]);
     expect(await addSource(repo, "mino", { url: "https://y", fetchImpl: json })).toMatchObject({ replaced: true });
-    const text = fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
+    const text = fs.readFileSync(path.join(root, ".sdd-android", "config.yaml"), "utf8");
     expect(text).toContain("# 설정");
     expect(text).toContain("domain: 도메인 # 주석");
     expect(text).toContain("openapi:\n  sources:\n    - name: mino\n      url: https://y\n    - name: local\n      path: openapi.json\n");
-    expect(check(openRepo(root)).problems.filter((p) => p.where === ".mob-sdd/config.yaml")).toEqual([]);
+    expect(check(openRepo(root)).problems.filter((p) => p.where === ".sdd-android/config.yaml")).toEqual([]);
     expect(removeSource(repo, "local").sources).toEqual([{ name: "mino", url: "https://y" }]);
     expect(removeSource(repo, "mino").sources).toEqual([]);
-    expect(fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("openapi");
+    expect(fs.readFileSync(path.join(root, ".sdd-android", "config.yaml"), "utf8")).not.toContain("openapi");
   });
 
   it("목록 안의 주석과 다른 항목의 주석을 남기고, 바꾼 항목은 제자리에서 url과 path를 맞바꾼다", async () => {
@@ -163,7 +163,7 @@ describe("openapi 출처 설정", () => {
     const repo = openRepo(root);
     fs.writeFileSync(path.join(root, "b.yaml"), "{}");
     const json = fakeFetch(JSON.stringify(SPEC));
-    const read = () => fs.readFileSync(path.join(root, ".mob-sdd", "config.yaml"), "utf8");
+    const read = () => fs.readFileSync(path.join(root, ".sdd-android", "config.yaml"), "utf8");
     await addSource(repo, "c", { url: "https://c.io/x.json", fetchImpl: json });
     expect(read()).toContain("    # 첫 출처\n    - name: a\n      url: https://a.io/x.json # a의 주석\n    - name: b\n");
     expect(read()).toContain("    - name: c\n      url: https://c.io/x.json\n");
@@ -187,7 +187,7 @@ describe("openapi 출처 설정", () => {
     await expect(addSource(repo, "a", { url: "ftp://x" })).rejects.toThrow(/http/);
     await expect(addSource(repo, "a", { path: "없음.yaml" })).rejects.toThrow(/파일이 없다/);
     expect(() => removeSource(repo, "a")).toThrow(/그런 출처가 없다/);
-    fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\nopenapi: [1]\n");
+    fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\nopenapi: [1]\n");
     expect(() => listSources(repo)).toThrow(/형식에 맞지 않는다/);
   });
 });
@@ -259,10 +259,10 @@ describe("Swagger UI 페이지의 주소", () => {
 describe("run", () => {
   it("설치된 확장의 scripts/ 아래 .mjs만 저장소 루트에서 실행하고 인자와 종료 코드를 그대로 넘긴다", () => {
     const root = tempRepo("");
-    const ext = path.join(root, ".mob-sdd", "extensions", "sample");
+    const ext = path.join(root, ".sdd-android", "extensions", "sample");
     fs.mkdirSync(path.join(ext, "scripts"), { recursive: true });
     fs.writeFileSync(path.join(ext, "extension.yaml"), "name: sample\nkind: extension\nversion: 1.0.0\n");
-    fs.writeFileSync(path.join(ext, "scripts", "echo.mjs"), "console.log(JSON.stringify({ args: process.argv.slice(2), root: process.env.MOB_SDD_ROOT, cwd: process.cwd() })); process.exitCode = 3;\n");
+    fs.writeFileSync(path.join(ext, "scripts", "echo.mjs"), "console.log(JSON.stringify({ args: process.argv.slice(2), root: process.env.SDD_ANDROID_ROOT, cwd: process.cwd() })); process.exitCode = 3;\n");
     fs.writeFileSync(path.join(ext, "other.mjs"), "console.log('x');\n");
     const repo = openRepo(root);
     const result = runScript(repo, "sample", "echo.mjs", ["list", "--filter", "x y"], { capture: true });

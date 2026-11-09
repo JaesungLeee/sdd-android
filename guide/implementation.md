@@ -3,9 +3,9 @@
 `android` extension이 제공하는 구현 단계다. breakdown의 작업을 구현하고, 검증하고, 실패하면 치유하며, 검증을 통과한 작업만 체크한다. 코어만 설치했으면 이 단계는 없다.
 
 ```sh
-npx mob-sdd init --extension android     # 처음 설치할 때
-npx mob-sdd extension add android        # 이미 설치된 저장소에 더할 때
-npx mob-sdd impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 명령. Lint가 없으면 --lint none
+npx sdd-android init --extension android     # 처음 설치할 때
+npx sdd-android extension add android        # 이미 설치된 저장소에 더할 때
+npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 명령. Lint가 없으면 --lint none
 ```
 
 스택 전제는 Kotlin, Gradle, Jetpack Compose까지다. 아키텍처 패턴(MVI, MVVM 등), DI, 모듈 구조 같은 프로젝트 고유의 규약은 스킬에 없다. constitution에 적어야 구현이 따르고 검증이 잡는다.
@@ -40,7 +40,7 @@ npx mob-sdd impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 �
 - 기본은 사용자 스토리 하나가 끝나면 멈춘다. 체크된 작업, 검증 결과, 미검증 항목, 바꾼 파일을 보고하고 검토와 커밋을 권한다. 다시 부르면 다음 스토리로 간다.
 - `--all`을 주면 스토리 사이에서 멈추지 않고 마지막 확인까지 간다. 사람에게 넘기는 경우에는 `--all`이어도 멈춘다.
 - 멈추는 단위는 각 스토리의 첫 작업 앞에서 나뉜다. 셋업과 기반 작업은 첫 스토리의 단위에 들어가고, 마지막 스토리 뒤의 마무리 작업은 따로 한 단위다.
-- mob-sdd는 커밋하지 않는다. 멈출 때마다 검토하고 커밋한다.
+- sdd-android는 커밋하지 않는다. 멈출 때마다 검토하고 커밋한다.
 - `--fix FIX-001`은 수정 모드다. 구현이 끝난 feature에 `/fix`가 더한 수정 단위만 구현한다(아래 「수정 모드」).
 
 ## 수정 모드
@@ -69,7 +69,7 @@ npx mob-sdd impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 �
 
 빌드, Lint, 테스트의 통과와 실패는 CLI가 정한다. 에이전트가 "통과했다"고 보고하는 것만으로는 체크가 오르지 않는다.
 
-- 명령은 `.mob-sdd/config.yaml`의 `impl.checks`에 있다. 커밋하는 설정이라 팀이 같은 검사를 돌린다. `impl setup`이 적고, 손으로 고쳐도 된다.
+- 명령은 `.sdd-android/config.yaml`의 `impl.checks`에 있다. 커밋하는 설정이라 팀이 같은 검사를 돌린다. `impl setup`이 적고, 손으로 고쳐도 된다.
 
 ```yaml
 impl:
@@ -85,7 +85,7 @@ impl:
 ```
 
 - `{module}`은 구현 보고(`impl report --modules`)의 모듈이고, 모듈마다 한 번씩 돈다. `{tests}`는 그 작업에 연결된 테스트 작업의 클래스(`--tests '*LoginTest'`)다. 테스트 작업의 경로가 디렉터리면 모듈의 테스트 전체이고, 마지막 확인에서는 비어 있다.
-- `impl check {feature} {작업}`이 빌드, Lint, 연결된 테스트를 돌린다. 빌드가 실패하면 테스트는 돌지 않는다. 출력은 `.mob-sdd/impl/{feature}/logs/`에 남는다. 결과는 다음 `impl verify`가 가져가 판정한다.
+- `impl check {feature} {작업}`이 빌드, Lint, 연결된 테스트를 돌린다. 빌드가 실패하면 테스트는 돌지 않는다. 출력은 `.sdd-android/impl/{feature}/logs/`에 남는다. 결과는 다음 `impl verify`가 가져가 판정한다.
 - `impl verify`와 `impl final`은 빌드, Lint, 테스트의 통과를 인자로 받지 않는다. 받는 것은 실패의 지목(다른 작업의 파일)과, 환경 문제로 분류한 빌드·테스트의 건너뜀뿐이다. 둘 다 체크를 올리지 못한다.
 - Lint의 건너뜀은 설정의 `lint: none`으로만 된다. 빌드와 테스트는 `none`으로 둘 수 없다.
 - `rules`는 constitution 원칙의 도구 규칙 가운데 Lint 명령이 돌리지 않는 것(Konsist의 아키텍처 테스트 등)을 돌린다. 있으면 작업마다와 마지막 확인에서 통과해야 하고, 실패는 원칙 위반처럼 그 작업의 `create-*`로 되돌린다. 그런 도구가 없으면 두지 않는다(`impl setup --rules none`이 지운다).
@@ -148,7 +148,7 @@ constitution의 원칙은 검사 줄([문서 형식](documents.md#constitution-�
 
 ## 체크포인트
 
-- `.mob-sdd/impl/{feature}/checkpoint.yaml`. 기계 검사의 로그는 같은 디렉터리의 `logs/`에 있다. 커밋하지 않는다. CLI가 디렉터리 안에 `.gitignore`를 둔다.
+- `.sdd-android/impl/{feature}/checkpoint.yaml`. 기계 검사의 로그는 같은 디렉터리의 `logs/`에 있다. 커밋하지 않는다. CLI가 디렉터리 안에 `.gitignore`를 둔다.
 - 배정, 진행 중인 작업의 단계, 바꾼 모듈, 검증 결과, 시도 횟수, 검증 대기인 테스트 작업을 담는다. 완료의 기준은 breakdown의 체크뿐이다.
 - 다시 부르면 체크된 작업을 건너뛰고 진행 중이던 작업의 단계에서 이어 간다. 그 사이 코드를 손으로 고쳤을 수 있으므로 검증부터 다시 한다.
 - 커밋되지 않으므로 다른 기기에서 이어 가면 남은 작업의 배정을 다시 판단한다. 체크된 작업에는 영향이 없다.

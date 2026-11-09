@@ -95,6 +95,6 @@ export function fixCheck(repo: Repo, feature: string, fix: string, options: FixC
 export function formatFixCheck(result: FixCheckResult): string {
   const lines = [`${result.fix}: 작은 수정의 범위 안이다 (작업 ${result.tasks.join(", ")})`];
   lines.push(result.test ? `재현 테스트: ${result.test}` : `재현 테스트 없음: ${result.noTest}`);
-  lines.push(`다음: mob-sdd doc revise breakdown ${result.feature} --grade minor로 개정을 기록하고, /impl-orchestrator ${result.feature} --fix ${result.fix}로 구현한다.`);
+  lines.push(`다음: sdd-android doc revise breakdown ${result.feature} --grade minor로 개정을 기록하고, /impl-orchestrator ${result.feature} --fix ${result.fix}로 구현한다.`);
   return lines.join("\n");
 }

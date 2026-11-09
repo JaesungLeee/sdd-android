@@ -26,13 +26,13 @@ agent: Explore
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" status`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" status`
 
-위에 상태 대신 명령이 글자 그대로 보이면 `mob-sdd status`를 직접 불러 확인한다.
+위에 상태 대신 명령이 글자 그대로 보이면 `sdd-android status`를 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives analyze`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives analyze`
 
 {{> directives}}
 
@@ -61,7 +61,7 @@ agent: Explore
 - **breakdown**: 작업 ID, 설명, 단계, `[US…]`, `[until:…]`, 줄 끝의 경로.
 - **헌법**: 원칙의 ID와 규칙. 반드시 지켜야 하는 것과 권장을 구분한다.
 
-`mob-sdd check`를 불러 작업 줄의 형식 오류를 받는다. 형식은 직접 검사하지 않고 이 결과를 쓴다.
+`sdd-android check`를 불러 작업 줄의 형식 오류를 받는다. 형식은 직접 검사하지 않고 이 결과를 쓴다.
 
 ## 2. 대응 관계 만들기
 

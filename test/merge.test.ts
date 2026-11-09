@@ -80,11 +80,11 @@ function diverge(): void {
 }
 
 beforeEach(() => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-merge-"));
-  fs.mkdirSync(path.join(root, ".mob-sdd", "templates"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-merge-"));
+  fs.mkdirSync(path.join(root, ".sdd-android", "templates"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\ndocs_dir: docs\n");
   for (const [name, body] of Object.entries(TEMPLATES)) {
-    fs.writeFileSync(path.join(root, ".mob-sdd", "templates", `${name}.md`), body);
+    fs.writeFileSync(path.join(root, ".sdd-android", "templates", `${name}.md`), body);
   }
   repo = openRepo(root);
   git("init", "-b", "base");
@@ -112,7 +112,7 @@ describe("병합 뒤 정리", () => {
 
     const restored = docRestore(repo, "prd", undefined);
     expect(restored.version).toBe("1.1.0");
-    expect(restored.restored).toEqual(["docs/prd.md", ".mob-sdd/hashes/prd.md.hash"]);
+    expect(restored.restored).toEqual(["docs/prd.md", ".sdd-android/hashes/prd.md.hash"]);
 
     const doc = loadDoc(repo, "prd");
     expect(doc?.conflict).toBe(false);

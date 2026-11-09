@@ -39,11 +39,11 @@ function completeSpec(feature: string, depends?: string[]): void {
 }
 
 beforeEach(() => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-"));
-  fs.mkdirSync(path.join(root, ".mob-sdd", "templates"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".mob-sdd", "config.yaml"), "language: ko\ndocs_dir: docs\n");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-"));
+  fs.mkdirSync(path.join(root, ".sdd-android", "templates"), { recursive: true });
+  fs.writeFileSync(path.join(root, ".sdd-android", "config.yaml"), "language: ko\ndocs_dir: docs\n");
   for (const [name, body] of Object.entries(TEMPLATES)) {
-    fs.writeFileSync(path.join(root, ".mob-sdd", "templates", `${name}.md`), body);
+    fs.writeFileSync(path.join(root, ".sdd-android", "templates", `${name}.md`), body);
   }
   repo = openRepo(root);
   day = 1;

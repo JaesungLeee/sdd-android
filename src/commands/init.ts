@@ -35,7 +35,7 @@ export interface InitConflicts {
   skills: string[];
   /** 사용자 홈의 스킬과 겹치는 이름. 홈의 파일은 건드리지 않으므로 접두사로만 피한다. */
   home: string[];
-  /** `.mob-sdd/` 아래에 이미 있는 파일. 설치 기록 없이 있으면 사람이 봐야 한다. */
+  /** `.sdd-android/` 아래에 이미 있는 파일. 설치 기록 없이 있으면 사람이 봐야 한다. */
   state: string[];
 }
 
@@ -65,7 +65,7 @@ function pickBundles(options: InitOptions): Bundle[] {
     if (!files) throw new Refusal(`내장 확장이 아니다: ${name} (있는 것: ${[...builtin.keys()].join(", ") || "없음"})`);
     const bundle = readBundle(files);
     if (!satisfiesRequirement(bundle.manifest.requires, options.version)) {
-      throw new Refusal(`${name}은 mob-sdd ${bundle.manifest.requires?.slice(2)} 이상이 필요하다(이 버전 ${options.version})`);
+      throw new Refusal(`${name}은 sdd-android ${bundle.manifest.requires?.slice(2)} 이상이 필요하다(이 버전 ${options.version})`);
     }
     bundles.push(bundle);
   }
@@ -95,16 +95,16 @@ export function coreFiles(options: Pick<InitOptions, "assets" | "language" | "pr
   if (core.size === 0) throw new Refusal(`지원하지 않는 언어다: ${options.language}`);
 
   const files = new Map<string, string | Buffer>();
-  files.set(".mob-sdd/bin/mob-sdd.mjs", fs.readFileSync(options.bundlePath));
+  files.set(".sdd-android/bin/sdd-android.mjs", fs.readFileSync(options.bundlePath));
   files.set(LAUNCHER_PATH, LAUNCHER);
-  files.set(".mob-sdd/.gitignore", "config.local.yaml\n");
+  files.set(".sdd-android/.gitignore", "config.local.yaml\n");
   // 실행 스크립트가 CRLF로 체크아웃되면 sh가 실행하지 못한다. git의 줄바꿈 변환 설정과 무관하게 LF로 둔다.
-  files.set(".mob-sdd/.gitattributes", "bin/mob-sdd text eol=lf\n");
+  files.set(".sdd-android/.gitattributes", "bin/sdd-android text eol=lf\n");
   const skills: string[] = [];
   for (const [rel, text] of [...core].sort(([a], [b]) => a.localeCompare(b))) {
     const template = /^templates\/([^/]+\.md)$/.exec(rel);
     const skill = /^skills\/([^/]+)\/SKILL\.md$/.exec(rel);
-    if (template) files.set(`.mob-sdd/templates/${template[1]}`, text);
+    if (template) files.set(`.sdd-android/templates/${template[1]}`, text);
     if (skill) {
       const installed = skillName(skill[1] as string, options.prefix);
       skills.push(installed);
@@ -130,7 +130,7 @@ export function planInit(options: InitOptions): InitPlan {
   // 확장의 스킬도 코어와 같이 겹침을 본다. 코어를 설치한 뒤 확장에서 겹치면 반쯤 설치된 채 멈추기 때문이다.
   const extensionSkills = bundles.flatMap((bundle) => bundleSkills(bundle).map((name) => skillName(name, prefix)));
   const allSkills = [...skills, ...extensionSkills];
-  const extensionState = bundles.flatMap((bundle) => planBundle(bundle, prefix).map((file) => file.target).filter((rel) => rel.startsWith(".mob-sdd/")));
+  const extensionState = bundles.flatMap((bundle) => planBundle(bundle, prefix).map((file) => file.target).filter((rel) => rel.startsWith(".sdd-android/")));
 
   const exists = (rel: string) => fs.existsSync(path.join(target, rel));
   const home = options.homeDir ?? os.homedir();
@@ -141,13 +141,13 @@ export function planInit(options: InitOptions): InitPlan {
     conflicts: {
       skills: allSkills.filter((name) => exists(`.claude/skills/${name}/SKILL.md`)),
       home: allSkills.filter((name) => fs.existsSync(path.join(home, ".claude", "skills", name))),
-      state: [...files.keys(), ".mob-sdd/config.yaml", ...extensionState].filter((rel) => rel.startsWith(".mob-sdd/") && exists(rel)),
+      state: [...files.keys(), ".sdd-android/config.yaml", ...extensionState].filter((rel) => rel.startsWith(".sdd-android/") && exists(rel)),
     },
   };
 }
 
 function backupDir(target: string, today: string): string {
-  const base = path.join(".mob-sdd", "backup", today);
+  const base = path.join(".sdd-android", "backup", today);
   let rel = base;
   for (let n = 2; fs.existsSync(path.join(target, rel)); n += 1) rel = `${base}-${n}`;
   return rel;
@@ -191,7 +191,7 @@ export function init(options: InitOptions): InitResult {
     manifest.files[rel] = { sha256: hashContent(content), source: "core" };
   }
   fs.writeFileSync(
-    path.join(target, ".mob-sdd", "config.yaml"),
+    path.join(target, ".sdd-android", "config.yaml"),
     [`language: ${language}`, "agent: claude-code", "docs_dir: docs", `prefix: "${prefix}"`, ""].join("\n"),
   );
   writeManifest(target, manifest);
@@ -209,7 +209,7 @@ export function init(options: InitOptions): InitResult {
   }
 
   return {
-    files: [...plan.files.keys(), ".mob-sdd/config.yaml", ".mob-sdd/manifest.json", ...extensionFiles].sort(),
+    files: [...plan.files.keys(), ".sdd-android/config.yaml", ".sdd-android/manifest.json", ...extensionFiles].sort(),
     skills,
     backedUp,
     extensions,

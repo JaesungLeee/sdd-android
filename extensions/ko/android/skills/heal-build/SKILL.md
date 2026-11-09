@@ -23,7 +23,7 @@ context: fork
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives heal-build`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives heal-build`
 
 {{> directives}}
 

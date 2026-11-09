@@ -1,4 +1,4 @@
-# mob-sdd
+# sdd-android
 
 문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD(Spec-Driven Development) 워크플로 CLI다. Claude Code를 쓰는 저장소에 명령 한 줄로 설치한다. 문서 단계는 스택을 가리지 않고, 구현 단계는 v1에서 Android(Kotlin, Gradle, Jetpack Compose)를 지원한다.
 
@@ -18,10 +18,10 @@
 ## 설치
 
 ```sh
-npx mob-sdd init                                     # 코어: constitution부터 analyze까지
-npx mob-sdd init --extension android                 # 코어와 Android 구현 단계
-npx mob-sdd impl setup --lint "./gradlew {module}:detekt" # 구현 단계가 돌릴 검사 명령 (Lint가 없으면 --lint none)
-npx mob-sdd@latest upgrade                           # 새 버전으로 올린다
+npx sdd-android init                                     # 코어: constitution부터 analyze까지
+npx sdd-android init --extension android                 # 코어와 Android 구현 단계
+npx sdd-android impl setup --lint "./gradlew {module}:detekt" # 구현 단계가 돌릴 검사 명령 (Lint가 없으면 --lint none)
+npx sdd-android@latest upgrade                           # 새 버전으로 올린다
 ```
 
 설치되는 곳은 두 군데다. 둘 다 커밋한다.
@@ -29,7 +29,7 @@ npx mob-sdd@latest upgrade                           # 새 버전으로 올린�
 | 위치 | 내용 |
 |---|---|
 | `.claude/skills/` | 단계 스킬. 슬래시 커맨드가 된다 |
-| `.mob-sdd/` | CLI 번들, 템플릿, 설정, 설치 기록, 본문 해시 |
+| `.sdd-android/` | CLI 번들, 템플릿, 설정, 설치 기록, 본문 해시 |
 
 `init`은 이미 있는 파일을 덮어쓰지 않는다. 겹치는 스킬이 있으면 접두사를 붙이거나 백업한 뒤 설치하거나 그만두는 것 가운데 고른다. `--prefix sdd`로 설치하면 모든 스킬이 `/sdd-spec`처럼 접두사를 갖는다.
 
@@ -61,8 +61,8 @@ feature는 `docs/specs/` 아래의 디렉터리 하나다. `/spec 로그인`처�
 ## 사람이 치는 명령
 
 ```sh
-npx mob-sdd status [feature]   # 진행 상태와 버전 체인 판정
-npx mob-sdd check              # 설치와 문서의 깨진 곳. CI에서 종료 코드로 쓴다
+npx sdd-android status [feature]   # 진행 상태와 버전 체인 판정
+npx sdd-android check              # 설치와 문서의 깨진 곳. CI에서 종료 코드로 쓴다
 ```
 
 그 밖의 명령(`doc`, `gate`, `impl` 등)은 스킬이 부른다. 전체 목록은 [CLI와 설정 파일](guide/cli.md)에 있다.
@@ -72,16 +72,16 @@ npx mob-sdd check              # 설치와 문서의 깨진 곳. CI에서 종료
 `android` extension을 설치했고 spec에 Figma 화면 링크를 적을 때만 필요하다.
 
 ```sh
-npx mob-sdd figma setup --server desktop --name figma-desktop
+npx sdd-android figma setup --server desktop --name figma-desktop
 ```
 
-이 명령은 개인 설정 파일 두 개(`.mob-sdd/config.local.yaml`, `.claude/settings.local.json`)만 고친다. 자세한 것은 [Figma 설정](guide/figma.md)에 있다.
+이 명령은 개인 설정 파일 두 개(`.sdd-android/config.local.yaml`, `.claude/settings.local.json`)만 고친다. 자세한 것은 [Figma 설정](guide/figma.md)에 있다.
 
 ## 가이드
 
 - [워크플로](guide/workflow.md): 단계의 흐름, 착수 게이트, 개정, 병합 뒤 정리, 갱신
 - [문서 형식](guide/documents.md): frontmatter, 항목 ID, 변경의 판정, breakdown 작업 줄
-- [CLI와 설정 파일](guide/cli.md): 명령 전체와 `.mob-sdd/`의 파일
+- [CLI와 설정 파일](guide/cli.md): 명령 전체와 `.sdd-android/`의 파일
 - [구현 단계](guide/implementation.md): `android` extension의 스킬과 흐름
 - [OpenAPI 대조](guide/openapi.md): `openapi` extension의 출처 설정과 조회
 - [Figma 설정](guide/figma.md): 서버 선택, 권한, 캡처 환경

@@ -11,7 +11,7 @@ export interface ExtensionManifest {
   name: string;
   kind: ExtensionKind;
   version: string;
-  /** 필요한 mob-sdd의 최소 버전. `>=0.2.0` 꼴이다. */
+  /** 필요한 sdd-android의 최소 버전. `>=0.2.0` 꼴이다. */
   requires?: string;
   description?: string;
   /** 단계 이름에서 지시 파일의 묶음 안 상대 경로로. */
@@ -81,7 +81,7 @@ export function readBundle(files: FileMap): Bundle {
   };
 }
 
-/** 필요한 mob-sdd 버전을 만족하는지. */
+/** 필요한 sdd-android 버전을 만족하는지. */
 export function satisfiesRequirement(requires: string | undefined, version: string): boolean {
   if (!requires || !isVersion(version)) return true;
   return compareVersions(version, requires.slice(2)) >= 0;
@@ -105,7 +105,7 @@ export interface PlannedFile {
 
 /**
  * 묶음의 파일이 저장소의 어디에 놓이는지(PRD CLI-004).
- * 스킬은 `.claude/skills/`에, preset의 템플릿은 코어의 자리에, 나머지는 `.mob-sdd/extensions/{이름}/`에 둔다.
+ * 스킬은 `.claude/skills/`에, preset의 템플릿은 코어의 자리에, 나머지는 `.sdd-android/extensions/{이름}/`에 둔다.
  */
 export function planBundle(bundle: Bundle, prefix: string): PlannedFile[] {
   const { name, kind } = bundle.manifest;
@@ -120,9 +120,9 @@ export function planBundle(bundle: Bundle, prefix: string): PlannedFile[] {
         replacesCore: kind === "preset",
       });
     } else if (template && kind === "preset") {
-      planned.push({ target: `.mob-sdd/templates/${template[1]}`, content: text, replacesCore: true });
+      planned.push({ target: `.sdd-android/templates/${template[1]}`, content: text, replacesCore: true });
     } else {
-      planned.push({ target: `.mob-sdd/extensions/${name}/${rel}`, content: text, replacesCore: false });
+      planned.push({ target: `.sdd-android/extensions/${name}/${rel}`, content: text, replacesCore: false });
     }
   }
   return planned;

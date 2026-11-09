@@ -16,13 +16,13 @@ docs/
       research.md        # blueprint의 리서치 기록
       breakdown.md
       failures.md        # 구현 단계의 실패 기록. 구현에서 처음 실패가 남을 때 생긴다
-.mob-sdd/
+.sdd-android/
   hashes/                # 문서마다 본문 해시 파일. CLI만 쓴다
     prd.md.hash
     specs/{feature}/spec.md.hash
 ```
 
-`docs`는 `.mob-sdd/config.yaml`의 `docs_dir`로 바꿀 수 있다. feature의 이름은 `specs/` 아래의 디렉터리 이름이다.
+`docs`는 `.sdd-android/config.yaml`의 `docs_dir`로 바꿀 수 있다. feature의 이름은 `specs/` 아래의 디렉터리 이름이다.
 
 ## frontmatter
 
@@ -123,7 +123,7 @@ CLI는 본문의 SHA-256 해시로 바뀌었는지를 판정한다. 해시 전�
 
 ## 해시 파일
 
-`.mob-sdd/hashes/` 아래에 문서마다 하나씩 있다. 커밋하고, 손대지 않는다.
+`.sdd-android/hashes/` 아래에 문서마다 하나씩 있다. 커밋하고, 손대지 않는다.
 
 ```text
 version 1.2.0

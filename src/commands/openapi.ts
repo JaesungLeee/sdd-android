@@ -6,12 +6,12 @@ import { ACCEPT, discoverDocument, isHtml, type Fetch } from "../extensions/open
 import { Refusal, type Repo } from "../core/repo.js";
 
 /**
- * OpenAPI 출처의 설정(PRD CLI-004). `.mob-sdd/config.yaml`의 `openapi.sources`를 손으로 고치지 않게 하는 명령이다.
+ * OpenAPI 출처의 설정(PRD CLI-004). `.sdd-android/config.yaml`의 `openapi.sources`를 손으로 고치지 않게 하는 명령이다.
  * 설정 파일의 다른 내용과 주석은 그대로 둔다. 팀이 공유하는 설정이라 커밋된다.
  */
 
 function configFile(repo: Repo): string {
-  return path.join(repo.root, ".mob-sdd", "config.yaml");
+  return path.join(repo.root, ".sdd-android", "config.yaml");
 }
 
 /** 지금 설정의 출처. 형식이 어긋나면 그 이유와 함께 거부한다. 고치기 전에 사람이 봐야 한다. */

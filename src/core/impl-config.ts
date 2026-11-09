@@ -4,7 +4,7 @@ import { parse, parseDocument } from "yaml";
 import { Refusal, type Repo } from "./repo.js";
 
 /**
- * 구현 단계의 기계 검사 명령(`.mob-sdd/config.yaml`의 `impl.checks`). 커밋하는 설정이라 팀이 같은 검사를 돌린다.
+ * 구현 단계의 기계 검사 명령(`.sdd-android/config.yaml`의 `impl.checks`). 커밋하는 설정이라 팀이 같은 검사를 돌린다.
  * 이 검사들의 통과와 실패는 CLI가 명령을 돌려 종료 코드로 정한다. 에이전트의 보고로는 통과를 적을 수 없다.
  */
 export const MACHINE_CHECKS = ["build", "lint", "test", "rules"] as const;
@@ -34,7 +34,7 @@ export function isMachineCheck(value: string): value is MachineCheck {
 }
 
 function configFile(repo: Repo): string {
-  return path.join(repo.root, ".mob-sdd", "config.yaml");
+  return path.join(repo.root, ".sdd-android", "config.yaml");
 }
 
 function validateSpec(where: string, raw: unknown): CommandSpec {
@@ -82,11 +82,11 @@ export function requireImplChecks(repo: Repo): ImplChecks {
   try {
     result = validateImplChecks(readRaw(repo));
   } catch (error) {
-    throw new Refusal(`.mob-sdd/config.yaml의 impl.checks가 형식에 맞지 않는다: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Refusal(`.sdd-android/config.yaml의 impl.checks가 형식에 맞지 않는다: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (!result.checks) {
     throw new Refusal(
-      `구현 단계의 검사 명령이 설정되어 있지 않다: ${result.missing.join(", ")}. 사용자가 mob-sdd impl setup --lint <명령|none>으로 정한다(빌드와 테스트는 기본값이 있다). 검사는 CLI가 이 명령을 돌려 종료 코드로 판정한다.`,
+      `구현 단계의 검사 명령이 설정되어 있지 않다: ${result.missing.join(", ")}. 사용자가 sdd-android impl setup --lint <명령|none>으로 정한다(빌드와 테스트는 기본값이 있다). 검사는 CLI가 이 명령을 돌려 종료 코드로 판정한다.`,
     );
   }
   return result.checks;
@@ -152,7 +152,7 @@ export function implSetup(repo: Repo, options: SetupOptions): { checks: ImplChec
   try {
     checks = validateImplChecks(doc.toJSON()?.impl).checks;
   } catch (error) {
-    throw new Refusal(`.mob-sdd/config.yaml의 impl.checks가 형식에 맞지 않는다: ${error instanceof Error ? error.message : String(error)}. 파일을 고친 뒤 다시 한다`);
+    throw new Refusal(`.sdd-android/config.yaml의 impl.checks가 형식에 맞지 않는다: ${error instanceof Error ? error.message : String(error)}. 파일을 고친 뒤 다시 한다`);
   }
   if (!checks) throw new Refusal("검사 명령을 정하지 못했다");
   fs.writeFileSync(file, doc.toString());

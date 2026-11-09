@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android\" hook write"
 ---
 
 # breakdown 단계
@@ -28,19 +28,19 @@ feature 하나의 작업 목록을 만들거나 개정한다. blueprint의 **어
 ## 위치
 
 - **산출물**: `docs/specs/{feature}/breakdown.md`.
-- **템플릿**: `.mob-sdd/templates/breakdown.md`. 직접 복사하지 않고 `mob-sdd doc new breakdown {feature}`로 만든다.
+- **템플릿**: `.sdd-android/templates/breakdown.md`. 직접 복사하지 않고 `sdd-android doc new breakdown {feature}`로 만든다.
 - **상위 문서**: 같은 디렉터리의 `blueprint.md`(게이트).
 - **참고 문서**: 같은 디렉터리의 `spec.md`, `research.md`, 있으면 `data-model.md`, `contracts/`, `quickstart.md`.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate breakdown`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate breakdown`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate breakdown`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate breakdown`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives breakdown`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives breakdown`
 
 {{> directives}}
 
@@ -95,12 +95,12 @@ feature 하나의 작업 목록을 만들거나 개정한다. blueprint의 **어
 
 ## 새로 쓰기
 
-1. `mob-sdd doc new breakdown {feature}`를 부른다.
+1. `sdd-android doc new breakdown {feature}`를 부른다.
 2. `blueprint.md`와 `spec.md`를 읽고, 있는 부속 산출물을 읽는다. `docs/constitution.md`가 있으면 읽는다.
 3. `breakdown.md`를 제자리에서 채운다. 템플릿의 예시 작업을 실제 작업으로 모두 바꾸고, 주석과 쓰지 않는 섹션(폐기된 작업)을 지운다. 「형식」 섹션과 「마지막 확인」 섹션은 남긴다.
 4. spec의 요구사항마다 대응하는 작업이 있는지 확인한다. 대응하는 작업을 만들 수 없는 요구사항은 그 사유와 함께 보고에 싣는다.
-5. `mob-sdd check`를 불러 작업 줄의 형식을 검사하고, 이 문서에 대한 오류를 모두 고친다.
-6. `mob-sdd doc complete breakdown {feature}`를 부른다.
+5. `sdd-android check`를 불러 작업 줄의 형식을 검사하고, 이 문서에 대한 오류를 모두 고친다.
+6. `sdd-android doc complete breakdown {feature}`를 부른다.
 7. 「보고」를 따른다.
 
 ## 개정
@@ -114,10 +114,10 @@ feature 하나의 작업 목록을 만들거나 개정한다. blueprint의 **어
     - **수정 단위**(`## 수정: FIX-…`): `/{{skill:fix}}`가 더한 것이다. 그 작업은 blueprint에서 나온 것이 아니므로 맞대어 보지 않고 그대로 둔다. blueprint의 개정이 그 수정을 무효로 만들면 다른 작업과 같이 폐기한다.
     - **없어진 작업**: 체크되지 않았으면 지운다. 체크되어 있으면 지우지 않고 「폐기된 작업」 섹션으로 옮겨 `[dropped]`를 달고, 폐기 사유와 이미 들어간 코드를 어떻게 정리할지를 아래에 적는다.
 3. 「의존성과 실행 순서」를 맞춘다.
-4. `mob-sdd check`로 형식을 검사한다.
-5. `mob-sdd doc changes breakdown {feature}`를 불러 바뀌었는지 확인한다. 체크만 달라진 것은 바뀐 것이 아니다. 바뀐 곳이 없으면 「영향 없음 확인」으로 간다.
+4. `sdd-android check`로 형식을 검사한다.
+5. `sdd-android doc changes breakdown {feature}`를 불러 바뀌었는지 확인한다. 체크만 달라진 것은 바뀐 것이 아니다. 바뀐 곳이 없으면 「영향 없음 확인」으로 간다.
 6. 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다.
-7. `mob-sdd doc revise breakdown {feature} --grade minor`처럼 승인된 등급으로 기록한다.
+7. `sdd-android doc revise breakdown {feature} --grade minor`처럼 승인된 등급으로 기록한다.
 8. 「보고」를 따른다.
 
 ## 영향 없음 확인
@@ -126,7 +126,7 @@ blueprint가 개정되어 이 breakdown이 뒤처졌지만 작업에 고칠 것�
 
 1. blueprint에서 기준 버전 뒤에 바뀐 것을 읽고, 더하거나 빼거나 고칠 작업이 없는지 확인한다.
 2. 확인한 내용을 사용자에게 보여 주고 승인을 받는다.
-3. `mob-sdd doc confirm breakdown {feature}`를 부른다. breakdown의 버전은 그대로이고 기준 버전만 올라간다.
+3. `sdd-android doc confirm breakdown {feature}`를 부른다. breakdown의 버전은 그대로이고 기준 버전만 올라간다.
 
 {{> revision-grade}}
 
@@ -139,7 +139,7 @@ breakdown에는 하위 문서가 없다. 기준은 **이미 한 구현이 영향
 ## 끝내기 전 확인
 
 - [ ] 템플릿의 자리표시자와 예시 작업, 주석이 남아 있지 않다
-- [ ] `mob-sdd check`가 이 문서에 대해 오류를 내지 않는다
+- [ ] `sdd-android check`가 이 문서에 대해 오류를 내지 않는다
 - [ ] 스토리 단계의 모든 작업에 `[US…]`가 있고, 모든 작업에 경로가 있다
 - [ ] 테스트 작업이 구현 작업보다 앞에 있고 연결 표기가 있다
 - [ ] 마지막 작업 줄이 `FINAL`이고 체크되어 있지 않다

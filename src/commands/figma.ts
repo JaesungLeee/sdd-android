@@ -96,7 +96,7 @@ export function figmaSetup(repo: Repo, options: FigmaSetupOptions): FigmaSetupRe
   const have = allowed(settings);
   const tools = figmaToolNames(next);
   const addedPermissions = tools.filter((tool) => !have.includes(tool));
-  const files = [path.join(".mob-sdd", LOCAL_CONFIG_FILE)];
+  const files = [path.join(".sdd-android", LOCAL_CONFIG_FILE)];
   if (addedPermissions.length > 0) {
     settings.permissions = { ...settings.permissions, allow: [...have, ...addedPermissions] };
     const file = path.join(repo.root, SETTINGS_LOCAL);
@@ -114,11 +114,11 @@ function requireServer(value: string): FigmaServer {
 
 export function formatFigmaShow(result: FigmaShowResult): string {
   const lines = [
-    `Figma 서버: ${result.config.server} (등록 이름 ${result.name})${result.configured ? "" : " — 설정이 없어 기본값이다. mob-sdd figma setup으로 정한다"}`,
+    `Figma 서버: ${result.config.server} (등록 이름 ${result.name})${result.configured ? "" : " — 설정이 없어 기본값이다. sdd-android figma setup으로 정한다"}`,
     `읽기 도구: ${result.tools.join(", ")}`,
   ];
   if (result.missingPermissions.length > 0) {
-    lines.push(`권한이 없는 도구: ${result.missingPermissions.join(", ")}. 대화형 실행에서는 승인을 묻고, 비대화형 실행에서는 거부된다. mob-sdd figma setup이 ${SETTINGS_LOCAL}에 더한다.`);
+    lines.push(`권한이 없는 도구: ${result.missingPermissions.join(", ")}. 대화형 실행에서는 승인을 묻고, 비대화형 실행에서는 거부된다. sdd-android figma setup이 ${SETTINGS_LOCAL}에 더한다.`);
   } else {
     lines.push(`권한: ${SETTINGS_LOCAL}에 네 도구가 모두 있다.`);
   }

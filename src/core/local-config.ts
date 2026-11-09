@@ -13,7 +13,7 @@ export interface FigmaConfig {
   remote_name: string;
 }
 
-/** 사람마다 다른 환경 값. `.mob-sdd/config.local.yaml`에 두고 커밋하지 않는다(PRD SYS-006). */
+/** 사람마다 다른 환경 값. `.sdd-android/config.local.yaml`에 두고 커밋하지 않는다(PRD SYS-006). */
 export interface LocalConfig {
   figma?: Partial<FigmaConfig>;
 }
@@ -26,7 +26,7 @@ export const FIGMA_DEFAULTS: FigmaConfig = { server: "desktop", desktop_name: "f
 export const FIGMA_READ_TOOLS = ["get_metadata", "get_variable_defs", "get_screenshot", "get_design_context"] as const;
 
 export function localConfigPath(repo: Repo): string {
-  return path.join(repo.root, ".mob-sdd", LOCAL_CONFIG_FILE);
+  return path.join(repo.root, ".sdd-android", LOCAL_CONFIG_FILE);
 }
 
 export function readLocalConfig(repo: Repo): LocalConfig | undefined {

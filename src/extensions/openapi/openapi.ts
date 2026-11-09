@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * OpenAPI 대조 extension의 스크립트(PRD CLI-004). 빌드가 `yaml`과 함께 파일 하나로 묶어
- * `.mob-sdd/extensions/openapi/scripts/openapi.mjs`로 설치한다. `mob-sdd run openapi openapi.mjs …`로 부른다.
+ * `.sdd-android/extensions/openapi/scripts/openapi.mjs`로 설치한다. `sdd-android run openapi openapi.mjs …`로 부른다.
  *
  *   list [--source <이름>] [--filter <텍스트>]   출처마다 머리말과 오퍼레이션 목록
  *   show <operationId | "METHOD /path">…         고른 오퍼레이션을 $ref를 풀어 펼친다
@@ -304,7 +304,7 @@ export async function main(argv: string[], root: string, fetchImpl: Fetch = fetc
   } catch (error) {
     return { text: `설정을 읽을 수 없다: ${error instanceof Error ? error.message : String(error)}`, exitCode: 2 };
   }
-  if (configured.length === 0) return { text: "출처가 없다. .mob-sdd/config.yaml의 openapi.sources에 적는다.", exitCode: 0 };
+  if (configured.length === 0) return { text: "출처가 없다. .sdd-android/config.yaml의 openapi.sources에 적는다.", exitCode: 0 };
   const picked = args.source ? configured.filter((source) => source.name === args.source) : configured;
   if (picked.length === 0) return { text: `그런 출처가 없다: ${args.source} (있는 것: ${configured.map((s) => s.name).join(", ")})`, exitCode: 2 };
   const sources = await Promise.all(picked.map((source) => loadSource(root, source, fetchImpl)));
@@ -322,7 +322,7 @@ export async function main(argv: string[], root: string, fetchImpl: Fetch = fetc
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = process.env.MOB_SDD_ROOT ?? process.cwd();
+  const root = process.env.SDD_ANDROID_ROOT ?? process.cwd();
   main(process.argv.slice(2), root)
     .then(({ text, exitCode }) => {
       if (text) console.log(text);

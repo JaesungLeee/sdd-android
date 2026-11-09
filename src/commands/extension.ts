@@ -27,7 +27,7 @@ export interface ListResult {
 }
 
 function installedDir(repo: Repo, name: string): string {
-  return path.join(repo.root, ".mob-sdd", "extensions", name);
+  return path.join(repo.root, ".sdd-android", "extensions", name);
 }
 
 function requireManifest(repo: Repo): Manifest {
@@ -114,7 +114,7 @@ export function addExtension(repo: Repo, assets: Assets, bundle: Bundle, options
     throw new Refusal(`${name}은 ${kind}다. ${options.expectKind} 명령이 아니라 ${kind} 명령으로 설치한다.`);
   }
   if (!satisfiesRequirement(requires, manifest.version)) {
-    throw new Refusal(`${name} ${version}은 mob-sdd ${requires?.slice(2)} 이상이 필요하다(설치된 버전 ${manifest.version}). 먼저 upgrade한다.`);
+    throw new Refusal(`${name} ${version}은 sdd-android ${requires?.slice(2)} 이상이 필요하다(설치된 버전 ${manifest.version}). 먼저 upgrade한다.`);
   }
 
   const { language, prefix } = repo.config;
@@ -165,7 +165,7 @@ export function addExtension(repo: Repo, assets: Assets, bundle: Bundle, options
   const coreFiles = assets.core(language);
   const coreContent = (target: string): string | undefined => {
     const skill = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/.exec(target);
-    const template = /^\.mob-sdd\/templates\/([^/]+)$/.exec(target);
+    const template = /^\.sdd-android\/templates\/([^/]+)$/.exec(target);
     if (template) return coreFiles.get(`templates/${template[1]}`);
     if (skill) {
       const bare = prefix && (skill[1] as string).startsWith(`${prefix}-`) ? (skill[1] as string).slice(prefix.length + 1) : (skill[1] as string);
@@ -254,7 +254,7 @@ export function removeExtension(repo: Repo, assets: Assets, name: string, expect
 
     if (recorded.core !== undefined) {
       const skill = /^\.claude\/skills\/([^/]+)\/SKILL\.md$/.exec(rel);
-      const template = /^\.mob-sdd\/templates\/([^/]+)$/.exec(rel);
+      const template = /^\.sdd-android\/templates\/([^/]+)$/.exec(rel);
       let core: string | undefined;
       if (template) core = coreFiles.get(`templates/${template[1]}`);
       if (skill) {
@@ -309,7 +309,7 @@ export function directives(repo: Repo, stage: string): Directive[] {
     if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) continue;
     const bundle = readBundle(bundleFromDir(dir));
     const rel = bundle.manifest.directives[stage];
-    if (rel) found.push({ extension: name, file: `.mob-sdd/extensions/${name}/${rel}` });
+    if (rel) found.push({ extension: name, file: `.sdd-android/extensions/${name}/${rel}` });
   }
   return found;
 }

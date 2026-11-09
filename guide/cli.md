@@ -2,9 +2,9 @@
 
 ## 실행하는 방법
 
-- 설치와 갱신은 npm 패키지로 실행한다: `npx mob-sdd init`, `npx mob-sdd@latest upgrade`.
-- 그 밖의 명령은 저장소에 설치된 번들이 한다. `npx mob-sdd status`처럼 불러도 패키지가 저장소의 번들에 넘기므로, 설치된 버전과 같은 판정을 받는다. 네트워크 없이 `sh .mob-sdd/bin/mob-sdd status`로 직접 불러도 된다. 설치가 실행 비트를 주지만 복제한 곳에서는 git 설정에 따라 없을 수 있으므로 `sh`를 붙이는 쪽이 어디서나 된다.
-- 스킬은 `sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd"` 형태로 CLI를 부른다. 이 스크립트는 고치지 않는다.
+- 설치와 갱신은 npm 패키지로 실행한다: `npx sdd-android init`, `npx sdd-android@latest upgrade`.
+- 그 밖의 명령은 저장소에 설치된 번들이 한다. `npx sdd-android status`처럼 불러도 패키지가 저장소의 번들에 넘기므로, 설치된 버전과 같은 판정을 받는다. 네트워크 없이 `sh .sdd-android/bin/sdd-android status`로 직접 불러도 된다. 설치가 실행 비트를 주지만 복제한 곳에서는 git 설정에 따라 없을 수 있으므로 `sh`를 붙이는 쪽이 어디서나 된다.
+- 스킬은 `sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android"` 형태로 CLI를 부른다. 이 스크립트는 고치지 않는다.
 
 ## 명령
 
@@ -50,12 +50,12 @@
 | `--depends <ID,ID>` | spec이 의존하는 prd 항목 |
 | `--root <경로>` | 저장소 루트를 지정한다 |
 
-## `.mob-sdd/`의 파일
+## `.sdd-android/`의 파일
 
 | 파일 | 커밋 | 손으로 고치는가 |
 |---|---|---|
-| `bin/mob-sdd.mjs` | 한다 | 아니다. `upgrade`가 바꾼다 |
-| `bin/mob-sdd` | 한다 | 아니다. `node`를 찾아 번들을 실행하는 셸 스크립트 |
+| `bin/sdd-android.mjs` | 한다 | 아니다. `upgrade`가 바꾼다 |
+| `bin/sdd-android` | 한다 | 아니다. `node`를 찾아 번들을 실행하는 셸 스크립트 |
 | `config.yaml` | 한다 | `docs_dir`는 된다. `language`와 `prefix`는 설치 뒤 바꿀 수 없다 |
 | `config.local.yaml` | 안 한다 | `figma setup`이 쓴다. 손으로 고쳐도 된다 |
 | `manifest.json` | 한다 | 아니다. 설치한 파일의 해시와 버전. `upgrade`와 `check`의 근거 |
@@ -97,7 +97,7 @@ figma:
   "version": "0.3.0",
   "files": {
     ".claude/skills/spec/SKILL.md": { "sha256": "…", "source": "core" },
-    ".mob-sdd/templates/spec.md": { "sha256": "…", "source": "core" }
+    ".sdd-android/templates/spec.md": { "sha256": "…", "source": "core" }
   },
   "extensions": {
     "android": { "kind": "extension", "version": "0.1.0", "origin": "builtin" }

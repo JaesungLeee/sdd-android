@@ -4,9 +4,9 @@
 
 ## 0.5.0
 
-- 구현 단계의 빌드, Lint, 테스트를 CLI가 돌린다. 새 명령 `impl check <feature> <작업>`과 `impl check <feature> --final`이 `config.yaml`의 `impl.checks` 명령을 실행해 종료 코드로 적고, 로그를 `.mob-sdd/impl/{feature}/logs/`에 남긴다. `verify-build`는 명령을 직접 돌리지 않고 이 결과의 실패를 분류한다.
+- 구현 단계의 빌드, Lint, 테스트를 CLI가 돌린다. 새 명령 `impl check <feature> <작업>`과 `impl check <feature> --final`이 `config.yaml`의 `impl.checks` 명령을 실행해 종료 코드로 적고, 로그를 `.sdd-android/impl/{feature}/logs/`에 남긴다. `verify-build`는 명령을 직접 돌리지 않고 이 결과의 실패를 분류한다.
 - **동작 변경**: `impl verify`와 `impl final`이 빌드, Lint, 테스트의 통과(`--check build=pass` 등)와 Lint의 건너뜀을 인자로 받지 않는다. 실패의 지목과 빌드·테스트의 건너뜀은 받는다. Lint를 건너뛰려면 설정에 `lint: none`을 명시한다.
-- **동작 변경**: `impl start`가 `impl.checks`가 없으면 거부한다. 올린 뒤 `npx mob-sdd impl setup --lint <명령|none>`으로 정한다. 빌드와 테스트는 기본값(`compileDebugKotlin`, `testDebugUnitTest`)이 있다. 진행 중인 체크포인트는 그대로 이어지며, 다음 검증부터 CLI가 검사를 돌린다.
+- **동작 변경**: `impl start`가 `impl.checks`가 없으면 거부한다. 올린 뒤 `npx sdd-android impl setup --lint <명령|none>`으로 정한다. 빌드와 테스트는 기본값(`compileDebugKotlin`, `testDebugUnitTest`)이 있다. 진행 중인 체크포인트는 그대로 이어지며, 다음 검증부터 CLI가 검사를 돌린다.
 - 결과의 신선도: `impl check`가 작업 경로의 내용 해시를 함께 적고, `impl verify`와 `impl final`이 지금의 해시와 다르면 그 결과를 버리고 거부한다. 앞서 적힌 빌드·Lint의 통과도 그 사이 코드가 바뀌었으면 체크를 올리는 데 쓰지 않는다.
 - constitution 원칙의 검사 줄 `**검사**: 도구 \`규칙\` (설정 파일)` 또는 `**검사**: 감사`. 템플릿과 `/constitution`이 원칙마다 적게 하고, 검사 줄만 바꾸는 개정은 PATCH다. `check`가 도구 줄의 규칙이 설정 파일에 켜져 있는지 대조하고, `status`가 도구 검사·감사·미지정의 수를 보여 준다.
 - 선택 검사 `impl.checks.rules`: Lint 밖의 규칙 도구(Konsist 등)를 CLI가 작업마다와 마지막 확인에서 돌린다. 실패 종류 `rules`.
@@ -27,11 +27,11 @@
 
 ## 0.3.0
 
-- 이름을 `mob-sdd`로 바꿨다. 명령 `mob-sdd`, 설치 디렉터리 `.mob-sdd/`, 환경 변수 `MOB_SDD_ROOT`. 이전 이름으로 설치한 저장소는 없다(공개 전).
-- 구현용 명령 `impl start|assign|next|report|verify|attempt|final|reset|show`와 착수 게이트 `gate implement`. 체크포인트는 `.mob-sdd/impl/`에 둔다. `impl final --result pass`는 마지막 확인의 검사 결과(`--check`)를 요구한다.
+- 이름을 `sdd-android`로 바꿨다. 명령 `sdd-android`, 설치 디렉터리 `.sdd-android/`, 환경 변수 `SDD_ANDROID_ROOT`. 이전 이름으로 설치한 저장소는 없다(공개 전).
+- 구현용 명령 `impl start|assign|next|report|verify|attempt|final|reset|show`와 착수 게이트 `gate implement`. 체크포인트는 `.sdd-android/impl/`에 둔다. `impl final --result pass`는 마지막 확인의 검사 결과(`--check`)를 요구한다.
 - 실패 기록 `docs/specs/{feature}/failures.md`.
 - 내장 확장 `android`의 스킬 열한 개: `impl-orchestrator`, `design-inspector`, `create-test|logic|ui|structure`, `verify-build|ui|principles`, `heal-build|test`. `init --extension android`로 코어와 함께 설치하거나, 이미 설치된 저장소에 `extension add android`로 더한다. 코어만으로는 analyze까지다.
-- Figma 서버 설정 `figma show|setup`. `.mob-sdd/config.local.yaml`과 `.claude/settings.local.json`의 읽기 도구 권한.
+- Figma 서버 설정 `figma show|setup`. `.sdd-android/config.local.yaml`과 `.claude/settings.local.json`의 읽기 도구 권한.
 - `doc revise breakdown`이 작업이 더해지면 마지막 확인 줄을 내리고, `check`가 어긋난 마지막 확인 줄을 오류로 본다.
 - `status`가 feature의 구현 완료와 구현 중을 알린다.
 
@@ -41,7 +41,7 @@
 - 읽기 전용 단계 clarify와 analyze.
 - 병합 뒤 정리 `doc restore`. 번호가 겹친 항목의 판별.
 - 확장 체계: `extension`과 `preset`의 설치와 제거, 단계 지시(`directives`). 코어의 원본을 번들에 싣는다.
-- 실행 스크립트 `.mob-sdd/bin/mob-sdd`: 로그인 셸이 아닌 곳에서도 `node`를 찾는다.
+- 실행 스크립트 `.sdd-android/bin/sdd-android`: 로그인 셸이 아닌 곳에서도 `node`를 찾는다.
 - 빌드가 원본의 줄바꿈을 LF로 통일한다.
 
 ## 0.1.0

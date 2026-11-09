@@ -20,17 +20,17 @@ const SCRIPT_NAME = /^[A-Za-z0-9_.-]+\.mjs$/;
  */
 export function runScript(repo: Repo, extension: string | undefined, script: string | undefined, args: string[], options: { capture?: boolean } = {}): RunResult {
   if (!extension || !EXTENSION_NAME.test(extension)) throw new Refusal(`확장 이름이 필요하다: run <확장> <스크립트> [인자…] (받은 값: ${extension || "없음"})`);
-  const dir = path.join(repo.root, ".mob-sdd", "extensions", extension);
+  const dir = path.join(repo.root, ".sdd-android", "extensions", extension);
   if (!fs.existsSync(path.join(dir, MANIFEST_FILE))) throw new Refusal(`설치된 확장이 아니다: ${extension}`);
   if (!script || !SCRIPT_NAME.test(script)) throw new Refusal(`scripts/ 아래의 .mjs 파일 이름이 필요하다 (받은 값: ${script ?? "없음"})`);
   const file = path.join(dir, "scripts", script);
-  if (!fs.existsSync(file)) throw new Refusal(`스크립트가 없다: .mob-sdd/extensions/${extension}/scripts/${script}`);
+  if (!fs.existsSync(file)) throw new Refusal(`스크립트가 없다: .sdd-android/extensions/${extension}/scripts/${script}`);
 
   const result = spawnSync(process.execPath, [file, ...args], {
     cwd: repo.root,
     stdio: options.capture ? "pipe" : "inherit",
     encoding: "utf8",
-    env: { ...process.env, MOB_SDD_ROOT: repo.root },
+    env: { ...process.env, SDD_ANDROID_ROOT: repo.root },
   });
   if (result.error) throw new Refusal(`스크립트를 실행하지 못했다: ${result.error.message}`);
   return { status: result.status ?? 2, ...(options.capture ? { stdout: result.stdout, stderr: result.stderr } : {}) };

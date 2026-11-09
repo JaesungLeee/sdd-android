@@ -18,9 +18,9 @@ Claude Code에 Figma MCP 서버를 등록하는 방법은 두 가지이고, 어�
 ## 설정
 
 ```sh
-npx mob-sdd figma setup --server desktop --name figma-desktop
-npx mob-sdd figma setup --server remote --name figma
-npx mob-sdd figma show
+npx sdd-android figma setup --server desktop --name figma-desktop
+npx sdd-android figma setup --server remote --name figma
+npx sdd-android figma show
 ```
 
 `--name`은 Claude Code에 등록한 서버의 이름이다. `claude mcp list`에 나오는 이름이고 사람마다 다르다(`figma`, `figma-desktop`, `plugin:figma:figma` 등).
@@ -29,7 +29,7 @@ npx mob-sdd figma show
 
 | 파일 | 쓰는 것 |
 |---|---|
-| `.mob-sdd/config.local.yaml` | 서버의 종류와 등록 이름 |
+| `.sdd-android/config.local.yaml` | 서버의 종류와 등록 이름 |
 | `.claude/settings.local.json` | `permissions.allow`에 읽기 도구 네 개. 다른 권한은 보존한다 |
 
 허용하는 도구는 `get_metadata`, `get_variable_defs`, `get_screenshot`, `get_design_context`뿐이다. 서버 전체를 허용하지 않는다. 원격 서버에는 파일과 디자인을 만드는 쓰기 도구가 많기 때문이다. 도구의 전체 이름은 `mcp__{등록 이름}__{도구}`이며 등록 이름의 콜론 같은 글자는 밑줄이 된다.
@@ -43,7 +43,7 @@ npx mob-sdd figma show
 ## 알아 둘 것
 
 - 데스크톱 서버의 `get_design_context`는 큰 화면 프레임의 첫 호출에 몇 분이 걸릴 수 있고, Claude Code는 300초 동안 응답이 없으면 호출을 중단한다. 스킬은 이 경우 한 번 더 부른다.
-- 디자인 분석 결과는 `.mob-sdd/impl/{feature}/design.md`에 남고 다음 실행이 덮어쓴다. `create-ui`만 읽고 `verify-ui`는 Figma를 직접 다시 연다.
+- 디자인 분석 결과는 `.sdd-android/impl/{feature}/design.md`에 남고 다음 실행이 덮어쓴다. `create-ui`만 읽고 `verify-ui`는 Figma를 직접 다시 연다.
 - 권한 오류와 한도 초과는 "열리지 않는 노드"와 구분해 보고된다. 값을 추측으로 채우지 않는다.
 
 ## 캡처의 대조에 필요한 환경
@@ -54,5 +54,5 @@ npx mob-sdd figma show
 - **빌드가 서야 한다.** `local.properties`의 SDK 경로, `google-services.json` 같은 빌드 전제가 없으면 설치에 실패하고 캡처는 건너뜀이 된다. 스킬은 이런 파일을 만들거나 우회하지 않는다.
 - **기기**: 연결된 실기기를 먼저 쓴다. 없으면 이미 만들어진 가상 기기를 화면 없이 띄운다. 가상 기기를 새로 만들지는 않는다. 둘 다 없으면 캡처의 대조만 건너뛰고 값의 대조는 그대로 한다.
 - **서명**: 같은 애플리케이션 ID의 다른 빌드가 기기에 있으면 설치가 실패할 수 있다. 기존 앱을 지우지 않고 건너뜀으로 적는다.
-- 캡처는 `.mob-sdd/impl/{feature}/captures/`에 남는다. 상태 표시줄과 내비게이션 바는 대조에서 뺀다.
+- 캡처는 `.sdd-android/impl/{feature}/captures/`에 남는다. 상태 표시줄과 내비게이션 바는 대조에서 뺀다.
 - 판정은 항목별(구성요소, 문구, 색상 토큰, 타이포, 배치, 상태 표현)이고 픽셀 비교는 하지 않는다. spec이 Figma와 다르게 정한 것은 차이가 아니다.

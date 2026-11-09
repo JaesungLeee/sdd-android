@@ -23,7 +23,7 @@ constitution ─▶ prd ─▶ spec ─▶ (clarify) ─▶ blueprint ─▶ bre
                  정책과 충돌하면 고치지 않고 묻는다. 정책을 바꾸면 /spec의 개정으로 간다
   2. spec        문서가 이미 맞는 동작을 정하면(버그) 고치지 않는다. 표현만 바뀌면 PATCH로 개정한다
   3. 수정 단위   breakdown에 「## 수정: FIX-001 …」과 작업 두 개까지를 더한다
-  4. 범위 판정   mob-sdd fix check가 계산한다. 넘으면 수정 단위를 지우고 정식 경로로 간다
+  4. 범위 판정   sdd-android fix check가 계산한다. 넘으면 수정 단위를 지우고 정식 경로로 간다
   5. 기록        breakdown을 MINOR로 개정한다. 마지막 확인 줄이 내려간다
 /impl-orchestrator 로그인 --fix FIX-001
 ```
@@ -115,7 +115,7 @@ spec은 완료 전에 `checklist.md`로 검증한다. 체크되지 않은 항목
 ## 갱신
 
 ```sh
-npx mob-sdd@latest upgrade
+npx sdd-android@latest upgrade
 ```
 
 | 파일의 상태 | 처리 |
@@ -133,7 +133,7 @@ npx mob-sdd@latest upgrade
 
 ## 환경에서 주의할 것
 
-- **`node`를 찾지 못할 때**: 스킬은 로그인 셸이 아닌 셸에서 CLI를 부른다. `.mob-sdd/bin/mob-sdd` 스크립트가 Homebrew, volta, mise, asdf, nvm, fnm의 흔한 위치에서 `node`를 찾는다. nvm과 fnm은 설치된 것 가운데 가장 높은 버전을 쓰고 `.nvmrc`는 보지 않는다.
-- **줄바꿈**: 실행 스크립트는 `.mob-sdd/.gitattributes`로 LF를 고정한다. 문서는 CRLF로 체크아웃되어도 판정이 같다.
+- **`node`를 찾지 못할 때**: 스킬은 로그인 셸이 아닌 셸에서 CLI를 부른다. `.sdd-android/bin/sdd-android` 스크립트가 Homebrew, volta, mise, asdf, nvm, fnm의 흔한 위치에서 `node`를 찾는다. nvm과 fnm은 설치된 것 가운데 가장 높은 버전을 쓰고 `.nvmrc`는 보지 않는다.
+- **줄바꿈**: 실행 스크립트는 `.sdd-android/.gitattributes`로 LF를 고정한다. 문서는 CRLF로 체크아웃되어도 판정이 같다.
 - **비대화형 실행**: `claude -p`에서 프로젝트 `.mcp.json`의 MCP 서버를 쓰려면 `--mcp-config .mcp.json`을 준다. 승인 대화가 없어 서버가 올라오지 않는다.
 - **hook의 수명**: 스킬의 hook은 그 스킬이 끝난 뒤에도 세션에 남는다. 중단 상태의 문서를 같은 세션에서 직접 쓰려 해도 막힌다.

@@ -5,13 +5,13 @@ extension은 코어에 없는 것을 더하고, preset은 코어의 스킬이나
 ## 명령
 
 ```sh
-npx mob-sdd extension list                 # 내장 확장과 설치된 확장
-npx mob-sdd extension add android          # 내장 확장
-npx mob-sdd extension add ../team-glossary # 로컬 경로
-npx mob-sdd extension remove team-glossary
-npx mob-sdd preset add ../acme-preset
-npx mob-sdd preset remove acme
-npx mob-sdd directives spec                # spec 단계에 적용되는 지시 파일
+npx sdd-android extension list                 # 내장 확장과 설치된 확장
+npx sdd-android extension add android          # 내장 확장
+npx sdd-android extension add ../team-glossary # 로컬 경로
+npx sdd-android extension remove team-glossary
+npx sdd-android preset add ../acme-preset
+npx sdd-android preset remove acme
+npx sdd-android directives spec                # spec 단계에 적용되는 지시 파일
 ```
 
 - 같은 이름을 다시 `add`하면 갱신이다. 파일의 처리는 `upgrade`와 같다.
@@ -35,7 +35,7 @@ team-glossary/
 name: team-glossary
 kind: extension            # extension | preset
 version: 1.0.0
-requires: ">=0.3.0"        # 필요한 mob-sdd의 최소 버전. 이 꼴만 받는다
+requires: ">=0.3.0"        # 필요한 sdd-android의 최소 버전. 이 꼴만 받는다
 description: 팀 용어집의 정리와 대조
 directives:                # 단계 이름 → 묶음 안의 파일 경로
   blueprint: directives/blueprint.md
@@ -44,12 +44,12 @@ directives:                # 단계 이름 → 묶음 안의 파일 경로
 | 파일 | 설치되는 곳 |
 |---|---|
 | `skills/{이름}/SKILL.md` | `.claude/skills/{접두사+이름}/SKILL.md`. `skills/` 아래에는 이 형태만 둘 수 있다 |
-| `templates/*.md` (preset만) | `.mob-sdd/templates/`. 코어의 템플릿을 교체한다 |
-| 그 밖의 파일 | `.mob-sdd/extensions/{이름}/` |
+| `templates/*.md` (preset만) | `.sdd-android/templates/`. 코어의 템플릿을 교체한다 |
+| 그 밖의 파일 | `.sdd-android/extensions/{이름}/` |
 
 ## 스크립트
 
-계산이 필요한 확장은 `scripts/` 아래에 `.mjs`를 두고, 스킬이나 지시가 `mob-sdd run <확장> <스크립트> [인자…]`로 부르게 한다. 코어 스킬이 허용하는 도구가 `Bash(sh *)`뿐이라 `node`를 직접 부를 수 없기 때문이다. 스크립트는 저장소 루트에서 실행되고 `MOB_SDD_ROOT`로 루트를 받는다. 설치된 저장소에는 `node_modules`가 없으므로 의존성은 스크립트 안에 묶는다.
+계산이 필요한 확장은 `scripts/` 아래에 `.mjs`를 두고, 스킬이나 지시가 `sdd-android run <확장> <스크립트> [인자…]`로 부르게 한다. 코어 스킬이 허용하는 도구가 `Bash(sh *)`뿐이라 `node`를 직접 부를 수 없기 때문이다. 스크립트는 저장소 루트에서 실행되고 `SDD_ANDROID_ROOT`로 루트를 받는다. 설치된 저장소에는 `node_modules`가 없으므로 의존성은 스크립트 안에 묶는다.
 
 ## 스킬 참조 표기
 

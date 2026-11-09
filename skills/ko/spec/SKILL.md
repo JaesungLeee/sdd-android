@@ -8,7 +8,7 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "sh \"$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd\" hook write"
+          command: "sh \"$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android\" hook write"
 ---
 
 # spec 단계
@@ -23,20 +23,20 @@ feature 하나의 spec을 만들거나 개정한다. spec은 사용자가 **무�
 
 ## 위치
 
-- **산출물**: `docs/specs/{feature}/spec.md`와 `docs/specs/{feature}/checklist.md`. 산출물 디렉터리는 `.mob-sdd/config.yaml`의 `docs_dir`을 따른다.
-- **템플릿**: `.mob-sdd/templates/spec.md`, `.mob-sdd/templates/checklist.md`. 직접 복사하지 않고 `mob-sdd doc new spec {feature}`로 만든다. 두 파일이 함께 만들어진다.
+- **산출물**: `docs/specs/{feature}/spec.md`와 `docs/specs/{feature}/checklist.md`. 산출물 디렉터리는 `.sdd-android/config.yaml`의 `docs_dir`을 따른다.
+- **템플릿**: `.sdd-android/templates/spec.md`, `.sdd-android/templates/checklist.md`. 직접 복사하지 않고 `sdd-android doc new spec {feature}`로 만든다. 두 파일이 함께 만들어진다.
 - **상위 문서**: `docs/prd.md`. 없어도 이 단계는 동작한다.
 - **하위 문서**: 같은 디렉터리의 `blueprint.md`.
 
 ## 현재 상태
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" gate spec`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" gate spec`
 
-위에 판정 대신 명령이 글자 그대로 보이면 `mob-sdd gate spec`을 직접 불러 확인한다.
+위에 판정 대신 명령이 글자 그대로 보이면 `sdd-android gate spec`을 직접 불러 확인한다.
 
 ## 확장 지시의 목록
 
-!`sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" directives spec`
+!`sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" directives spec`
 
 {{> directives}}
 
@@ -75,7 +75,7 @@ spec과 PRD의 관계는 보고만 하는 관계다. PRD가 없거나 완료되�
 
 ## 새로 쓰기
 
-1. 「feature 이름」의 승인을 받은 뒤 `mob-sdd doc new spec {feature}`를 부른다.
+1. 「feature 이름」의 승인을 받은 뒤 `sdd-android doc new spec {feature}`를 부른다.
 2. 「PRD와 의존 항목」을 따른다.
 3. `spec.md`의 자리표시자를 제자리에서 채운다. 장의 순서와 제목은 바꾸지 않는다.
     - 입력에서 행위자, 행동, 데이터, 제약을 뽑는다.
@@ -89,7 +89,7 @@ spec과 PRD의 관계는 보고만 하는 관계다. PRD가 없거나 완료되�
 6. 검증이 `pass`이면 완료를 기록한다. 의존 항목이 있으면 함께 준다.
 
     ```bash
-    mob-sdd doc complete spec {feature} --depends SYS-001,SCR-004
+    sdd-android doc complete spec {feature} --depends SYS-001,SCR-004
     ```
 
 7. 「보고」를 따른다.
@@ -100,12 +100,12 @@ spec과 PRD의 관계는 보고만 하는 관계다. PRD가 없거나 완료되�
 2. 입력이 지목한 부분만 고친다. 이미 확정된 요구사항을 근거 없이 다시 쓰지 않는다. 이전 실행의 미정 항목 문답은 지우지 않는다.
 3. 고치면서 `TBD:`가 생겼으면 「미정 항목」의 절차를 따른다.
 4. 「품질 검증」을 따른다. spec을 고쳤으면 이전의 검증은 효력이 없다.
-5. `mob-sdd doc changes spec {feature}`를 불러 바뀌었는지 확인한다. 바뀐 곳이 없으면 기록할 개정이 없다.
+5. `sdd-android doc changes spec {feature}`를 불러 바뀌었는지 확인한다. 바뀐 곳이 없으면 기록할 개정이 없다.
 6. 개정 등급을 근거와 함께 제안하고 사용자의 승인을 받는다.
 7. 승인된 등급으로 개정을 기록한다. 의존 항목이 달라졌으면 함께 준다.
 
     ```bash
-    mob-sdd doc revise spec {feature} --grade minor
+    sdd-android doc revise spec {feature} --grade minor
     ```
 
 8. 「보고」를 따른다.
@@ -116,7 +116,7 @@ PRD가 개정되어 이 spec이 뒤처졌지만 spec에 고칠 것이 없을 때
 
 1. PRD에서 기준 버전 뒤에 바뀐 항목을 읽고, spec의 어느 요구사항과도 어긋나지 않는지 확인한다.
 2. 확인한 내용을 사용자에게 보여 주고 승인을 받는다.
-3. `mob-sdd doc confirm spec {feature}`를 부른다. 의존 항목을 고치려면 `--depends`를 함께 준다. spec의 버전은 그대로이고 기준 버전만 올라간다.
+3. `sdd-android doc confirm spec {feature}`를 부른다. 의존 항목을 고치려면 `--depends`를 함께 준다. spec의 버전은 그대로이고 기준 버전만 올라간다.
 
 {{> revision-grade}}
 
@@ -135,7 +135,7 @@ spec을 다 채웠거나 고쳤으면 `checklist.md`로 검증한다. 체크리�
 1. 개정이라면 `checklist.md`의 체크를 모두 `- [ ]`로 되돌리고 「발견한 문제」를 비운다.
 2. 항목마다 `spec.md` 본문과 대조해 통과면 `- [x]`로 바꾼다. 통과하지 못한 항목은 spec의 해당 부분을 인용해 「발견한 문제」에 적는다. 통과하지 못한 것을 통과로 표시하지 않는다.
 3. 통과하지 못한 항목이 있으면 그 문제를 사용자에게 보여 주고, 답을 받아 spec을 고친 뒤 2번부터 다시 한다. 세 번 되풀이해도 남으면 멈추고 남은 문제를 보고한다.
-4. `mob-sdd doc checklist {feature}`를 부른다. CLI가 체크를 세어 `pass`나 `failed`를 기록한다.
+4. `sdd-android doc checklist {feature}`를 부른다. CLI가 체크를 세어 `pass`나 `failed`를 기록한다.
 5. 이 명령 뒤에 spec을 한 글자라도 고쳤으면 2번부터 다시 한다. CLI는 검증한 뒤 본문이 바뀐 spec의 완료를 거부한다.
 
 ## 끝내기 전 확인

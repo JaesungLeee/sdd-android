@@ -112,14 +112,14 @@ function finish(id: string, checks: string[] = []): void {
 }
 
 beforeEach(() => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mob-sdd-impl-"));
-  fs.mkdirSync(path.join(root, ".mob-sdd", "templates"), { recursive: true });
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-android-impl-"));
+  fs.mkdirSync(path.join(root, ".sdd-android", "templates"), { recursive: true });
   fs.writeFileSync(
-    path.join(root, ".mob-sdd", "config.yaml"),
+    path.join(root, ".sdd-android", "config.yaml"),
     'language: ko\ndocs_dir: docs\nimpl:\n  checks:\n    build: "build {module}"\n    lint: "lint {module}"\n    test: "test {module} {tests}"\n',
   );
-  fs.writeFileSync(path.join(root, ".mob-sdd", "manifest.json"), JSON.stringify({ version: "0.3.0", files: {} }));
-  for (const [name, text] of Object.entries(TEMPLATES)) fs.writeFileSync(path.join(root, ".mob-sdd", "templates", `${name}.md`), text);
+  fs.writeFileSync(path.join(root, ".sdd-android", "manifest.json"), JSON.stringify({ version: "0.3.0", files: {} }));
+  for (const [name, text] of Object.entries(TEMPLATES)) fs.writeFileSync(path.join(root, ".sdd-android", "templates", `${name}.md`), text);
   repo = openRepo(root);
   day = 1;
   ran = [];
@@ -161,7 +161,7 @@ describe("착수 게이트와 체크포인트", () => {
     expect(result.resumed).toBe(false);
     expect(result.versions).toEqual({ spec: "1.0.0", blueprint: "1.0.0", breakdown: "1.0.0" });
     expect(fs.existsSync(checkpointPath(repo, F))).toBe(true);
-    expect(fs.readFileSync(path.join(repo.root, ".mob-sdd", "impl", ".gitignore"), "utf8")).toBe("*\n");
+    expect(fs.readFileSync(path.join(repo.root, ".sdd-android", "impl", ".gitignore"), "utf8")).toBe("*\n");
     expect(gateAll(repo, "implement")[0]).toMatchObject({ stage: "implement", mode: "resume", confirmed: true });
   });
 
@@ -193,7 +193,7 @@ describe("착수 게이트와 체크포인트", () => {
   });
 
   it("검사 명령이 설정되어 있지 않으면 시작하지 않고, setup은 Lint만 사람이 고르게 한다", () => {
-    const file = path.join(repo.root, ".mob-sdd", "config.yaml");
+    const file = path.join(repo.root, ".sdd-android", "config.yaml");
     fs.writeFileSync(file, "language: ko\ndocs_dir: docs # 문서\n");
     expect(() => implStart(repo, F, { today: today() })).toThrow(/검사 명령이 설정되어 있지 않다: build, lint, test.*impl setup/);
     expect(() => implSetup(repo, {})).toThrow(/--lint none/);
@@ -513,17 +513,17 @@ describe("작업의 진행", () => {
 
     // none은 규칙 도구를 따로 돌리지 않는다는 뜻이라 항목을 지운다
     expect(implSetup(repo, { rules: "none" }).checks.rules).toBeUndefined();
-    expect(fs.readFileSync(path.join(repo.root, ".mob-sdd", "config.yaml"), "utf8")).not.toContain("rules");
+    expect(fs.readFileSync(path.join(repo.root, ".sdd-android", "config.yaml"), "utf8")).not.toContain("rules");
   });
 
   it("모듈을 보고하지 않은 작업은 검사를 돌리지 않고, 모듈마다 다른 명령을 쓸 수 있다", () => {
     implReport(repo, F, "T001", { today: today(), status: "done" });
     expect(() => run("T001")).toThrow(/보고한 모듈이 없다/);
-    const file = path.join(repo.root, ".mob-sdd", "config.yaml");
+    const file = path.join(repo.root, ".sdd-android", "config.yaml");
     fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace('build: "build {module}"', 'build:\n      "*": "build {module}"\n      ":core": "build-jvm {module}"'));
     implReport(repo, F, "T001", { today: today(), status: "done", modules: [":app", ":core"] });
     expect(run("T001").runs[0]?.commands).toEqual(["build :app", "build-jvm :core"]);
-    expect(fs.readFileSync(path.join(repo.root, ".mob-sdd", "impl", F, "logs", "T001-build.log"), "utf8")).toContain("$ build-jvm :core");
+    expect(fs.readFileSync(path.join(repo.root, ".sdd-android", "impl", F, "logs", "T001-build.log"), "utf8")).toContain("$ build-jvm :core");
   });
 
   it("새 체크포인트는 이미 끝난 단위를 다시 검증하지 않는다", () => {

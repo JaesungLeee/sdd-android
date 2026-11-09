@@ -4,11 +4,11 @@
 
 ## 출처
 
-출처는 `.mob-sdd/config.yaml`의 `openapi.sources`다. 조회는 다음 명령으로 한다. 어느 디렉터리에서 불러도 된다.
+출처는 `.sdd-android/config.yaml`의 `openapi.sources`다. 조회는 다음 명령으로 한다. 어느 디렉터리에서 불러도 된다.
 
 ```bash
-sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" run openapi openapi.mjs list [--source <이름>] [--filter <텍스트>]
-sh "$(git rev-parse --show-toplevel)/.mob-sdd/bin/mob-sdd" run openapi openapi.mjs show <operationId | "METHOD /path">… [--source <이름>]
+sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" run openapi openapi.mjs list [--source <이름>] [--filter <텍스트>]
+sh "$(git rev-parse --show-toplevel)/.sdd-android/bin/sdd-android" run openapi openapi.mjs show <operationId | "METHOD /path">… [--source <이름>]
 ```
 
 - `list`는 출처마다 머리말(출처, 조회 시점, 제목과 버전)과 오퍼레이션 목록을 낸다. `--filter`로 경로, ID, 요약, 태그를 좁힌다.
