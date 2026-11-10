@@ -44,6 +44,10 @@ function validateSpec(where: string, raw: unknown): CommandSpec {
     const spec: Record<string, string> = {};
     for (const [module, command] of Object.entries(raw as Record<string, unknown>)) {
       if (typeof command !== "string" || command.trim() === "") throw new Error(`${where}.${module}: 명령은 비어 있지 않은 문자열이다`);
+      // 건너뜀은 검사 전체에만 있다. 묶음 안의 none은 셸 명령으로 돌아 실패가 된다.
+      if (command.trim() === NO_COMMAND) {
+        throw new Error(`${where}.${module}: none은 모듈 묶음 안에 쓸 수 없다. 검사 전체를 건너뛸 때만 lint: none으로 적고, 그 모듈에 도구가 없으면 그 모듈에서 성공하는 명령을 적는다`);
+      }
       spec[module] = command.trim();
     }
     if (!spec["*"]) throw new Error(`${where}: 모듈마다 명령을 적을 때는 기본 명령 "*"도 적는다`);

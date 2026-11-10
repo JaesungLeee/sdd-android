@@ -215,6 +215,17 @@ describe("착수 게이트와 체크포인트", () => {
     fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("test: ./gradlew {module}:test {tests}", "test: none"));
     expect(check(repo).problems.map((problem) => problem.message)).toContain("impl.checks.test: none은 lint에만 쓴다. 빌드와 테스트는 건너뛸 수 없다");
     expect(() => implStart(repo, F, { today: today() })).toThrow(/형식에 맞지 않는다/);
+
+    // 모듈 묶음 안의 none은 명령으로 돌아 실패가 되므로 형식 오류다
+    fs.writeFileSync(
+      file,
+      fs.readFileSync(file, "utf8").replace("test: none", 'test: ./gradlew {module}:test {tests}').replace(
+        "lint: ./gradlew {module}:detekt",
+        'lint:\n      "*": ./gradlew {module}:detekt\n      ":core:model": none',
+      ),
+    );
+    expect(check(repo).problems.map((problem) => problem.message)).toContainEqual(expect.stringMatching(/impl\.checks\.lint\.:core:model: none은 모듈 묶음 안에 쓸 수 없다/));
+    expect(() => implStart(repo, F, { today: today() })).toThrow(/모듈 묶음 안에 쓸 수 없다/);
   });
 
   it("setup은 Gradle 설정에서 Lint 도구, 규칙 도구, flavor를 찾아 제안만 하고 적지는 않는다", () => {
