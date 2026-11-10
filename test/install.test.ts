@@ -689,5 +689,12 @@ describe("upgrade", () => {
     expect(changelogBetween(log, "0.1.0", "0.3.0")).toContain("- 셋");
     expect(changelogBetween(log, "0.1.0", "0.3.0")).not.toContain("- 하나");
     expect(changelogBetween(log, "0.3.0", "0.3.0")).toBe("");
+
+    // 실제 변경 내역의 형식: `## [버전] - 날짜`와 분류 제목. 작성 규칙의 주석은 항목이 아니다
+    const real = fs.readFileSync(path.join(PROJECT, "CHANGELOG.md"), "utf8");
+    const between = changelogBetween(real, "0.3.0", "0.4.0");
+    expect(between).toMatch(/^## \[0\.4\.0\] - \d{4}-\d{2}-\d{2}\n\n### Added\n/);
+    expect(between).not.toContain("## [0.3.0]");
+    expect(between).not.toContain("작성 규칙");
   });
 });

@@ -1,63 +1,100 @@
-# 변경 내역
+# Changelog
 
-`upgrade`가 설치된 버전부터 새 버전까지의 항목을 보여 준다. 제목은 `## 버전` 형태로 쓴다.
+버전마다 사용하면서 달라지는 점을 적는다. `npx sdd-android@latest upgrade`로 올리면 설치된 버전 다음부터 새 버전까지의 항목을 보여 준다.
 
-## 0.5.0
+<!--
+작성 규칙
+- 제목은 `## [X.Y.Z] - YYYY-MM-DD`, 최신 버전이 위다. upgrade가 이 제목으로 항목을 고른다.
+- 분류는 Added(새 기능), Changed(바뀐 동작), Removed(없앤 기능), Fixed(고친 문제) 순서로, 해당하는 것만 쓴다.
+- 사용자가 보고 겪는 것을 쓴다. 내부 구현이나 코드 구조는 쓰지 않는다.
+- 올린 뒤 사용자가 해야 할 일이 있으면 버전 제목 바로 아래에 인용으로 먼저 적는다.
+-->
 
-- **동작 변경**: Android 전용으로 바꾸고 확장 체계를 없앴다. `init`이 문서 단계와 구현 단계의 스킬을 함께 설치한다. `init --extension`, `extension`, `preset`, `directives`, `run` 명령과 `.sdd-android/extensions/`는 없다.
-- OpenAPI 대조가 blueprint 스킬에 들어갔다. 출처(`openapi.sources`)가 있으면 동작하고 없으면 건너뛴다. 조회는 `openapi operations [--source] [--filter]`와 `openapi show <오퍼레이션>…`이다.
-- 구현 단계의 빌드, Lint, 테스트를 CLI가 돌린다. 새 명령 `impl check <feature> <작업>`과 `impl check <feature> --final`이 `config.yaml`의 `impl.checks` 명령을 실행해 종료 코드로 적고, 로그를 `.sdd-android/impl/{feature}/logs/`에 남긴다. `verify-build`는 명령을 직접 돌리지 않고 이 결과의 실패를 분류한다.
-- **동작 변경**: `impl verify`와 `impl final`이 빌드, Lint, 테스트의 통과(`--check build=pass` 등)와 Lint의 건너뜀을 인자로 받지 않는다. 실패의 지목과 빌드·테스트의 건너뜀은 받는다. Lint를 건너뛰려면 설정에 `lint: none`을 명시한다.
-- **동작 변경**: `impl start`가 `impl.checks`가 없으면 거부한다. 올린 뒤 `npx sdd-android impl setup --lint <명령|none>`으로 정한다. 빌드와 테스트는 기본값(`compileDebugKotlin`, `testDebugUnitTest`)이 있다. 진행 중인 체크포인트는 그대로 이어지며, 다음 검증부터 CLI가 검사를 돌린다.
-- 결과의 신선도: `impl check`가 작업 경로의 내용 해시를 함께 적고, `impl verify`와 `impl final`이 지금의 해시와 다르면 그 결과를 버리고 거부한다. 앞서 적힌 빌드·Lint의 통과도 그 사이 코드가 바뀌었으면 체크를 올리는 데 쓰지 않는다.
-- constitution 원칙의 검사 줄 `**검사**: 도구 \`규칙\` (설정 파일)` 또는 `**검사**: 감사`. 템플릿과 `/constitution`이 원칙마다 적게 하고, 검사 줄만 바꾸는 개정은 PATCH다. `check`가 도구 줄의 규칙이 설정 파일에 켜져 있는지 대조하고, `status`가 도구 검사·감사·미지정의 수를 보여 준다.
-- 선택 검사 `impl.checks.rules`: Lint 밖의 규칙 도구(Konsist 등)를 CLI가 작업마다와 마지막 확인에서 돌린다. 실패 종류 `rules`.
-- `verify-principles`는 도구 줄이 없는 원칙만 감사하고, 원칙마다 확인한 곳이나 닿지 않는 이유를 보고한다.
-- 구현 단계의 새 스킬 `sync-rules`: 원칙의 검사를 detekt, ktlint, Konsist의 규칙으로 옮긴다. constitution은 고치지 않는다.
-- 새 단계 `/fix`: 구현이 끝난 feature의 버그 수정과 작은 변경. 정책을 먼저 확인하고, spec은 PATCH 개정일 때만 고치며, breakdown에 수정 단위(`## 수정: FIX-001`, 작업 `[FIX-001]`)를 더한다. 범위는 새 명령 `fix check <feature> <FIX-001>`이 계산하고, 넘으면 정식 경로로 돌려보낸다.
-- `impl start --fix FIX-001`: 수정 단위만 구현한다. 배정은 그 단위의 작업만이고, 마지막 확인은 그 단위가 바꾼 모듈만 돈다. `/impl-orchestrator {feature} --fix FIX-001`.
-- **동작 변경**: breakdown에서 한 스토리의 작업이 다른 스토리를 사이에 두고 다시 나오면 `check`가 오류로 본다. 같은 이름의 단위가 둘 생겨 단위 검증의 기록이 섞이던 문제다. 끝난 스토리에 작업을 더할 때는 그 스토리 섹션 안에 넣거나 `/fix`의 수정 단위를 쓴다.
-- `impl setup`: 검사 명령을 설정에 적는다. 모듈마다 다른 명령은 `"*"`를 기본으로 하는 묶음으로 손으로 적는다. 묶음 안의 `none`은 형식 오류다.
-- `check`가 `impl.checks`의 형식을 보고, 없으면 경고한다.
-- blueprint 템플릿의 조건부 섹션 「인터페이스 계약」: OpenAPI 출처와 조회 시점, 대조하지 못한 계약을 적는다.
-- breakdown의 HTML 주석 안의 줄을 코드 블록처럼 작업 줄로 읽지 않는다. 템플릿 주석의 예시가 남아도 작업이 되지 않는다.
-- 실행 스크립트가 `node`를 찾지 못하면 `figma show`도 `gate`, `status`처럼 안내를 내고 정상 종료한다. Figma를 읽는 스킬이 로드되어 그 안내를 전한다.
-- breakdown 작업 줄의 Figma 노드: 화면을 만드는 작업이 스토리의 화면 가운데 일부만 그리면 설명 끝에 `[화면 이름](Figma URL)`을 적는다. 구현 단계가 그 작업의 디자인 원본으로 쓴다.
-- `figma show`가 개인 설정 파일을 읽지 못하면 거부하지 않고 기본값과 이유를 낸다. Figma를 읽는 스킬이 로드되어 그 사실을 전한다.
-- 개발 중 검증에서 어느 작업의 경로에도 맞지 않는 파일이 실패하면 CLI가 `failures.md`에 "작업 없음 · 사람에게 넘김"으로 적는다. 전에는 마지막 확인에서만 적었다.
-- `check`가 읽지 못하는 `config.local.yaml`을 오류로 싣고 나머지 점검을 계속한다. 전에는 그 자리에서 거부로 끝났다.
-- 새 명령 `impl try <feature> <작업> [--modules] [--only]`: 구현과 치유 스킬의 자체 확인. `impl check`와 같은 `impl.checks` 명령을 돌리고 기록하지 않는다. `create-*`와 `heal-*`는 고정된 Gradle 명령(`compileDebugKotlin`, `ktlintCheck`, `testDebugUnitTest`) 대신 이것을 쓰고, `allowed-tools`에서 `Bash(./gradlew *)`를 뺐다. detekt를 쓰거나 flavor가 있는 프로젝트에서 자체 확인과 판정이 어긋나 치유가 헛돌던 문제다.
-- `impl setup`이 Gradle 설정에서 Lint 도구(detekt, ktlint, kotlinter, spotless), 규칙 도구(Konsist), product flavor, Android가 아닌 Kotlin/JVM 모듈을 찾아, 설정한 명령과 맞지 않아 보이면 제안한다. 모듈마다의 명령은 붙여 넣을 묶음 하나로 보여 준다. Lint 없이 부르면 찾은 도구의 명령을 알려 준다. 제안은 설정에 적지 않는다.
-- 고친 것: 수정 모드의 마지막 확인이 단위 밖 작업의 모듈까지 돌 수 있던 것(모듈과 결과의 신선도를 그 단위의 작업으로 거른다), `impl-orchestrator`가 `verify-ui`에 feature를 넘기지 않던 것, `create-*`의 컴파일 명령이 모듈 경로 앞에 콜론을 하나 더 붙이던 것, `sync-rules`가 `check`의 오류 때문에 로드되지 않던 것, `fix check`와 `impl start`의 안내가 스킬 이름에 접두사를 붙이지 않던 것.
+## [0.5.0] - 2026-11-10
 
-## 0.4.0
+> 올린 뒤: 구현 단계를 시작하려면 검사 명령을 한 번 정해야 한다. `npx sdd-android impl setup`을 인자 없이 실행하면 프로젝트에서 찾은 Lint 도구를 알려 주고, `--lint "<명령>"`(Lint 도구가 없으면 `--lint none`)으로 정한다.
 
-- 내장 확장 `openapi`: blueprint가 서버의 OpenAPI 문서를 조회해 계약의 근거로 삼는다. 출처는 `config.yaml`의 `openapi.sources`. 조회 스크립트는 `run openapi openapi.mjs list|show`.
-- `openapi list|add|remove`: 출처를 설정 파일에 적는다. 설정의 다른 내용과 주석은 그대로 둔다. Swagger UI 페이지의 주소를 주면 그 페이지가 읽는 문서의 주소를 찾아 저장한다.
-- `run <확장> <스크립트> [인자…]`: 확장의 `scripts/` 아래 `.mjs`를 실행 스크립트가 찾은 `node`로 돌린다.
-- `check`가 `openapi.sources`의 형식을 본다.
+### Added
 
-## 0.3.0
+- 구현 단계의 빌드, Lint, 테스트를 CLI가 직접 돌려 판정한다. AI가 결과를 잘못 보고해도 실패한 작업이 체크되지 않는다. 로그는 `.sdd-android/impl/{feature}/logs/`에서 볼 수 있다.
+- `impl setup`: 구현 단계가 돌릴 검사 명령을 `config.yaml`에 적는다. 빌드와 테스트는 기본값이 있어 Lint만 정하면 된다.
+- `impl setup`이 프로젝트의 Gradle 설정을 읽어, 쓰고 있는 Lint 도구(detekt, ktlint, kotlinter, spotless), Konsist, product flavor, Android가 아닌 Kotlin/JVM 모듈에 맞는 명령을 제안한다. 모듈마다 명령이 달라야 하면 `config.yaml`에 붙여 넣을 설정을 보여 준다. 제안은 저절로 적히지 않는다.
+- 구현 스킬이 작업을 넘기기 전에 프로젝트에 정한 명령으로 스스로 확인한다. detekt를 쓰거나 flavor가 있는 프로젝트에서도 자체 확인과 판정이 같은 명령으로 돈다.
+- `/fix`: 구현이 끝난 feature의 버그 수정과 작은 변경을 처리한다. 범위를 계산해 정식 단계가 필요한 변경이면 그쪽으로 안내하고, 구현은 `/impl-orchestrator {feature} --fix FIX-001`로 그 수정만 한다.
+- constitution 원칙마다 지키는 방법을 적는다. 도구로 검사하면 `**검사**: 도구 \`규칙\` (설정 파일)`, 사람이나 AI가 살피면 `**검사**: 감사`. `check`가 도구 규칙이 설정 파일에 켜져 있는지 확인하고, `status`가 방법별 원칙 수를 보여 준다.
+- `/sync-rules`: constitution 원칙을 detekt, ktlint, Konsist 규칙으로 옮긴다.
+- 선택 검사 `rules`: Konsist처럼 Lint와 따로 도는 규칙 도구를 작업마다 돌린다. `impl setup --rules "<명령>"`으로 정한다.
+- breakdown의 작업 줄 끝에 그 작업이 그리는 화면의 Figma 링크(`[화면 이름](Figma URL)`)를 적을 수 있다. 구현 단계가 그 화면을 디자인의 기준으로 쓴다.
+- blueprint의 「인터페이스 계약」 섹션: API 계약을 서버의 OpenAPI 문서와 대조한 결과와, 대조하지 못한 계약을 적는다.
 
-- 이름을 `sdd-android`로 바꿨다. 명령 `sdd-android`, 설치 디렉터리 `.sdd-android/`, 환경 변수 `SDD_ANDROID_ROOT`. 이전 이름으로 설치한 저장소는 없다(공개 전).
-- 구현용 명령 `impl start|assign|next|report|verify|attempt|final|reset|show`와 착수 게이트 `gate implement`. 체크포인트는 `.sdd-android/impl/`에 둔다. `impl final --result pass`는 마지막 확인의 검사 결과(`--check`)를 요구한다.
-- 실패 기록 `docs/specs/{feature}/failures.md`.
-- 내장 확장 `android`의 스킬 열한 개: `impl-orchestrator`, `design-inspector`, `create-test|logic|ui|structure`, `verify-build|ui|principles`, `heal-build|test`. `init --extension android`로 코어와 함께 설치하거나, 이미 설치된 저장소에 `extension add android`로 더한다. 코어만으로는 analyze까지다.
-- Figma 서버 설정 `figma show|setup`. `.sdd-android/config.local.yaml`과 `.claude/settings.local.json`의 읽기 도구 권한.
-- `doc revise breakdown`이 작업이 더해지면 마지막 확인 줄을 내리고, `check`가 어긋난 마지막 확인 줄을 오류로 본다.
-- `status`가 feature의 구현 완료와 구현 중을 알린다.
+### Changed
 
-## 0.2.0
+- Android 전용이 됐다. `init` 한 번으로 문서 단계부터 구현 단계까지의 스킬이 모두 설치된다. 확장을 따로 더하지 않는다.
+- OpenAPI 대조가 기본 기능이 됐다. `openapi add`로 출처를 등록하면 blueprint가 대조하고, 출처가 없으면 건너뛴다. 조회는 `openapi operations`와 `openapi show`로 한다.
+- 검사 명령이 정해져 있지 않으면 구현 단계를 시작하지 않는다. 이미 진행 중이던 구현은 그대로 이어진다.
+- Lint를 건너뛰려면 설정에 `lint: none`을 적는다. 검사 결과나 건너뜀을 명령 인자로 넘기는 방법은 없어졌다.
+- 검사한 뒤 코드가 바뀌면 그 결과로 작업을 체크하지 않고 다시 검사하게 한다.
+- breakdown에서 한 스토리의 작업이 다른 스토리 뒤에 다시 나오면 `check`가 오류로 알린다. 끝난 스토리에 작업을 더할 때는 그 스토리 섹션 안에 넣거나 `/fix`를 쓴다.
+- 어느 작업에도 속하지 않는 파일에서 검사가 실패하면 구현 중에도 `failures.md`에 사람에게 넘긴 것으로 적는다. 전에는 마지막 확인에서만 적었다.
+- `check`가 `config.local.yaml`을 읽지 못해도 멈추지 않고 그 문제를 알린 뒤 나머지를 점검한다. `figma show`도 이때 기본값으로 동작하며 이유를 알린다.
+- `verify-principles`가 도구로 검사하지 않는 원칙만 살피고, 원칙마다 확인한 곳이나 확인하지 못한 이유를 보고한다.
+- `impl.checks`의 모듈별 명령 안에는 `none`을 쓸 수 없다. 한 모듈에만 도구가 없으면 그 모듈에서 성공하는 명령을 적는다.
 
-- `upgrade`: 설치된 파일을 새 버전으로 올린다. 고친 파일은 그대로 두고 새 버전을 `.new`로 옆에 둔다.
-- 읽기 전용 단계 clarify와 analyze.
-- 병합 뒤 정리 `doc restore`. 번호가 겹친 항목의 판별.
-- 확장 체계: `extension`과 `preset`의 설치와 제거, 단계 지시(`directives`). 코어의 원본을 번들에 싣는다.
-- 실행 스크립트 `.sdd-android/bin/sdd-android`: 로그인 셸이 아닌 곳에서도 `node`를 찾는다.
-- 빌드가 원본의 줄바꿈을 LF로 통일한다.
+### Removed
 
-## 0.1.0
+- 확장 체계: `init --extension`, `extension`, `preset`, `directives`, `run` 명령과 `.sdd-android/extensions/` 디렉터리.
 
-- 첫 버전. `init`, `status`, `check`, `gate`, `doc`, `hook`, `upgrade` 명령.
-- 단계 스킬 다섯 개: constitution, prd, spec, blueprint, breakdown.
-- 버전 체인의 판정과 착수 게이트, 개정 모드.
+### Fixed
+
+- 컴퓨터에서 `node`를 찾지 못할 때 Figma를 읽는 스킬이 로드되지 않던 문제.
+- breakdown 템플릿의 주석에 남은 예시가 작업으로 읽히던 문제.
+- `/fix`의 마지막 확인이 수정 범위 밖의 모듈까지 검사하던 문제.
+- `/impl-orchestrator`가 UI 검증에 feature를 넘기지 않던 문제.
+- 구현 스킬의 컴파일 명령이 모듈 경로에 콜론을 하나 더 붙여 실패하던 문제.
+- `check`에 오류가 있으면 `/sync-rules`가 실행되지 않던 문제.
+- 스킬 접두사를 설정한 저장소에서 안내에 나오는 스킬 이름에 접두사가 빠지던 문제.
+
+## [0.4.0] - 2026-10-27
+
+### Added
+
+- 내장 확장 `openapi`: blueprint가 서버의 OpenAPI 문서를 조회해 API 계약의 근거로 삼는다.
+- `openapi list|add|remove`: OpenAPI 출처를 등록하고 지운다. Swagger UI 페이지 주소를 주면 그 페이지가 읽는 문서의 주소를 찾아 저장한다. 설정 파일의 다른 내용과 주석은 그대로 둔다.
+- `run <확장> <스크립트>`: 확장이 제공하는 스크립트를 실행한다.
+- `check`가 OpenAPI 출처 설정의 형식을 점검한다.
+
+## [0.3.0] - 2026-10-08
+
+### Added
+
+- 구현 단계: 내장 확장 `android`가 스킬 열한 개를 설치한다. `/impl-orchestrator`가 작업을 나눠 맡기고, `create-*`가 구현하고, `verify-*`가 검증하고, `heal-*`가 실패를 고친다. `init --extension android`로 함께 설치하거나, 이미 설치한 저장소에 `extension add android`로 더한다.
+- 구현의 진행 상황을 `.sdd-android/impl/`에 저장해, 중단돼도 이어서 진행한다. 구현을 시작하기 전의 확인 `gate implement`.
+- 구현 중 실패를 `docs/specs/{feature}/failures.md`에 기록한다.
+- `figma show|setup`: 구현 단계가 쓸 Figma 서버를 설정한다. 개인 설정은 `.sdd-android/config.local.yaml`에 두고, `.claude/settings.local.json`에 읽기 도구 권한을 더한다.
+- `status`가 feature의 구현 완료와 구현 중을 보여 준다.
+
+### Changed
+
+- breakdown을 개정해 작업이 더해지면 마지막 확인의 체크가 풀린다. `check`가 맞지 않는 마지막 확인을 오류로 알린다.
+
+## [0.2.0] - 2026-10-07
+
+### Added
+
+- `upgrade`: 설치한 파일을 새 버전으로 올린다. 직접 고친 파일은 덮어쓰지 않고 새 버전을 `.new`로 옆에 둔다.
+- clarify 단계: spec의 모호한 곳과 상위 문서와 어긋나는 곳을 찾아 묻는다. 파일을 고치지 않는다.
+- analyze 단계: spec, blueprint, breakdown을 맞대어 요구사항이 설계와 작업에 빠짐없이 반영되었는지 본다. 파일을 고치지 않는다.
+- `doc restore`: 브랜치를 병합한 뒤 문서를 정리하고, 번호가 겹친 항목을 가려낸다.
+- 확장 체계: `extension`과 `preset`의 설치와 제거, 단계별 지시(`directives`).
+- 실행 스크립트 `.sdd-android/bin/sdd-android`: IDE처럼 로그인 셸이 아닌 곳에서도 `node`를 찾는다.
+
+### Changed
+
+- 설치되는 파일의 줄바꿈이 LF로 통일된다.
+
+## [0.1.0] - 2026-10-04
+
+### Added
+
+- 첫 버전. 문서 단계의 스킬 다섯 개(constitution, prd, spec, blueprint, breakdown)와 명령 `init`, `status`, `check`, `gate`, `doc`, `hook`.
+- 문서 사이의 버전 연결을 판정해, 앞 단계 문서가 확정되지 않았거나 바뀌었으면 다음 단계를 시작하지 않는다. 확정한 문서를 고치는 개정 모드.

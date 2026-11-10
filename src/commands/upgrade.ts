@@ -35,7 +35,7 @@ export interface UpgradeResult {
   changes: string;
 }
 
-/** `CHANGELOG.md`에서 `from`보다 뒤이고 `to`까지인 버전의 항목을 뽑는다. 제목은 `## 0.2.0` 형태다. */
+/** `CHANGELOG.md`에서 `from`보다 뒤이고 `to`까지인 버전의 항목을 뽑는다. 제목은 `## [0.2.0] - 2026-10-07`이나 `## 0.2.0` 형태다. */
 export function changelogBetween(changelog: string, from: string, to: string): string {
   const sections: string[] = [];
   let current: { version: string; lines: string[] } | undefined;
