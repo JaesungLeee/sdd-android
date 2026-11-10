@@ -12,13 +12,13 @@
 
 | 명령 | 하는 일 |
 |---|---|
-| `init` | 설치. `--language ko`, `--prefix <접두사>`, `--yes`(묻지 않고 기본값) |
+| `init` | 설치. 터미널에서는 접두사를 묻고, 끝에서 구현 단계의 검사 명령(`impl setup`)도 이어서 묻는다. `--language ko`, `--prefix <접두사>`, `--yes`(묻지 않고 기본값) |
 | `upgrade` | 설치된 파일을 실행한 패키지의 버전으로 올린다 |
 | `status [feature]` | 문서의 상태, 체크리스트와 작업의 집계, 버전 체인 판정. feature의 구현 중과 구현 완료를 알린다 |
 | `check` | 설치 점검과 문서의 형식·일관성 검사. 오류가 있으면 1로 끝나고, 경고만 있으면 0이다. CI에 둔다 |
 | `figma show\|setup` | Figma 서버 설정과 읽기 도구의 권한 |
 | `openapi list\|add\|remove` | OpenAPI 출처. `add <이름> --url <주소>`나 `--path <경로>`. [OpenAPI 대조](openapi.md) |
-| `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. `--build`, `--lint <명령\|none>`, `--test`, `--rules <명령\|none>`. [구현 단계](implementation.md#기계-검사) |
+| `impl setup` | 구현 단계의 기계 검사 명령을 `config.yaml`의 `impl.checks`에 적는다. 터미널에서 인자 없이 실행하면 프로젝트에서 찾은 도구를 보여 주고 묻는다. `--build`, `--lint <명령\|none>`, `--test`, `--rules <명령\|none>`. [구현 단계](implementation.md#기계-검사) |
 
 나머지는 스킬이 부른다. 직접 칠 일은 없지만 스킬의 보고에 이름이 나온다.
 

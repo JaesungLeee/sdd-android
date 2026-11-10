@@ -45,10 +45,11 @@ import {
   parseChecks,
 } from "./commands/impl.js";
 import { isCheck, type Check } from "./core/checkpoint.js";
-import { implSetup, isMachineCheck, MACHINE_CHECKS, type MachineCheck } from "./core/impl-config.js";
+import { implSetup, isMachineCheck, MACHINE_CHECKS, type MachineCheck, type SetupResult } from "./core/impl-config.js";
 import { loadAssets } from "./core/assets.js";
 import { init, type InitOptions } from "./commands/init.js";
-import { promptInit } from "./commands/init-prompt.js";
+import { confirm, promptInit } from "./commands/init-prompt.js";
+import { promptImplSetup, type SetupPromptOptions } from "./commands/impl-setup-prompt.js";
 import { formatStatus, status } from "./commands/status.js";
 import { formatUpgrade, upgrade } from "./commands/upgrade.js";
 import { addSource, formatSources as formatOpenApiSources, listSources, removeSource } from "./commands/openapi.js";
@@ -79,7 +80,7 @@ const USAGE = `sdd-android <명령>
   impl assign <feature> T001=종류… 작업의 종류를 기록한다 (test, logic, ui, structure)
   impl next <feature>              다음 작업과 종류, 단계
   impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
-  impl setup                       기계 검사의 명령을 config.yaml에 적는다 (--build, --lint <명령|none>, --test, --rules <명령|none>)
+  impl setup                       기계 검사의 명령을 config.yaml에 적는다. 터미널에서 인자 없이 부르면 묻는다 (--build, --lint <명령|none>, --test, --rules <명령|none>)
   impl check <feature> [작업]      CLI가 빌드, Lint, 규칙, 테스트를 돌려 종료 코드로 적는다 (--final이면 마지막 확인)
   impl try <feature> <작업>        스킬의 자체 확인. impl check와 같은 명령을 돌리고 기록하지 않는다 (--modules, --only build,lint,rules,test)
   impl verify <feature> [작업]     검증 결과를 판정한다. 빌드·Lint·테스트는 impl check의 결과를 쓴다 (--check 디자인·원칙=결과, 실패 지목, --files, --unit)
@@ -294,10 +295,11 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
   if (command === "impl") {
     const [action, featureArg, taskArg] = rest;
     if (action === "setup") {
-      const result = implSetup(repo, { build: values.build, lint: values.lint, test: values.test, rules: values.rules });
-      const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${result.checks[kind] === undefined ? "없음" : JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
-      const notes = result.notes.length > 0 ? ["", "프로젝트의 Gradle 설정에서 찾은 것과 맞지 않아 보이는 곳이다. 추정이라 적지 않았다. 맞으면 고쳐 적는다.", ...result.notes.map((note) => `- ${note}`)] : [];
-      return { text: ["구현 단계의 검사 명령 (.sdd-android/config.yaml의 impl.checks):", ...lines, ...notes].join("\n"), data: result };
+      const given = { build: values.build, lint: values.lint, test: values.test, rules: values.rules };
+      // 인자가 없으면 사람에게 묻는다. 에이전트의 셸은 터미널이 아니라 묻는 흐름에 들어오지 못한다.
+      const asking = interactive(values) && Object.values(given).every((value) => value === undefined);
+      const result = implSetup(repo, asking ? await withTerminal((prompt) => promptImplSetup(repo, prompt)) : given);
+      return { text: formatSetup(result), data: result };
     }
     const feature = requireFeatureArg(featureArg);
     const today = write.today;
@@ -480,9 +482,32 @@ ${formatOpenApiSources(result.sources)}`, data: result };
   throw new Refusal(`알 수 없는 명령이다: ${positionals.join(" ")}\n\n${USAGE}`);
 }
 
+/** 터미널에서 실행했고 `--yes`와 `--json`이 없다. 스크립트와 CI에서는 묻지 않아야 멈추지 않는다. */
+function interactive(values: { yes: boolean; json: boolean }): boolean {
+  return Boolean(process.stdin.isTTY) && !values.yes && !values.json;
+}
+
+/** 터미널을 열어 묻고 닫는다. */
+async function withTerminal<T>(body: (prompt: SetupPromptOptions) => Promise<T>): Promise<T> {
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await body({ ask: (question) => terminal.question(question), print: (text) => console.log(text) });
+  } finally {
+    terminal.close();
+  }
+}
+
+function formatSetup(result: SetupResult): string {
+  const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${result.checks[kind] === undefined ? "없음" : JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
+  const notes = result.notes.length > 0 ? ["", "프로젝트의 Gradle 설정에서 찾은 것과 맞지 않아 보이는 곳이다. 추정이라 적지 않았다. 맞으면 고쳐 적는다.", ...result.notes.map((note) => `- ${note}`)] : [];
+  return ["구현 단계의 검사 명령 (.sdd-android/config.yaml의 impl.checks):", ...lines, ...notes].join("\n");
+}
+
+const SETUP_HINT = "구현 단계를 쓰기 전에 터미널에서 sdd-android impl setup을 실행해 검사 명령을 정한다. 프로젝트에서 찾은 도구를 보여 주고 묻는다.";
+
 /**
  * 설치. 터미널에서 실행했고 `--yes`가 없으면 묻고, 아니면 인자와 기본값으로 진행한다.
- * 스크립트와 CI에서는 묻지 않아야 멈추지 않는다.
+ * 물어서 설치했으면 이어서 구현 단계의 검사 명령도 정할지 묻는다.
  */
 async function runInit(argv: string[]): Promise<{ text: string; data: unknown }> {
   const { values } = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS });
@@ -495,23 +520,27 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     version: VERSION,
     today: localDate(),
   };
-  let options: InitOptions | undefined = base;
-
-  if (process.stdin.isTTY && !values.yes && !values.json) {
-    const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-      options = await promptInit(base, {
-        prefixGiven: values.prefix !== undefined,
-        ask: (question) => terminal.question(question),
-        print: (text) => console.log(text),
-      });
-    } finally {
-      terminal.close();
-    }
-    if (!options) return { text: "설치하지 않았다.", data: { installed: false } };
+  if (!interactive(values)) {
+    const result = init(base);
+    return { text: [formatInit(result), SETUP_HINT, FIGMA_HINT].join("\n"), data: result };
   }
+  return withTerminal(async (prompt) => {
+    const options = await promptInit(base, { ...prompt, prefixGiven: values.prefix !== undefined });
+    if (!options) return { text: "설치하지 않았다.", data: { installed: false } };
+    const result = init(options);
+    prompt.print(formatInit(result));
+    if (!(await confirm(prompt.ask, "\n구현 단계가 돌릴 검사 명령(빌드, Lint, 테스트)을 지금 정할까? (Y/n): "))) {
+      return { text: [SETUP_HINT, FIGMA_HINT].join("\n"), data: result };
+    }
+    const repo = openRepo(options.target);
+    const setup = implSetup(repo, await promptImplSetup(repo, prompt));
+    return { text: ["", formatSetup(setup), "", FIGMA_HINT].join("\n"), data: { ...result, setup } };
+  });
+}
 
-  const result = init(options);
+const FIGMA_HINT = "Figma를 쓰면 sdd-android figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다.";
+
+function formatInit(result: ReturnType<typeof init>): string {
   const lines = [
     `sdd-android ${VERSION}을 설치했다.`,
     ...result.files.map((file) => `- ${file}`),
@@ -520,10 +549,8 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
-    "구현 단계를 쓰기 전에 sdd-android impl setup --lint <명령|none>으로 검사 명령을 정한다. 인자 없이 부르면 Gradle 설정에서 찾은 Lint 도구를 알려 준다.",
-    "Figma를 쓰면 sdd-android figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다.",
   ];
-  return { text: lines.join("\n").trimEnd(), data: result };
+  return lines.join("\n").trimEnd();
 }
 
 async function main(): Promise<void> {

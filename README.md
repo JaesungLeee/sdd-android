@@ -18,9 +18,9 @@
 ## 설치
 
 ```sh
-npx sdd-android init                                     # 문서 단계부터 구현 단계까지
-npx sdd-android impl setup --lint "./gradlew {module}:detekt" # 구현 단계가 돌릴 검사 명령 (Lint가 없으면 --lint none)
-npx sdd-android@latest upgrade                           # 새 버전으로 올린다
+npx sdd-android init              # 문서 단계부터 구현 단계까지. 끝에서 구현 단계의 검사 명령도 묻는다
+npx sdd-android impl setup        # 검사 명령을 나중에 정하거나 바꿀 때
+npx sdd-android@latest upgrade    # 새 버전으로 올린다
 ```
 
 설치되는 곳은 두 군데다. 둘 다 커밋한다.

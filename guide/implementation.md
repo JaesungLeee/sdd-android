@@ -1,9 +1,10 @@
 # 구현 단계
 
-breakdown의 작업을 구현하고, 검증하고, 실패하면 치유하며, 검증을 통과한 작업만 체크한다. `init`이 문서 단계와 함께 설치한다. 시작하기 전에 검사 명령을 정한다.
+breakdown의 작업을 구현하고, 검증하고, 실패하면 치유하며, 검증을 통과한 작업만 체크한다. `init`이 문서 단계와 함께 설치한다. 시작하기 전에 검사 명령을 정한다. `init`의 끝에서 이어서 정할 수 있고, 건너뛰었거나 바꾸려면 터미널에서 따로 실행한다.
 
 ```sh
-npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 기계 검사의 명령. Lint가 없으면 --lint none
+npx sdd-android impl setup                                      # 프로젝트에서 찾은 도구를 보여 주고 묻는다
+npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 묻지 않고 정한다. Lint가 없으면 --lint none
 ```
 
 스택 전제는 Kotlin, Gradle, Jetpack Compose까지다. 아키텍처 패턴(MVI, MVVM 등), DI, 모듈 구조 같은 프로젝트 고유의 규약은 스킬에 없다. constitution에 적어야 구현이 따르고 검증이 잡는다.
@@ -68,7 +69,10 @@ npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 기계 검사�
 빌드, Lint, 테스트의 통과와 실패는 CLI가 정한다. 에이전트가 "통과했다"고 보고하는 것만으로는 체크가 오르지 않는다.
 
 - 명령은 `.sdd-android/config.yaml`의 `impl.checks`에 있다. 커밋하는 설정이라 팀이 같은 검사를 돌린다. `impl setup`이 적고, 손으로 고쳐도 된다.
-- `impl setup`은 Gradle 설정(모듈의 빌드 스크립트, `build-logic`과 `buildSrc`의 컨벤션 플러그인)을 읽어 Lint 도구(detekt, ktlint, kotlinter, spotless), 규칙 도구(Konsist), product flavor, Android가 아닌 Kotlin/JVM 모듈을 찾고, 설정한 명령과 맞지 않아 보이면 제안한다. Lint를 정하지 않고 부르면 찾은 도구의 명령을 알려 주며 거부한다. flavor가 있는 모듈(variant를 고른 명령)과 JVM 모듈(`compileKotlin`, `test`)은 붙여 넣을 모듈별 묶음 하나로 모아 보여 준다. 빌드 스크립트는 코드라 찾은 것은 추정이므로, 제안은 적지 않고 사람이 확인해 적는다.
+- `impl setup`은 Gradle 설정(모듈의 빌드 스크립트, `build-logic`과 `buildSrc`의 컨벤션 플러그인)을 읽어 Lint 도구(detekt, ktlint, kotlinter, spotless), 규칙 도구(Konsist), product flavor, Android가 아닌 Kotlin/JVM 모듈을 찾는다. 빌드 스크립트는 코드라 찾은 것은 추정이므로, 사람이 보고 고른 것만 적는다.
+- **터미널에서 인자 없이 실행하면 묻는다.** Lint 명령을 찾은 도구 가운데서 고르거나(`n`이면 Lint 없음, 다른 명령은 그대로 입력), 찾은 규칙 도구를 돌릴지, flavor가 있는 모듈(variant를 고른 명령)과 JVM 모듈(`compileKotlin`, `test`)의 모듈별 명령을 적을지 묻는다. 찾은 것이 없는 질문은 건너뛴다. 지금 설정이 Enter의 기본이라 다시 실행해도 바뀌지 않는다.
+- **인자를 주거나 터미널이 아니면 묻지 않는다.** 준 것만 적고, 찾은 것과 맞지 않아 보이는 곳은 붙여 넣을 모듈별 묶음과 함께 제안으로만 보여 준다. Lint를 정하지 않았으면 찾은 도구의 명령을 알려 주며 거부한다. 에이전트의 셸은 터미널이 아니라서 묻는 흐름에 들어오지 못한다. 검사 명령은 판정의 기준이라 사람이 정한다.
+- 컨벤션 플러그인에서 찾은 flavor와 JVM 모듈은 어느 모듈이 쓰는지 알 수 없어 묻지 않는다. 적은 뒤 제안으로 보여 주므로 모듈마다 직접 적는다.
 
 ```yaml
 impl:
