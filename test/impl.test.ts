@@ -22,6 +22,7 @@ import {
   type Exec,
 } from "../src/commands/impl.js";
 import { implSetup, readImplChecks } from "../src/core/impl-config.js";
+import { promptImplSetup } from "../src/commands/impl-setup-prompt.js";
 import { detectProject } from "../src/core/detect.js";
 import { fixCheck, formatFixCheck } from "../src/commands/fix.js";
 import { status } from "../src/commands/status.js";
@@ -295,6 +296,97 @@ describe("착수 게이트와 체크포인트", () => {
     expect(after).toContain(":core:domain에 flavor(free, paid)가 있다");
     expect(after).toContain(":core:model 모듈은 Android가 아닌 Kotlin/JVM 모듈이다");
     expect(after).not.toContain('":app": "./gradlew {module}:compileProdDebugKotlin"');
+  });
+
+  describe("setup의 묻는 흐름", () => {
+    const scripted = (answers: string[]) => {
+      const asked: string[] = [];
+      const printed: string[] = [];
+      return {
+        asked,
+        printed,
+        prompt: {
+          ask: async (question: string) => {
+            asked.push(question);
+            const answer = answers.shift();
+            if (answer === undefined) throw new Error(`답이 없는 질문: ${question}`);
+            return answer;
+          },
+          print: (text: string) => void printed.push(text),
+        },
+      };
+    };
+    const write = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(repo.root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(repo.root, rel), text);
+    };
+    const file = () => path.join(repo.root, ".sdd-android", "config.yaml");
+
+    beforeEach(() => fs.writeFileSync(file(), "language: ko\ndocs_dir: docs\n"));
+
+    it("찾은 도구가 없으면 Lint 하나만 묻고, Enter는 Lint 없음이다", async () => {
+      const script = scripted([""]);
+      const options = await promptImplSetup(repo, script.prompt);
+      expect(script.asked).toEqual(["선택 (Enter면 n): "]);
+      expect(script.printed.join("\n")).toContain("Lint 도구(detekt, ktlint, kotlinter, spotless)를 찾지 못했다");
+      expect(options).toEqual({ lint: "none" });
+      expect(implSetup(repo, options).checks).toEqual({
+        build: "./gradlew {module}:compileDebugKotlin",
+        lint: "none",
+        test: "./gradlew {module}:testDebugUnitTest {tests}",
+      });
+    });
+
+    it("찾은 Lint, 규칙 도구, 모듈마다의 명령을 Enter로 받아들이면 모두 적고, 다시 부르면 바뀌지 않는다", async () => {
+      write("build.gradle.kts", 'plugins {\n  id("io.gitlab.arturbosch.detekt") version "1.23.6" apply false\n}\n');
+      write("app/build.gradle.kts", 'android {\n  productFlavors {\n    create("prod") {}\n    create("dev") {}\n  }\n}\n');
+      write("core/model/build.gradle.kts", 'plugins {\n  kotlin("jvm")\n}\n');
+      write("konsist/build.gradle.kts", "dependencies {\n  testImplementation(libs.konsist)\n}\n");
+      write("build-logic/convention/src/main/kotlin/Flavors.kt", 'fun configure() { productFlavors { create("staging") {} } }\n');
+
+      const script = scripted(["", "", ""]);
+      const options = await promptImplSetup(repo, script.prompt);
+      const printed = script.printed.join("\n");
+      expect(printed).toContain("Lint 명령을 고른다. 프로젝트에서 detekt(build.gradle.kts)를 찾았다.\n  1) ./gradlew {module}:detekt\n  n) Lint 없이 진행한다");
+      expect(printed).toContain(":app에 flavor(prod, dev)가 있다");
+      // 모듈을 알 수 없는 컨벤션 플러그인은 묻지 않고 적은 뒤의 제안으로 남는다
+      expect(printed).not.toContain("Flavors.kt");
+      expect(options).toEqual({
+        lint: "./gradlew {module}:detekt",
+        rules: "./gradlew :konsist:test",
+        build: { "*": "./gradlew {module}:compileDebugKotlin", ":app": "./gradlew {module}:compileProdDebugKotlin", ":core:model": "./gradlew {module}:compileKotlin" },
+        test: { "*": "./gradlew {module}:testDebugUnitTest {tests}", ":app": "./gradlew {module}:testProdDebugUnitTest {tests}", ":core:model": "./gradlew {module}:test {tests}" },
+      });
+
+      const result = implSetup(repo, options);
+      expect(readImplChecks(repo)).toEqual(result.checks);
+      expect(readImplChecks(repo)?.build).toEqual(options.build);
+      const notes = result.notes.join("\n");
+      expect(notes).not.toContain(":app에 flavor");
+      expect(notes).toContain("컨벤션 플러그인(build-logic/convention/src/main/kotlin/Flavors.kt)에 flavor(staging)가 있다");
+
+      const again = scripted([""]);
+      expect(await promptImplSetup(repo, again.prompt)).toEqual({});
+      expect(again.asked).toHaveLength(1);
+      expect(again.printed.join("\n")).toContain("1) ./gradlew {module}:detekt (지금 설정)");
+    });
+
+    it("n으로 거절한 제안은 적지 않고, 짧은 답은 명령으로 받지 않으며, 직접 입력한 명령은 그대로 적는다", async () => {
+      write("build.gradle.kts", 'plugins {\n  id("org.jmailen.kotlinter")\n}\n');
+      write("app/build.gradle.kts", 'android {\n  productFlavors {\n    create("prod") {}\n  }\n}\n');
+      write("konsist/build.gradle.kts", "dependencies {\n  testImplementation(libs.konsist)\n}\n");
+
+      const script = scripted(["y", "3", "./gradlew {module}:lintKotlin --continue", "n", "n"]);
+      expect(await promptImplSetup(repo, script.prompt)).toEqual({ lint: "./gradlew {module}:lintKotlin --continue" });
+      expect(script.printed).toContain("없는 번호다.");
+      expect(script.printed.join("\n")).toContain("번호나 n, 또는");
+
+      // 지금 설정이 찾은 명령과 다르면 그대로 두는 선택지가 기본이다
+      implSetup(repo, { lint: "./gradlew {module}:lintKotlin --continue" });
+      const again = scripted(["", "n", "n"]);
+      expect(await promptImplSetup(repo, again.prompt)).toEqual({});
+      expect(again.printed.join("\n")).toContain("1) 지금 설정을 둔다: ./gradlew {module}:lintKotlin --continue\n  2) ./gradlew {module}:lintKotlin");
+    });
   });
 
   it("배정은 모든 작업을 덮어야 하고 연결 표기가 있는 작업은 test여야 한다", () => {

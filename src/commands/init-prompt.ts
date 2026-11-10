@@ -46,8 +46,13 @@ export async function promptInit(base: InitOptions, prompt: PromptOptions): Prom
   const skills = plan.skills.map((name) => `/${name}`).join(", ");
   print(`설치할 파일 ${plan.files.size + 2}개. 스킬: ${skills}`);
   if (options.backup) print(`백업으로 옮길 스킬: ${plan.conflicts.skills.join(", ")} (.sdd-android/backup/ 아래)`);
-  const confirm = (await ask("진행할까? (Y/n): ")).trim().toLowerCase();
-  return confirm === "" || confirm === "y" || confirm === "yes" ? options : undefined;
+  return (await confirm(ask, "진행할까? (Y/n): ")) ? options : undefined;
+}
+
+/** 예, 아니요를 묻는다. Enter는 예다. */
+export async function confirm(ask: Ask, question: string): Promise<boolean> {
+  const answer = (await ask(question)).trim().toLowerCase();
+  return answer === "" || answer === "y" || answer === "yes";
 }
 
 async function askPrefix(options: InitOptions, ask: Ask, print: (text: string) => void, question: string): Promise<string> {

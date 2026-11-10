@@ -91,7 +91,7 @@ export function requireImplChecks(repo: Repo): ImplChecks {
   }
   if (!result.checks) {
     throw new Refusal(
-      `구현 단계의 검사 명령이 설정되어 있지 않다: ${result.missing.join(", ")}. 사용자가 sdd-android impl setup --lint <명령|none>으로 정한다(빌드와 테스트는 기본값이 있다). 검사는 CLI가 이 명령을 돌려 종료 코드로 판정한다.`,
+      `구현 단계의 검사 명령이 설정되어 있지 않다: ${result.missing.join(", ")}. 사용자가 터미널에서 sdd-android impl setup을 실행해 묻는 대로 고른다(인자로는 --lint <명령|none>. 빌드와 테스트는 기본값이 있다). 검사는 CLI가 이 명령을 돌려 종료 코드로 판정한다.`,
     );
   }
   return result.checks;
@@ -106,15 +106,30 @@ export function readImplChecks(repo: Repo): ImplChecks | undefined {
   }
 }
 
+/** 지금 적혀 있는 검사 명령. 빠진 검사가 있어도 있는 것만 돌려준다. 형식이 어긋나면 비어 있다. */
+export function readPartialChecks(repo: Repo): Partial<ImplChecks> {
+  try {
+    const checks = (readRaw(repo) as { checks?: Record<string, unknown> } | undefined)?.checks ?? {};
+    const partial: Partial<ImplChecks> = {};
+    for (const kind of MACHINE_CHECKS) {
+      if (checks[kind] !== undefined && checks[kind] !== null) partial[kind] = validateSpec(`impl.checks.${kind}`, checks[kind]);
+    }
+    return partial;
+  } catch {
+    return {};
+  }
+}
+
 /** 모듈에 맞는 명령. 모듈 묶음이면 그 모듈의 것, 없으면 `*`. */
 export function commandFor(spec: CommandSpec, module: string): string {
   return typeof spec === "string" ? spec : (spec[module] ?? (spec["*"] as string));
 }
 
 export interface SetupOptions {
-  build?: string;
+  /** 빌드와 테스트는 모듈 묶음도 받는다. 묻는 흐름에서 사람이 모듈마다의 제안을 받아들였을 때다. */
+  build?: CommandSpec;
   lint?: string;
-  test?: string;
+  test?: CommandSpec;
   rules?: string;
 }
 
@@ -125,8 +140,62 @@ export interface SetupResult {
   notes: string[];
 }
 
-function spoken(found: Found[]): string {
+export function spoken(found: Found[]): string {
   return found.map((item) => `${item.tool}(${item.file})`).join(", ");
+}
+
+export interface ModuleCommands {
+  /** 모듈마다의 사유. 컨벤션 플러그인처럼 모듈을 알 수 없는 곳은 module이 비어 있고 고칠 명령이 없다. */
+  reasons: { module: string; text: string }[];
+  /** 고칠 모듈과 제안하는 명령. */
+  entries: Record<"build" | "test", [string, string][]>;
+}
+
+/** 빌드와 테스트의 명령이 모듈에 맞지 않아 보이는 곳. 사유는 모듈마다, 고칠 명령은 검사마다 모은다. */
+export function moduleCommands(checks: Pick<ImplChecks, "build" | "test">, detected: Detected): ModuleCommands {
+  const reasons: ModuleCommands["reasons"] = [];
+  const entries: Record<"build" | "test", [string, string][]> = { build: [], test: [] };
+  const suggest = (module: string, kind: "build" | "test", command: string) => {
+    if (!entries[kind].some(([name]) => name === module)) entries[kind].push([module, command]);
+  };
+  for (const flavored of detected.flavors) {
+    const names = flavored.names.join(", ");
+    if (!flavored.module) {
+      reasons.push({
+        module: "",
+        text: `컨벤션 플러그인(${flavored.file})에 flavor(${names})가 있다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. 모든 모듈이 쓰면 "*"를 flavor의 명령으로 적는다.`,
+      });
+      continue;
+    }
+    const unhandled = (["build", "test"] as const).filter((kind) => {
+      const command = commandFor(checks[kind], flavored.module).toLowerCase();
+      return !flavored.names.some((name) => command.includes(name.toLowerCase()));
+    });
+    if (unhandled.length === 0) continue;
+    reasons.push({ module: flavored.module, text: `${flavored.module}에 flavor(${names})가 있다(${flavored.file}). 지금 명령은 그 모듈에서 variant를 고르지 않아 돌지 않을 수 있다.` });
+    const commands = flavorCommands(flavored.names[0] as string);
+    for (const kind of unhandled) suggest(flavored.module, kind, commands[kind]);
+  }
+  for (const jvm of detected.jvm) {
+    if (!jvm.module) {
+      reasons.push({
+        module: "",
+        text: `컨벤션 플러그인(${jvm.file})이 Kotlin/JVM 모듈을 만든다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다(\`compileKotlin\`, \`test\`).`,
+      });
+      continue;
+    }
+    // 디버그 variant의 태스크는 Android 모듈에만 있다.
+    const unhandled = (["build", "test"] as const).filter((kind) => /debug/i.test(commandFor(checks[kind], jvm.module)));
+    if (unhandled.length === 0) continue;
+    reasons.push({ module: jvm.module, text: `${jvm.module} 모듈은 Android가 아닌 Kotlin/JVM 모듈이다(${jvm.file}). 지금 명령은 Android의 디버그 태스크라 그 모듈에 없다.` });
+    for (const kind of unhandled) suggest(jvm.module, kind, JVM_COMMANDS[kind]);
+  }
+  return { reasons, entries };
+}
+
+/** 지금 명령에 모듈마다의 제안을 더한 묶음. 이미 있는 모듈의 명령은 제안으로 바꾼다. */
+export function withModules(spec: CommandSpec, entries: [string, string][]): Record<string, string> {
+  return { ...(typeof spec === "string" ? { "*": spec } : spec), ...Object.fromEntries(entries) };
 }
 
 /** 설정한 명령과 프로젝트에서 찾은 것을 맞대어 제안을 낸다. 찾은 것은 추정이라 적지 않고 보여 주기만 한다. */
@@ -145,37 +214,9 @@ export function setupNotes(checks: ImplChecks, detected: Detected): string[] {
   if (checks.rules === undefined && detected.rules.length > 0) {
     notes.push(`규칙 도구 ${spoken(detected.rules)}를 찾았다. 구현 단계에서 돌리려면 --rules "${detected.rules[0]?.command}"로 정한다.`);
   }
-  // 빌드와 테스트의 명령이 모듈에 맞지 않아 보이는 곳. 사유는 모듈마다, 고칠 묶음은 하나로 모아 보여 준다.
-  const entries: Record<"build" | "test", [string, string][]> = { build: [], test: [] };
-  const suggest = (module: string, kind: "build" | "test", command: string) => {
-    if (!entries[kind].some(([name]) => name === module)) entries[kind].push([module, command]);
-  };
-  for (const flavored of detected.flavors) {
-    const names = flavored.names.join(", ");
-    if (!flavored.module) {
-      notes.push(`컨벤션 플러그인(${flavored.file})에 flavor(${names})가 있다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. 모든 모듈이 쓰면 "*"를 flavor의 명령으로 적는다.`);
-      continue;
-    }
-    const unhandled = (["build", "test"] as const).filter((kind) => {
-      const command = commandFor(checks[kind], flavored.module).toLowerCase();
-      return !flavored.names.some((name) => command.includes(name.toLowerCase()));
-    });
-    if (unhandled.length === 0) continue;
-    notes.push(`${flavored.module}에 flavor(${names})가 있다(${flavored.file}). 지금 명령은 그 모듈에서 variant를 고르지 않아 돌지 않을 수 있다.`);
-    const commands = flavorCommands(flavored.names[0] as string);
-    for (const kind of unhandled) suggest(flavored.module, kind, commands[kind]);
-  }
-  for (const jvm of detected.jvm) {
-    if (!jvm.module) {
-      notes.push(`컨벤션 플러그인(${jvm.file})이 Kotlin/JVM 모듈을 만든다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다(\`compileKotlin\`, \`test\`).`);
-      continue;
-    }
-    // 디버그 variant의 태스크는 Android 모듈에만 있다.
-    const unhandled = (["build", "test"] as const).filter((kind) => /debug/i.test(commandFor(checks[kind], jvm.module)));
-    if (unhandled.length === 0) continue;
-    notes.push(`${jvm.module} 모듈은 Android가 아닌 Kotlin/JVM 모듈이다(${jvm.file}). 지금 명령은 Android의 디버그 태스크라 그 모듈에 없다.`);
-    for (const kind of unhandled) suggest(jvm.module, kind, JVM_COMMANDS[kind]);
-  }
+  // 사유는 모듈마다, 고칠 묶음은 하나로 모아 보여 준다.
+  const { reasons, entries } = moduleCommands(checks, detected);
+  notes.push(...reasons.map((reason) => reason.text));
   const kinds = (["build", "test"] as const).filter((kind) => entries[kind].length > 0);
   if (kinds.length > 0) {
     const lines = kinds.flatMap((kind) => [
@@ -203,7 +244,13 @@ export function implSetup(repo: Repo, options: SetupOptions): SetupResult {
     | undefined;
   const changed: MachineCheck[] = [];
   for (const kind of MACHINE_CHECKS) {
-    const given = options[kind]?.trim();
+    const option = options[kind];
+    if (option !== undefined && typeof option !== "string") {
+      doc.setIn(["impl", "checks", kind], doc.createNode(option));
+      changed.push(kind);
+      continue;
+    }
+    const given = option?.trim();
     if (given !== undefined && given !== "") {
       if (given === NO_COMMAND && kind === "rules") {
         // 규칙 도구를 따로 돌리지 않는다는 뜻이다. 항목을 지운다.
@@ -219,7 +266,7 @@ export function implSetup(repo: Repo, options: SetupOptions): SetupResult {
     } else if (plain?.[kind] === undefined && kind !== "rules") {
       if (kind === "lint") {
         const hint = detected.lint.length > 0 ? ` 프로젝트에서 ${spoken(detected.lint)}를 찾았다. 그 도구를 쓰면 --lint "${detected.lint[0]?.command}"이다.` : "";
-        throw new Refusal(`Lint 명령이 없다. --lint <명령>을 주거나, 프로젝트에 Lint 도구가 없으면 --lint none으로 명시한다.${hint}`);
+        throw new Refusal(`Lint 명령이 없다. --lint <명령>을 주거나, 프로젝트에 Lint 도구가 없으면 --lint none으로 명시한다. 사용자가 터미널에서 인자 없이 실행하면 골라서 정한다.${hint}`);
       }
       doc.setIn(["impl", "checks", kind], DEFAULT_COMMANDS[kind]);
       changed.push(kind);
