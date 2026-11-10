@@ -3,6 +3,14 @@
   "version": "0.5.0",
   "description": "문서 확정에서 구현까지를 버전 체인으로 이어 주는 SDD 워크플로 CLI",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JaesungLeee/sdd-android.git"
+  },
+  "homepage": "https://github.com/JaesungLeee/sdd-android#readme",
+  "bugs": {
+    "url": "https://github.com/JaesungLeee/sdd-android/issues"
+  },
   "type": "module",
   "bin": {
     "sdd-android": "dist/sdd-android.mjs"
