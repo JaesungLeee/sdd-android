@@ -21,7 +21,8 @@ import {
   parseChecks,
   type Exec,
 } from "../src/commands/impl.js";
-import { implSetup } from "../src/core/impl-config.js";
+import { implSetup, readImplChecks } from "../src/core/impl-config.js";
+import { detectProject } from "../src/core/detect.js";
 import { fixCheck, formatFixCheck } from "../src/commands/fix.js";
 import { status } from "../src/commands/status.js";
 import { matchTasks, parseTasks, setChecked, splitUnits, validateTasks } from "../src/core/breakdown.js";
@@ -214,6 +215,56 @@ describe("착수 게이트와 체크포인트", () => {
     fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("test: ./gradlew {module}:test {tests}", "test: none"));
     expect(check(repo).problems.map((problem) => problem.message)).toContain("impl.checks.test: none은 lint에만 쓴다. 빌드와 테스트는 건너뛸 수 없다");
     expect(() => implStart(repo, F, { today: today() })).toThrow(/형식에 맞지 않는다/);
+  });
+
+  it("setup은 Gradle 설정에서 Lint 도구, 규칙 도구, flavor를 찾아 제안만 하고 적지는 않는다", () => {
+    const file = path.join(repo.root, ".sdd-android", "config.yaml");
+    fs.writeFileSync(file, "language: ko\ndocs_dir: docs\n");
+    const write = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(repo.root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(repo.root, rel), text);
+    };
+    write("build.gradle.kts", 'plugins {\n  id("io.gitlab.arturbosch.detekt") version "1.23.6" apply false\n}\n');
+    write("app/build.gradle.kts", 'android {\n  flavorDimensions += "env"\n  productFlavors {\n    create("prod") { dimension = "env" }\n    create("dev") { dimension = "env" }\n  }\n}\n');
+    write("core/domain/build.gradle", "android {\n  productFlavors {\n    free {\n      dimension 'tier'\n    }\n    paid { }\n  }\n}\n");
+    write("konsist/build.gradle.kts", "dependencies {\n  testImplementation(libs.konsist)\n}\n");
+    write("build-logic/convention/src/main/kotlin/Flavors.kt", 'fun configure() { productFlavors { create("staging") {} } }\n');
+    write("app/build/generated/x.gradle.kts", 'plugins { id("org.jlleitschuh.gradle.ktlint") }\n');
+
+    const detected = detectProject(repo.root);
+    expect(detected.lint).toEqual([{ tool: "detekt", file: "build.gradle.kts", command: "./gradlew {module}:detekt" }]);
+    expect(detected.rules).toEqual([{ tool: "konsist", file: "konsist/build.gradle.kts", command: "./gradlew :konsist:test" }]);
+    expect(detected.flavors).toEqual([
+      { module: ":app", file: "app/build.gradle.kts", names: ["prod", "dev"] },
+      { module: "", file: "build-logic/convention/src/main/kotlin/Flavors.kt", names: ["staging"] },
+      { module: ":core:domain", file: "core/domain/build.gradle", names: ["free", "paid"] },
+    ]);
+
+    // Lint가 없으면 거부하면서 찾은 도구를 알려 준다. 적은 것은 없다.
+    expect(() => implSetup(repo, {})).toThrow(/detekt\(build\.gradle\.kts\)를 찾았다\. 그 도구를 쓰면 --lint "\.\/gradlew \{module\}:detekt"/);
+    expect(fs.readFileSync(file, "utf8")).toBe("language: ko\ndocs_dir: docs\n");
+
+    const notes = implSetup(repo, { lint: "./gradlew {module}:ktlintCheck" }).notes.join("\n");
+    expect(notes).toContain("Lint 명령이 프로젝트에서 찾은 detekt(build.gradle.kts)를 돌리지 않는 것 같다");
+    expect(notes).toContain('--rules "./gradlew :konsist:test"');
+    expect(notes).toContain(':app에 flavor(prod, dev)가 있다');
+    expect(notes).toContain('":app": "./gradlew {module}:compileProdDebugKotlin"');
+    expect(notes).toContain('":app": "./gradlew {module}:testProdDebugUnitTest {tests}"');
+    expect(notes).toContain('":core:domain": "./gradlew {module}:compileFreeDebugKotlin"');
+    expect(notes).toContain("컨벤션 플러그인(build-logic/convention/src/main/kotlin/Flavors.kt)에 flavor(staging)가 있다");
+    // 제안은 적지 않는다
+    expect(readImplChecks(repo)?.build).toBe("./gradlew {module}:compileDebugKotlin");
+
+    // 모듈마다 적고 찾은 도구를 쓰면 그 제안은 사라진다
+    fs.writeFileSync(
+      file,
+      'language: ko\ndocs_dir: docs\nimpl:\n  checks:\n    build:\n      "*": "./gradlew {module}:compileDebugKotlin"\n      ":app": "./gradlew {module}:compileProdDebugKotlin"\n    lint: "./gradlew {module}:detekt"\n    test:\n      "*": "./gradlew {module}:testDebugUnitTest {tests}"\n      ":app": "./gradlew {module}:testProdDebugUnitTest {tests}"\n',
+    );
+    const after = implSetup(repo, { rules: "./gradlew :konsist:test" }).notes.join("\n");
+    expect(after).not.toContain("Lint 명령이");
+    expect(after).not.toContain("--rules");
+    expect(after).not.toContain(":app에 flavor");
+    expect(after).toContain(":core:domain에 flavor(free, paid)가 있다");
   });
 
   it("배정은 모든 작업을 덮어야 하고 연결 표기가 있는 작업은 test여야 한다", () => {

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse, parseDocument } from "yaml";
+import { detectProject, flavorCommands, type Detected, type Found } from "./detect.js";
 import { Refusal, type Repo } from "./repo.js";
 
 /**
@@ -113,12 +114,67 @@ export interface SetupOptions {
   rules?: string;
 }
 
+export interface SetupResult {
+  checks: ImplChecks;
+  changed: MachineCheck[];
+  /** 프로젝트의 Gradle 설정에서 찾은 것과 맞지 않아 보이는 곳의 제안. 적지 않는다. */
+  notes: string[];
+}
+
+function spoken(found: Found[]): string {
+  return found.map((item) => `${item.tool}(${item.file})`).join(", ");
+}
+
+/** 설정한 명령과 프로젝트에서 찾은 것을 맞대어 제안을 낸다. 찾은 것은 추정이라 적지 않고 보여 주기만 한다. */
+export function setupNotes(checks: ImplChecks, detected: Detected): string[] {
+  const notes: string[] = [];
+  const commands = (spec: CommandSpec | undefined) => (spec === undefined ? [] : typeof spec === "string" ? [spec] : Object.values(spec));
+  if (detected.lint.length > 0) {
+    const tasks = detected.lint.map((found) => found.command.split(":").pop() as string);
+    const lint = commands(checks.lint);
+    if (checks.lint === NO_COMMAND) {
+      notes.push(`Lint가 none인데 프로젝트에서 ${spoken(detected.lint)}를 찾았다. 쓰는 도구면 --lint "${detected.lint[0]?.command}"로 정한다.`);
+    } else if (!lint.some((command) => tasks.some((task) => command.includes(task)))) {
+      notes.push(`Lint 명령이 프로젝트에서 찾은 ${spoken(detected.lint)}를 돌리지 않는 것 같다: ${lint.join(", ")}. 그 도구를 쓰면 --lint "${detected.lint[0]?.command}"로 정한다.`);
+    }
+  }
+  if (checks.rules === undefined && detected.rules.length > 0) {
+    notes.push(`규칙 도구 ${spoken(detected.rules)}를 찾았다. 구현 단계에서 돌리려면 --rules "${detected.rules[0]?.command}"로 정한다.`);
+  }
+  for (const flavored of detected.flavors) {
+    const names = flavored.names.join(", ");
+    if (!flavored.module) {
+      notes.push(`컨벤션 플러그인(${flavored.file})에 flavor(${names})가 있다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다.`);
+      continue;
+    }
+    const unhandled = (["build", "test"] as const).filter((kind) => {
+      const command = commandFor(checks[kind], flavored.module).toLowerCase();
+      return !flavored.names.some((name) => command.includes(name.toLowerCase()));
+    });
+    if (unhandled.length === 0) continue;
+    const suggested = flavorCommands(flavored.names[0] as string);
+    const lines = unhandled.flatMap((kind) => [
+      `      ${kind}:`,
+      `        "*": "${commandFor(checks[kind], "*")}"`,
+      `        "${flavored.module}": "${suggested[kind]}"`,
+    ]);
+    notes.push(
+      [
+        `${flavored.module}에 flavor(${names})가 있다(${flavored.file}). 지금 명령은 그 모듈에서 variant를 고르지 않아 돌지 않을 수 있다. .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. flavor 차원이 여럿이면 이름을 조합한다:`,
+        ...lines,
+      ].join("\n"),
+    );
+  }
+  return notes;
+}
+
 /**
  * 검사 명령을 설정에 적는다. 준 것만 바꾸고, 없는 빌드와 테스트는 기본값으로 채운다.
  * Lint는 기본값이 없다. 도구가 없으면 `none`을 명시해야 건너뜀이 되므로, 사람이 고르게 한다.
- * 설정 파일의 다른 내용과 주석은 그대로 둔다.
+ * 설정 파일의 다른 내용과 주석은 그대로 둔다. 프로젝트의 Gradle 설정에서 찾은 것은 제안으로만 돌려준다.
  */
-export function implSetup(repo: Repo, options: SetupOptions): { checks: ImplChecks; changed: MachineCheck[] } {
+export function implSetup(repo: Repo, options: SetupOptions): SetupResult {
+  const detected = detectProject(repo.root);
   const file = configFile(repo);
   const doc = parseDocument(fs.readFileSync(file, "utf8"));
   const current = doc.getIn(["impl", "checks"], false);
@@ -142,7 +198,8 @@ export function implSetup(repo: Repo, options: SetupOptions): { checks: ImplChec
       changed.push(kind);
     } else if (plain?.[kind] === undefined && kind !== "rules") {
       if (kind === "lint") {
-        throw new Refusal("Lint 명령이 없다. --lint <명령>을 주거나, 프로젝트에 Lint 도구가 없으면 --lint none으로 명시한다");
+        const hint = detected.lint.length > 0 ? ` 프로젝트에서 ${spoken(detected.lint)}를 찾았다. 그 도구를 쓰면 --lint "${detected.lint[0]?.command}"이다.` : "";
+        throw new Refusal(`Lint 명령이 없다. --lint <명령>을 주거나, 프로젝트에 Lint 도구가 없으면 --lint none으로 명시한다.${hint}`);
       }
       doc.setIn(["impl", "checks", kind], DEFAULT_COMMANDS[kind]);
       changed.push(kind);
@@ -156,5 +213,5 @@ export function implSetup(repo: Repo, options: SetupOptions): { checks: ImplChec
   }
   if (!checks) throw new Refusal("검사 명령을 정하지 못했다");
   fs.writeFileSync(file, doc.toString());
-  return { checks, changed };
+  return { checks, changed, notes: setupNotes(checks, detected) };
 }

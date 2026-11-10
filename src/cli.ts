@@ -296,7 +296,8 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
     if (action === "setup") {
       const result = implSetup(repo, { build: values.build, lint: values.lint, test: values.test, rules: values.rules });
       const lines = MACHINE_CHECKS.map((kind) => `- ${kind}: ${result.checks[kind] === undefined ? "없음" : JSON.stringify(result.checks[kind])}${result.changed.includes(kind) ? " (적음)" : ""}`);
-      return { text: ["구현 단계의 검사 명령 (.sdd-android/config.yaml의 impl.checks):", ...lines].join("\n"), data: result };
+      const notes = result.notes.length > 0 ? ["", "프로젝트의 Gradle 설정에서 찾은 것과 맞지 않아 보이는 곳이다. 추정이라 적지 않았다. 맞으면 고쳐 적는다.", ...result.notes.map((note) => `- ${note}`)] : [];
+      return { text: ["구현 단계의 검사 명령 (.sdd-android/config.yaml의 impl.checks):", ...lines, ...notes].join("\n"), data: result };
     }
     const feature = requireFeatureArg(featureArg);
     const today = write.today;
@@ -519,7 +520,7 @@ async function runInit(argv: string[]): Promise<{ text: string; data: unknown }>
     result.skills.length > 0
       ? `첫 단계: /${result.skills.find((name) => name.endsWith("constitution")) ?? result.skills[0]}`
       : "",
-    "구현 단계를 쓰기 전에 sdd-android impl setup --lint <명령|none>으로 검사 명령을 정한다.",
+    "구현 단계를 쓰기 전에 sdd-android impl setup --lint <명령|none>으로 검사 명령을 정한다. 인자 없이 부르면 Gradle 설정에서 찾은 Lint 도구를 알려 준다.",
     "Figma를 쓰면 sdd-android figma setup --server desktop|remote --name <등록 이름>으로 서버와 권한을 정한다.",
   ];
   return { text: lines.join("\n").trimEnd(), data: result };
