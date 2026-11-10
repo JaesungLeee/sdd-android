@@ -34,6 +34,7 @@
 | `doc checklist <feature>` | spec | 체크리스트의 상태를 기록한다 |
 | `hook write` | 스킬의 hook | 쓰려는 파일을 받아 막을지 답한다 |
 | `impl check <feature> [작업] [--final]` | `verify-build` | 빌드, Lint, 규칙(`rules`가 있으면), 테스트를 CLI가 돌려 종료 코드로 적는다 |
+| `impl try <feature> <작업> [--modules] [--only]` | `create-*`, `heal-*` | 고친 뒤의 자체 확인. `impl check`와 같은 명령을 돌리고 아무것도 기록하지 않는다 |
 | `openapi operations`, `openapi show <오퍼레이션>…` | `blueprint` | OpenAPI 문서를 조회해 오퍼레이션 목록을 내거나 고른 것을 펼친다. [OpenAPI 대조](openapi.md#조회-명령) |
 | `fix check <feature> <FIX-001> [--no-test <사유>]` | `fix` | 수정 단위가 작은 수정의 범위 안인지 계산한다. [워크플로](workflow.md#구현이-끝난-뒤의-수정) |
 | `impl …` | `impl-orchestrator` | 구현 단계의 기록. [구현 단계](implementation.md) |

@@ -551,6 +551,12 @@ describe("실린 스킬과 템플릿", () => {
       } else {
         expect(text, name).toContain("context: fork");
       }
+      if (name.startsWith("create-") || name.startsWith("heal-")) {
+        // 자체 확인은 프로젝트가 정한 검사 명령으로 돈다. 고정된 Gradle 명령을 쓰지 않는다.
+        expect(text, name).toContain("sdd-android impl try {feature} {작업}");
+        expect(text, name).not.toContain("Bash(./gradlew *)");
+        expect(text, name).not.toMatch(/`\.\/gradlew /);
+      }
       if (name.startsWith("create-")) {
         expect(text, name).toContain('.sdd-android/bin/sdd-android" gate implement');
         expect(text, name).toContain("## 범위");

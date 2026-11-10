@@ -2,7 +2,7 @@
 name: {{skill:create-ui}}
 description: "구현 단계의 구현 스킬. breakdown의 UI 작업 하나를 받아 Jetpack Compose 화면, 상태(Contract), 디자인 토큰, 공용 컴포넌트를 작업이 지정한 경로 안에 만들고 화면과 상태마다 프리뷰를 둔다"
 argument-hint: "feature: 이름, 작업: T005, 경로: …, 스토리: US1, 노드: [화면 이름](URL) 또는 없음, 분석: .sdd-android/impl/{feature}/design.md 또는 없음, 차이: (되돌림일 때 차이 목록)"
-allowed-tools: Bash(sh *), Bash(./gradlew *)
+allowed-tools: Bash(sh *)
 context: fork
 ---
 
@@ -54,7 +54,7 @@ breakdown의 UI 작업 하나를 구현한다. 맡는 것은 화면(Composable),
 - **프리뷰**: 화면과 상태마다 `@Preview` 함수를 하나씩 만든다. 로딩, 빈 화면, 오류 같은 상태별 화면을 각각 띄울 수 있어야 캡처의 대조가 된다. 프리뷰는 `private`이어도 된다. 만든 프리뷰 함수의 **전체 이름**(`패키지.파일이름Kt.함수이름`)을 보고에 적는다. `{{skill:verify-ui}}`가 그대로 쓴다.
 - **Figma 노드가 없는 작업**: spec과 blueprint만으로 만들고, 보고에 "디자인 원본 없음"을 적는다. 디자인 대조는 건너뛰게 된다.
 - **되돌림**(인자에 차이 목록이 있다): 차이 목록의 항목만 고친다. 다른 것을 함께 손보지 않는다.
-- 끝나면 해당 모듈을 컴파일한다: `./gradlew {모듈}:compileDebugKotlin`. 컴파일 오류는 이 작업의 파일 안에서 고친다.
+- 끝나면 `sdd-android impl try {feature} {작업} --modules {모듈} --only build`로 컴파일한다. 명령은 프로젝트가 `impl.checks`에 정한 것이라 판정(`impl check`)과 같다. `./gradlew`를 직접 부르지 않는다. 컴파일 오류는 이 작업의 파일 안에서 고친다.
 - 테스트와 Lint는 돌리지 않는다. 검증 스킬의 몫이다.
 
 {{> impl-report}}

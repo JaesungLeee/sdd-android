@@ -26,6 +26,7 @@
 - `figma show`가 개인 설정 파일을 읽지 못하면 거부하지 않고 기본값과 이유를 낸다. Figma를 읽는 스킬이 로드되어 그 사실을 전한다.
 - 개발 중 검증에서 어느 작업의 경로에도 맞지 않는 파일이 실패하면 CLI가 `failures.md`에 "작업 없음 · 사람에게 넘김"으로 적는다. 전에는 마지막 확인에서만 적었다.
 - `check`가 읽지 못하는 `config.local.yaml`을 오류로 싣고 나머지 점검을 계속한다. 전에는 그 자리에서 거부로 끝났다.
+- 새 명령 `impl try <feature> <작업> [--modules] [--only]`: 구현과 치유 스킬의 자체 확인. `impl check`와 같은 `impl.checks` 명령을 돌리고 기록하지 않는다. `create-*`와 `heal-*`는 고정된 Gradle 명령(`compileDebugKotlin`, `ktlintCheck`, `testDebugUnitTest`) 대신 이것을 쓰고, `allowed-tools`에서 `Bash(./gradlew *)`를 뺐다. detekt를 쓰거나 flavor가 있는 프로젝트에서 자체 확인과 판정이 어긋나 치유가 헛돌던 문제다.
 - 고친 것: 수정 모드의 마지막 확인이 단위 밖 작업의 모듈까지 돌 수 있던 것(모듈과 결과의 신선도를 그 단위의 작업으로 거른다), `impl-orchestrator`가 `verify-ui`에 feature를 넘기지 않던 것, `create-*`의 컴파일 명령이 모듈 경로 앞에 콜론을 하나 더 붙이던 것, `sync-rules`가 `check`의 오류 때문에 로드되지 않던 것, `fix check`와 `impl start`의 안내가 스킬 이름에 접두사를 붙이지 않던 것.
 
 ## 0.4.0

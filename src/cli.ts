@@ -29,6 +29,7 @@ import {
   formatReport,
   formatShow,
   formatStart,
+  formatTry,
   formatVerify,
   implAssign,
   implAttempt,
@@ -39,11 +40,12 @@ import {
   implReset,
   implShow,
   implStart,
+  implTry,
   implVerify,
   parseChecks,
 } from "./commands/impl.js";
 import { isCheck, type Check } from "./core/checkpoint.js";
-import { implSetup, MACHINE_CHECKS } from "./core/impl-config.js";
+import { implSetup, isMachineCheck, MACHINE_CHECKS, type MachineCheck } from "./core/impl-config.js";
 import { loadAssets } from "./core/assets.js";
 import { init, type InitOptions } from "./commands/init.js";
 import { promptInit } from "./commands/init-prompt.js";
@@ -79,6 +81,7 @@ const USAGE = `sdd-android <명령>
   impl report <feature> <작업>     구현 보고 (--status done|blocked|handed, --modules, --files, --previews)
   impl setup                       기계 검사의 명령을 config.yaml에 적는다 (--build, --lint <명령|none>, --test, --rules <명령|none>)
   impl check <feature> [작업]      CLI가 빌드, Lint, 규칙, 테스트를 돌려 종료 코드로 적는다 (--final이면 마지막 확인)
+  impl try <feature> <작업>        스킬의 자체 확인. impl check와 같은 명령을 돌리고 기록하지 않는다 (--modules, --only build,lint,rules,test)
   impl verify <feature> [작업]     검증 결과를 판정한다. 빌드·Lint·테스트는 impl check의 결과를 쓴다 (--check 디자인·원칙=결과, 실패 지목, --files, --unit)
   impl attempt <feature> <작업>    치유 직전에 시도를 센다 (--failure, --symptom, --note)
   impl final <feature>             마지막 확인 (--result pass|fail, 통과면 impl check --final 뒤에 --check 원칙·디자인=pass|skip, 실패면 --files, --failure, --symptom)
@@ -113,6 +116,7 @@ const OPTIONS = {
   test: { type: "string" },
   rules: { type: "string" },
   fix: { type: "string" },
+  only: { type: "string" },
   "no-test": { type: "string" },
   language: { type: "string", default: "ko" },
   prefix: { type: "string" },
@@ -324,6 +328,14 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
         });
         return { text: formatReport(result), data: result };
       }
+      case "try": {
+        const only = splitList(values.only)?.map((kind): MachineCheck => {
+          if (!isMachineCheck(kind)) throw new Refusal(`--only는 build, lint, rules, test 가운데에서 고른다: ${kind}`);
+          return kind;
+        });
+        const result = implTry(repo, feature, requireTaskArg(taskArg), { modules: splitList(values.modules), ...(only ? { only } : {}) });
+        return { text: formatTry(result), data: result };
+      }
       case "check": {
         if (values.final && taskArg) throw new Refusal("--final은 작업 없이 feature 전체를 돌린다");
         if (!values.final && !taskArg) throw new Refusal("작업 ID가 필요하다. 마지막 확인이면 --final");
@@ -362,7 +374,7 @@ async function run(argv: string[]): Promise<{ text: string; data: unknown; exitC
         return { text: formatShow(result), data: result };
       }
     }
-    throw new Refusal("impl 명령은 setup, start, assign, next, report, check, verify, attempt, final, reset, show 가운데 하나다");
+    throw new Refusal("impl 명령은 setup, start, assign, next, report, check, try, verify, attempt, final, reset, show 가운데 하나다");
   }
   if (command === "figma") {
     if (rest[0] === "show") {

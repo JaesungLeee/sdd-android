@@ -2,7 +2,7 @@
 name: {{skill:create-logic}}
 description: "구현 단계의 구현 스킬. breakdown의 작업 하나를 받아 도메인과 데이터 계층의 Kotlin 코드를 작업이 지정한 경로 안에 만든다"
 argument-hint: "feature: 이름, 작업: T004, 경로: …, 스토리: US1"
-allowed-tools: Bash(sh *), Bash(./gradlew *)
+allowed-tools: Bash(sh *)
 context: fork
 ---
 
@@ -43,7 +43,7 @@ breakdown의 작업 하나를 구현한다. 맡는 것은 도메인과 데이터
 
 - 전제하는 것은 Kotlin과 Gradle까지다. 아키텍처 패턴(MVI, MVVM)과 DI, 비동기 처리의 방식은 constitution, blueprint, 기존 코드에서 읽는다. 스킬이 정하지 않는다.
 - 이 작업을 기다리는 테스트 작업이 있으면(`[until:{이 작업}]`) 그 테스트가 요구하는 인터페이스를 맞춘다. 테스트를 고치지 않는다. 테스트가 틀렸다고 판단하면 고치지 말고 보고에 적는다.
-- 끝나면 해당 모듈을 컴파일한다: `./gradlew {모듈}:compileDebugKotlin`(모듈이 Android 라이브러리가 아니면 `:compileKotlin`). 컴파일 오류는 이 작업의 파일 안에서 고친다. 다른 파일의 오류면 고치지 않고 보고에 적는다.
+- 끝나면 `sdd-android impl try {feature} {작업} --modules {모듈} --only build`로 컴파일한다. 명령은 프로젝트가 `impl.checks`에 정한 것이라 판정(`impl check`)과 같다. `./gradlew`를 직접 부르지 않는다. 컴파일 오류는 이 작업의 파일 안에서 고친다. 다른 파일의 오류면 고치지 않고 보고에 적는다.
 - 테스트는 돌리지 않는다. 테스트의 실행과 판정은 검증 스킬이 한다.
 - 기존 코드를 지우거나 옮기지 않는다. 작업이 지우라고 명시한 경우만 예외다.
 

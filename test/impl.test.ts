@@ -16,6 +16,7 @@ import {
   implReset,
   implShow,
   implStart,
+  implTry,
   implVerify,
   parseChecks,
   type Exec,
@@ -629,6 +630,47 @@ describe("작업의 진행", () => {
     expect(() => parseChecks(["screen=pass"])).toThrow(Refusal);
     expect(parseChecks([])).toEqual({});
     expect(parseChecks(["build=pass", "test=skip"])).toEqual({ build: "pass", test: "skip" });
+  });
+});
+
+describe("자체 확인(impl try)", () => {
+  const fake = (outcome: Outcome = {}): Exec => (command, _cwd, log) => {
+    ran.push(command);
+    const kind = command.split(" ")[0] as keyof Outcome;
+    fs.writeSync(log, outcome[kind] === "fail" ? `e: ${kind} 오류\n` : "BUILD SUCCESSFUL\n");
+    return outcome[kind] === "fail" ? 1 : 0;
+  };
+
+  it("impl check와 같은 명령을 체크포인트 없이 돌리고 아무것도 기록하지 않는다", () => {
+    expect(() => implTry(repo, F, "T004")).toThrow(/--modules/);
+    expect(() => implTry(repo, F, "T099", { modules: [":domain"] })).toThrow(/없거나 폐기된/);
+    const result = implTry(repo, F, "T004", { modules: [":domain"], exec: fake() });
+    expect(ran).toEqual(["build :domain", "lint :domain", "test :domain --tests '*LoginTest'"]);
+    expect(result.runs.map((done) => done.log)).toContain(".sdd-android/impl/login/logs/try-T004-build.log");
+    expect(readCheckpoint(repo, F)).toBeUndefined();
+    expect(fs.readFileSync(path.join(repo.root, ".sdd-android", "impl", ".gitignore"), "utf8")).toBe("*\n");
+  });
+
+  it("테스트 작업은 그 테스트를 돌리고, --only는 고른 검사만, 빌드가 실패하면 테스트를 건너뛴다", () => {
+    implTry(repo, F, "T002", { modules: [":domain"], only: ["test"], exec: fake() });
+    expect(ran).toEqual(["test :domain --tests '*LoginTest'"]);
+    ran = [];
+    const failed = implTry(repo, F, "T004", { modules: [":domain"], exec: fake({ build: "fail" }) });
+    expect(ran).toEqual(["build :domain", "lint :domain"]);
+    expect(failed.testNote).toMatch(/빌드가 실패/);
+    expect(failed.runs[0]?.summary).toEqual(["e: build 오류"]);
+    ran = [];
+    expect(implTry(repo, F, "T003", { modules: [":domain"], only: ["test"], exec: fake() }).testNote).toMatch(/연결된 테스트 작업이 없어/);
+    expect(ran).toEqual([]);
+  });
+
+  it("구현 보고가 있으면 그 모듈을 쓰고, 체크포인트는 바뀌지 않는다", () => {
+    start();
+    implReport(repo, F, "T001", { today: today(), status: "done", modules: [":feature:login"], files: [] });
+    const before = fs.readFileSync(checkpointPath(repo, F), "utf8");
+    implTry(repo, F, "T001", { exec: fake({ lint: "fail" }) });
+    expect(ran).toEqual(["build :feature:login", "lint :feature:login"]);
+    expect(fs.readFileSync(checkpointPath(repo, F), "utf8")).toBe(before);
   });
 });
 

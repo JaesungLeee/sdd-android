@@ -2,7 +2,7 @@
 name: {{skill:heal-test}}
 description: "구현 단계의 치유 스킬. 유닛 테스트 실패를 프로덕션 코드의 로직 수정으로 고친다. 테스트는 고치지 않고, 테스트가 틀렸다고 판단하면 보고한다"
 argument-hint: "feature: 이름, 작업: T002, 경로: …, 실패: 테스트 이름과 메시지"
-allowed-tools: Bash(sh *), Bash(./gradlew *)
+allowed-tools: Bash(sh *)
 context: fork
 ---
 
@@ -28,7 +28,7 @@ context: fork
     - 다르면 테스트가 틀린 것이다. 고치지 않고 `handed`로 보고한다. 사용자가 테스트 작업을 다시 돌리게 된다.
     - spec이 정하지 않은 것이면 역시 `handed`다. 지어내서 맞추지 않는다.
 2. 구현을 고친다. 설계(blueprint)가 정한 구조 안에서 고친다. 구조를 바꿔야 통과하면 `handed`다.
-3. 고친 뒤 실패했던 테스트 클래스만 한 번 돌려 본다: `./gradlew {모듈}:testDebugUnitTest --tests {클래스}`. 통과의 판정은 검증 스킬이 다시 한다. 한 번의 호출은 한 번의 시도다.
+3. 고친 뒤 `sdd-android impl try {feature} {작업} --only test`로 그 테스트 작업의 테스트만 한 번 돌려 본다. 작업은 인자로 받은 테스트 작업이다. 명령은 프로젝트가 `impl.checks`에 정한 것이라 판정(`impl check`)과 같다. `./gradlew`를 직접 부르지 않는다. 통과의 판정은 검증 스킬이 다시 한다. 한 번의 호출은 한 번의 시도다.
 
 ## 보고의 형식
 

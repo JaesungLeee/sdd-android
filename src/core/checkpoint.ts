@@ -121,12 +121,19 @@ export function readCheckpoint(repo: Repo, feature: string): Checkpoint | undefi
   };
 }
 
-/** 체크포인트는 커밋하지 않는다. 사용자의 `.gitignore`는 고치지 않고 디렉터리 안에 ignore 파일을 둔다(PRD SYS-006). */
-export function writeCheckpoint(repo: Repo, feature: string, checkpoint: Checkpoint): void {
-  const dir = implDir(repo);
+/**
+ * feature의 구현 디렉터리를 만든다. 체크포인트와 로그는 커밋하지 않는다.
+ * 사용자의 `.gitignore`는 고치지 않고 디렉터리 안에 ignore 파일을 둔다(PRD SYS-006).
+ */
+export function ensureImplDir(repo: Repo, feature: string): string {
   fs.mkdirSync(implDir(repo, feature), { recursive: true });
-  const ignore = path.join(dir, ".gitignore");
+  const ignore = path.join(implDir(repo), ".gitignore");
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, "*\n");
+  return implDir(repo, feature);
+}
+
+export function writeCheckpoint(repo: Repo, feature: string, checkpoint: Checkpoint): void {
+  ensureImplDir(repo, feature);
   fs.writeFileSync(checkpointPath(repo, feature), stringify(checkpoint));
 }
 

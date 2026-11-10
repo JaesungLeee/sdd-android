@@ -2,7 +2,7 @@
 name: {{skill:create-structure}}
 description: "구현 단계의 구현 스킬. breakdown의 작업 하나를 받아 모듈 골격, 빌드 구성, 화면 전환 배선, 모듈 간 DI, 에러 경로 배선을 만든다"
 argument-hint: "feature: 이름, 작업: T001, 경로: …"
-allowed-tools: Bash(sh *), Bash(./gradlew *)
+allowed-tools: Bash(sh *)
 context: fork
 ---
 
@@ -45,9 +45,9 @@ breakdown의 작업 하나를 구현한다. 맡는 것은 feature의 내용이 �
 
 - 골격은 설계가 정한 모듈 이름과 패키지로 만든다. 비어 있는 모듈이라도 빌드가 서야 한다.
 - 배선은 등록 누락 없이 연결한다: 내비게이션 그래프의 경로, DI의 바인딩, 에러를 받는 곳. 등록할 대상이 아직 없으면(앞의 작업이 안 끝남) `blocked`로 보고한다.
-- 끝나면 빌드로 확인한다: 골격이면 `./gradlew {모듈}:compileDebugKotlin`, 배선이면 그 배선을 포함하는 앱 모듈의 `assembleDebug`가 무거우면 `compileDebugKotlin`까지. 실패는 이 작업의 파일 안에서 고친다.
+- 끝나면 `sdd-android impl try {feature} {작업} --modules {모듈} --only build`로 확인한다. 배선이면 그 배선을 포함하는 앱 모듈도 `--modules`에 함께 적는다. 명령은 프로젝트가 `impl.checks`에 정한 것이라 판정(`impl check`)과 같다. `./gradlew`를 직접 부르지 않는다. 실패는 이 작업의 파일 안에서 고친다.
 - 테스트는 돌리지 않는다.
 
 {{> impl-report}}
 
-완료 근거에는 어느 Gradle 태스크가 성공했는지와 등록한 항목의 목록을 적는다.
+완료 근거에는 `impl try`의 빌드 결과와 등록한 항목의 목록을 적는다.

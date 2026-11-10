@@ -15,6 +15,7 @@ import {
 } from "../core/breakdown.js";
 import {
   emptyCheckpoint,
+  ensureImplDir,
   implDir,
   isCheck,
   isCheckResult,
@@ -750,7 +751,7 @@ function summarize(text: string): string[] {
 function runCheck(repo: Repo, feature: string, label: string, kind: MachineCheck, spec: CommandSpec, modules: string[], tests: string, exec: Exec): CheckRun {
   if (spec === NO_COMMAND) return { kind, result: "skip", commands: [], summary: [] };
   const commands = [...new Set(modules.map((module) => render(commandFor(spec, module), module, tests)))];
-  const dir = path.join(implDir(repo, feature), "logs");
+  const dir = path.join(ensureImplDir(repo, feature), "logs");
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${label}-${kind}.log`);
   const log = fs.openSync(file, "w");
@@ -772,6 +773,58 @@ function runCheck(repo: Repo, feature: string, label: string, kind: MachineCheck
     log: path.relative(repo.root, file),
     summary: failed ? summarize(fs.readFileSync(file, "utf8")) : [],
   };
+}
+
+export interface TryOptions extends CheckOptions {
+  /** 돌릴 모듈. 없으면 그 작업의 구현 보고에 적힌 모듈이다. 보고 전인 구현 스킬은 준다. */
+  modules?: string[];
+  /** 돌릴 검사. 없으면 설정된 검사를 모두 돈다. */
+  only?: MachineCheck[];
+}
+
+export interface TryResult {
+  feature: string;
+  task: string;
+  runs: CheckRun[];
+  /** 돌리지 않은 테스트와 그 이유. */
+  testNote?: string;
+}
+
+/**
+ * 구현과 치유 스킬의 자체 확인. `impl check`와 같은 명령(`impl.checks`)을 같은 방식으로 돌리되 아무것도 기록하지 않는다.
+ * 판정은 지금처럼 `verify-build`의 `impl check`가 한다. 스킬이 고정 명령을 쓰면 프로젝트의 Lint 도구나 flavor와 어긋나
+ * 판정과 다른 결과를 보고 치유가 헛돌기 때문이다. 스킬을 단독으로 부른 때도 쓰도록 체크포인트 없이 돈다.
+ */
+export function implTry(repo: Repo, feature: string, id: string, options: TryOptions = {}): TryResult {
+  const checks = requireImplChecks(repo);
+  const { tasks } = requireBreakdown(repo, feature);
+  const checkpoint = readCheckpoint(repo, feature);
+  const task = liveTasks(tasks).find((candidate) => candidate.id === id);
+  if (!task) throw new Refusal(`breakdown에 없거나 폐기된 작업이다: ${id}`);
+  const modules = options.modules && options.modules.length > 0 ? options.modules : (checkpoint?.tasks[id]?.modules ?? []);
+  if (modules.length === 0) throw new Refusal(`돌릴 모듈이 없다. --modules :모듈로 준다(${id}의 구현 보고에 적힌 모듈이 없다).`);
+  const wanted = (kind: MachineCheck) => !options.only || options.only.includes(kind);
+  const exec = options.exec ?? shellExec;
+  const runs: CheckRun[] = [];
+  const run = (kind: MachineCheck, tests = "") => {
+    const spec = checks[kind];
+    if (spec === undefined || !wanted(kind)) return undefined;
+    const done = runCheck(repo, feature, `try-${id}`, kind, spec, modules, tests, exec);
+    runs.push(done);
+    return done;
+  };
+  const build = run("build");
+  run("lint");
+  run("rules");
+  // 테스트 작업이면 그 테스트를, 구현 작업이면 연결된 테스트를 돈다. 판정과 달리 체크나 검증 대기는 보지 않는다.
+  const tests = task.until !== undefined ? [task] : liveTasks(tasks).filter((other) => other.until === id);
+  let testNote: string | undefined;
+  if (wanted("test")) {
+    if (tests.length === 0) testNote = `${id}에 연결된 테스트 작업이 없어 테스트는 돌리지 않았다`;
+    else if (build?.result === "fail") testNote = "빌드가 실패해 테스트는 돌리지 않았다";
+    else run("test", testFilter(tests));
+  }
+  return { feature, task: id, runs, ...(testNote ? { testNote } : {}) };
 }
 
 /** 작업들이 보고한 모듈. 순서를 지키고 겹침을 없앤다. */
@@ -1088,6 +1141,20 @@ export function formatCheck(result: CheckRunResult): string {
       ? `다음: 원칙과 디자인을 돌린 뒤 impl final ${result.feature} --result pass|fail로 적는다. 이 결과는 인자로 다시 적지 않는다.`
       : `다음: impl verify ${result.feature} ${result.task}로 판정을 적는다. 이 결과는 인자로 다시 적지 않는다. 실패를 다른 작업의 파일로 지목하려면 --check {검사}=fail --files를 더한다.`,
   );
+  return lines.join("\n");
+}
+
+export function formatTry(result: TryResult): string {
+  const lines = [`${result.task}: 확인용으로 검사를 돌렸다. 기록하지 않는다. 판정은 verify-build의 impl check가 한다`];
+  for (const run of result.runs) {
+    if (run.result === "skip") {
+      lines.push(`- ${CHECK_TEXT[run.kind]}: 건너뜀 (설정이 none이다)`);
+      continue;
+    }
+    lines.push(`- ${CHECK_TEXT[run.kind]}: ${RESULT_TEXT[run.result]} (${run.commands.join(" ; ")}, 로그 ${run.log})`);
+    for (const line of run.summary) lines.push(`    ${line}`);
+  }
+  if (result.testNote) lines.push(`- 테스트: ${result.testNote}`);
   return lines.join("\n");
 }
 
