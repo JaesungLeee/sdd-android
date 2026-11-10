@@ -1,0 +1,45 @@
+# 검증: 타입, 테스트, 빌드, 릴리스 검사, 스모크 테스트. release.yml이 배포 전에 같은 검증을 부른다.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: 검증할 커밋
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        # engines의 최소 버전과 현행 LTS
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # package.json의 버전에 변경 내역 항목이 있는지. 버전을 올리는 PR이 머지 전에 걸린다
+      - run: node scripts/release-check.mjs
+      - name: Smoke test
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          scripts/smoke.sh "$RUNNER_TEMP/sdd-android-$(node -p "require('./package.json').version").tgz"

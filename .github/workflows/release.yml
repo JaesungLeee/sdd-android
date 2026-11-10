@@ -1,0 +1,177 @@
+# 배포: main의 package.json 버전이 바뀌면 npm에 올리고, 태그를 붙이고, GitHub Release를 만든다.
+# 단계마다 이미 되어 있으면 건너뛴다. 중간에 실패하면 고친 뒤 Run workflow로 다시 돌린다.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.state.outputs.version }}
+      commit: ${{ steps.state.outputs.commit }}
+      latest: ${{ steps.state.outputs.latest }}
+      publish: ${{ steps.state.outputs.publish }}
+      tag: ${{ steps.state.outputs.tag }}
+      release: ${{ steps.state.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+      - id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          # 이 버전을 package.json에 적은 커밋. 다시 돌릴 때 main이 앞서 있어도 같은 커밋을 배포한다
+          commit=$(git log -1 --format=%H -G"\"version\": \"$version\"" -- package.json)
+          latest=$(npm view sdd-android dist-tags.latest 2>/dev/null || true)
+          published=$(npm view "sdd-android@$version" version 2>/dev/null || true)
+
+          tag=false
+          # 태그가 이미 있으면 태그의 커밋을 따른다
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            commit=$(git rev-parse "v$version^{commit}")
+            tag=true
+          fi
+          release=false
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then release=true; fi
+          publish=true
+          if [ -n "$published" ]; then publish=false; fi
+
+          echo "$version ($commit): npm=$([ "$publish" = true ] && echo 없음 || echo 있음), tag=$tag, release=$release"
+          {
+            echo "version=$version"
+            echo "commit=$commit"
+            echo "latest=$latest"
+            echo "publish=$publish"
+            echo "tag=$tag"
+            echo "release=$release"
+          } >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: detect
+    if: needs.detect.outputs.publish == 'true' || needs.detect.outputs.tag == 'false' || needs.detect.outputs.release == 'false'
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.detect.outputs.commit }}
+
+  package:
+    needs: [detect, verify]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.detect.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.detect.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Release check
+        env:
+          # 새로 올릴 때만 npm의 최신 버전보다 높은지 본다
+          LATEST: ${{ needs.detect.outputs.publish == 'true' && needs.detect.outputs.latest || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          node scripts/release-check.mjs --notes "$RUNNER_TEMP/release/release-notes.md" ${LATEST:+--latest "$LATEST"}
+      # 검증한 tarball을 그대로 올린다. publish에서 다시 빌드하지 않는다
+      - run: npm pack --pack-destination "$RUNNER_TEMP/release"
+      - run: scripts/smoke.sh "$RUNNER_TEMP/release/sdd-android-$VERSION.tgz"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+
+  publish:
+    needs: [detect, package]
+    if: needs.detect.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    # npm의 Trusted Publisher 설정에 이 environment 이름을 적는다
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted Publishing(OIDC)은 npm 11.5.1부터다
+      - run: npm install -g "npm@^11.5.1"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release
+          path: release
+      # 토큰 없이 OIDC로 인증한다. 공개 저장소면 provenance가 저절로 붙는다
+      - run: npm publish "release/sdd-android-${{ needs.detect.outputs.version }}.tgz"
+
+  tag:
+    needs: [detect, package, publish]
+    if: >-
+      always() && needs.package.result == 'success'
+      && (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+      && needs.detect.outputs.tag == 'false'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.detect.outputs.version }}
+      COMMIT: ${{ needs.detect.outputs.commit }}
+    steps:
+      # v* 태그는 Ruleset으로 막고 이 App만 우회시킨다
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        id: app
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.detect.outputs.commit }}
+          token: ${{ steps.app.outputs.token }}
+      - run: |
+          git config user.name "${{ steps.app.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.app.outputs.app-slug }}[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release $VERSION" "$COMMIT"
+          git push origin "refs/tags/v$VERSION"
+
+  github-release:
+    needs: [detect, package, tag]
+    if: >-
+      always() && needs.package.result == 'success'
+      && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
+      && needs.detect.outputs.release == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release
+          path: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.detect.outputs.version }}
+        run: |
+          gh release create "v$VERSION" "release/sdd-android-$VERSION.tgz" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "v$VERSION" --notes-file release/release-notes.md
