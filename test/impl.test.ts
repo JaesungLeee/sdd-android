@@ -230,6 +230,10 @@ describe("착수 게이트와 체크포인트", () => {
     write("konsist/build.gradle.kts", "dependencies {\n  testImplementation(libs.konsist)\n}\n");
     write("build-logic/convention/src/main/kotlin/Flavors.kt", 'fun configure() { productFlavors { create("staging") {} } }\n');
     write("app/build/generated/x.gradle.kts", 'plugins { id("org.jlleitschuh.gradle.ktlint") }\n');
+    write("core/model/build.gradle.kts", 'plugins {\n  kotlin("jvm")\n}\n');
+    write("core/common/build.gradle", "plugins {\n  id 'org.jetbrains.kotlin.jvm'\n}\n");
+    write("build-logic/convention/build.gradle.kts", "plugins {\n  alias(libs.plugins.kotlin.jvm)\n}\n");
+    write("build-logic/convention/src/main/kotlin/JvmLibrary.kt", 'class JvmLibrary { fun apply() { pluginManager.apply("org.jetbrains.kotlin.jvm") } }\n');
 
     const detected = detectProject(repo.root);
     expect(detected.lint).toEqual([{ tool: "detekt", file: "build.gradle.kts", command: "./gradlew {module}:detekt" }]);
@@ -238,6 +242,12 @@ describe("착수 게이트와 체크포인트", () => {
       { module: ":app", file: "app/build.gradle.kts", names: ["prod", "dev"] },
       { module: "", file: "build-logic/convention/src/main/kotlin/Flavors.kt", names: ["staging"] },
       { module: ":core:domain", file: "core/domain/build.gradle", names: ["free", "paid"] },
+    ]);
+    // build-logic 자신의 빌드 스크립트는 모듈이 아니라 보지 않는다.
+    expect(detected.jvm).toEqual([
+      { module: "", file: "build-logic/convention/src/main/kotlin/JvmLibrary.kt" },
+      { module: ":core:common", file: "core/common/build.gradle" },
+      { module: ":core:model", file: "core/model/build.gradle.kts" },
     ]);
 
     // Lint가 없으면 거부하면서 찾은 도구를 알려 준다. 적은 것은 없다.
@@ -252,6 +262,13 @@ describe("착수 게이트와 체크포인트", () => {
     expect(notes).toContain('":app": "./gradlew {module}:testProdDebugUnitTest {tests}"');
     expect(notes).toContain('":core:domain": "./gradlew {module}:compileFreeDebugKotlin"');
     expect(notes).toContain("컨벤션 플러그인(build-logic/convention/src/main/kotlin/Flavors.kt)에 flavor(staging)가 있다");
+    expect(notes).toContain(":core:model 모듈은 Android가 아닌 Kotlin/JVM 모듈이다(core/model/build.gradle.kts)");
+    expect(notes).toContain("컨벤션 플러그인(build-logic/convention/src/main/kotlin/JvmLibrary.kt)이 Kotlin/JVM 모듈을 만든다");
+    // 모듈마다의 제안은 붙여 넣을 묶음 하나로 모인다
+    const snippet = notes.slice(notes.indexOf("위 모듈의 명령을"));
+    expect(snippet).toContain('      build:\n        "*": "./gradlew {module}:compileDebugKotlin"\n        ":app": "./gradlew {module}:compileProdDebugKotlin"\n        ":core:domain": "./gradlew {module}:compileFreeDebugKotlin"\n        ":core:common": "./gradlew {module}:compileKotlin"\n        ":core:model": "./gradlew {module}:compileKotlin"');
+    expect(snippet).toContain('":core:model": "./gradlew {module}:test {tests}"');
+    expect(snippet.match(/      build:/g)).toHaveLength(1);
     // 제안은 적지 않는다
     expect(readImplChecks(repo)?.build).toBe("./gradlew {module}:compileDebugKotlin");
 
@@ -265,6 +282,8 @@ describe("착수 게이트와 체크포인트", () => {
     expect(after).not.toContain("--rules");
     expect(after).not.toContain(":app에 flavor");
     expect(after).toContain(":core:domain에 flavor(free, paid)가 있다");
+    expect(after).toContain(":core:model 모듈은 Android가 아닌 Kotlin/JVM 모듈이다");
+    expect(after).not.toContain('":app": "./gradlew {module}:compileProdDebugKotlin"');
   });
 
   it("배정은 모든 작업을 덮어야 하고 연결 표기가 있는 작업은 test여야 한다", () => {

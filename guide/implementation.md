@@ -68,7 +68,7 @@ npx sdd-android impl setup --lint "./gradlew {module}:detekt"   # 기계 검사�
 빌드, Lint, 테스트의 통과와 실패는 CLI가 정한다. 에이전트가 "통과했다"고 보고하는 것만으로는 체크가 오르지 않는다.
 
 - 명령은 `.sdd-android/config.yaml`의 `impl.checks`에 있다. 커밋하는 설정이라 팀이 같은 검사를 돌린다. `impl setup`이 적고, 손으로 고쳐도 된다.
-- `impl setup`은 Gradle 설정(모듈의 빌드 스크립트, `build-logic`과 `buildSrc`의 컨벤션 플러그인)을 읽어 Lint 도구(detekt, ktlint, kotlinter, spotless), 규칙 도구(Konsist), product flavor를 찾고, 설정한 명령과 맞지 않아 보이면 제안한다. Lint를 정하지 않고 부르면 찾은 도구의 명령을 알려 주며 거부한다. flavor가 있는 모듈은 모듈마다 적을 묶음을 보여 준다. 빌드 스크립트는 코드라 찾은 것은 추정이므로, 제안은 적지 않고 사람이 확인해 적는다.
+- `impl setup`은 Gradle 설정(모듈의 빌드 스크립트, `build-logic`과 `buildSrc`의 컨벤션 플러그인)을 읽어 Lint 도구(detekt, ktlint, kotlinter, spotless), 규칙 도구(Konsist), product flavor, Android가 아닌 Kotlin/JVM 모듈을 찾고, 설정한 명령과 맞지 않아 보이면 제안한다. Lint를 정하지 않고 부르면 찾은 도구의 명령을 알려 주며 거부한다. flavor가 있는 모듈(variant를 고른 명령)과 JVM 모듈(`compileKotlin`, `test`)은 붙여 넣을 모듈별 묶음 하나로 모아 보여 준다. 빌드 스크립트는 코드라 찾은 것은 추정이므로, 제안은 적지 않고 사람이 확인해 적는다.
 
 ```yaml
 impl:

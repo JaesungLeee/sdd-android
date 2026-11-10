@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse, parseDocument } from "yaml";
-import { detectProject, flavorCommands, type Detected, type Found } from "./detect.js";
+import { detectProject, flavorCommands, JVM_COMMANDS, type Detected, type Found } from "./detect.js";
 import { Refusal, type Repo } from "./repo.js";
 
 /**
@@ -141,10 +141,15 @@ export function setupNotes(checks: ImplChecks, detected: Detected): string[] {
   if (checks.rules === undefined && detected.rules.length > 0) {
     notes.push(`규칙 도구 ${spoken(detected.rules)}를 찾았다. 구현 단계에서 돌리려면 --rules "${detected.rules[0]?.command}"로 정한다.`);
   }
+  // 빌드와 테스트의 명령이 모듈에 맞지 않아 보이는 곳. 사유는 모듈마다, 고칠 묶음은 하나로 모아 보여 준다.
+  const entries: Record<"build" | "test", [string, string][]> = { build: [], test: [] };
+  const suggest = (module: string, kind: "build" | "test", command: string) => {
+    if (!entries[kind].some(([name]) => name === module)) entries[kind].push([module, command]);
+  };
   for (const flavored of detected.flavors) {
     const names = flavored.names.join(", ");
     if (!flavored.module) {
-      notes.push(`컨벤션 플러그인(${flavored.file})에 flavor(${names})가 있다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다.`);
+      notes.push(`컨벤션 플러그인(${flavored.file})에 flavor(${names})가 있다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. 모든 모듈이 쓰면 "*"를 flavor의 명령으로 적는다.`);
       continue;
     }
     const unhandled = (["build", "test"] as const).filter((kind) => {
@@ -152,18 +157,29 @@ export function setupNotes(checks: ImplChecks, detected: Detected): string[] {
       return !flavored.names.some((name) => command.includes(name.toLowerCase()));
     });
     if (unhandled.length === 0) continue;
-    const suggested = flavorCommands(flavored.names[0] as string);
-    const lines = unhandled.flatMap((kind) => [
+    notes.push(`${flavored.module}에 flavor(${names})가 있다(${flavored.file}). 지금 명령은 그 모듈에서 variant를 고르지 않아 돌지 않을 수 있다.`);
+    const commands = flavorCommands(flavored.names[0] as string);
+    for (const kind of unhandled) suggest(flavored.module, kind, commands[kind]);
+  }
+  for (const jvm of detected.jvm) {
+    if (!jvm.module) {
+      notes.push(`컨벤션 플러그인(${jvm.file})이 Kotlin/JVM 모듈을 만든다. 그 플러그인을 쓰는 모듈의 빌드와 테스트 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다(\`compileKotlin\`, \`test\`).`);
+      continue;
+    }
+    // 디버그 variant의 태스크는 Android 모듈에만 있다.
+    const unhandled = (["build", "test"] as const).filter((kind) => /debug/i.test(commandFor(checks[kind], jvm.module)));
+    if (unhandled.length === 0) continue;
+    notes.push(`${jvm.module} 모듈은 Android가 아닌 Kotlin/JVM 모듈이다(${jvm.file}). 지금 명령은 Android의 디버그 태스크라 그 모듈에 없다.`);
+    for (const kind of unhandled) suggest(jvm.module, kind, JVM_COMMANDS[kind]);
+  }
+  const kinds = (["build", "test"] as const).filter((kind) => entries[kind].length > 0);
+  if (kinds.length > 0) {
+    const lines = kinds.flatMap((kind) => [
       `      ${kind}:`,
       `        "*": "${commandFor(checks[kind], "*")}"`,
-      `        "${flavored.module}": "${suggested[kind]}"`,
+      ...entries[kind].map(([module, command]) => `        "${module}": "${command}"`),
     ]);
-    notes.push(
-      [
-        `${flavored.module}에 flavor(${names})가 있다(${flavored.file}). 지금 명령은 그 모듈에서 variant를 고르지 않아 돌지 않을 수 있다. .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. flavor 차원이 여럿이면 이름을 조합한다:`,
-        ...lines,
-      ].join("\n"),
-    );
+    notes.push([`위 모듈의 명령을 .sdd-android/config.yaml의 impl.checks에 모듈마다 적는다. flavor 차원이 여럿이면 이름을 조합한다:`, ...lines].join("\n"));
   }
   return notes;
 }

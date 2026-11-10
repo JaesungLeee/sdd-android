@@ -20,10 +20,18 @@ export interface FlavorModule {
   names: string[];
 }
 
+export interface JvmModule {
+  /** Gradle 모듈 경로. 컨벤션 플러그인에서 찾았으면 비어 있다. */
+  module: string;
+  file: string;
+}
+
 export interface Detected {
   lint: Found[];
   rules: Found[];
   flavors: FlavorModule[];
+  /** Android가 아닌 Kotlin/JVM 모듈. 디버그 variant의 태스크(`compileDebugKotlin`, `testDebugUnitTest`)가 없다. */
+  jvm: JvmModule[];
 }
 
 const SKIP = new Set(["build", ".gradle", ".git", ".idea", ".sdd-android", ".claude", "node_modules", "docs"]);
@@ -37,6 +45,7 @@ const LINT_TOOLS: { tool: string; pattern: RegExp; command: string }[] = [
 ];
 
 const KONSIST = /com\.lemonappdev:konsist|libs\.konsist\b/;
+const KOTLIN_JVM = /kotlin\(\s*"jvm"\s*\)|org\.jetbrains\.kotlin\.jvm|plugins\.(?:jetbrains\.)?kotlin\.jvm\b/;
 
 function isGradleFile(name: string, inBuildLogic: boolean): boolean {
   return /\.gradle(\.kts)?$/.test(name) || (inBuildLogic && /\.kts?$/.test(name));
@@ -104,7 +113,7 @@ function flavorNames(text: string): string[] {
 }
 
 export function detectProject(root: string): Detected {
-  const detected: Detected = { lint: [], rules: [], flavors: [] };
+  const detected: Detected = { lint: [], rules: [], flavors: [], jvm: [] };
   for (const file of gradleFiles(root)) {
     let text: string;
     try {
@@ -121,6 +130,9 @@ export function detectProject(root: string): Detected {
     if (KONSIST.test(text) && module) detected.rules.push({ tool: "konsist", file, command: `./gradlew ${module}:test` });
     const names = flavorNames(text);
     if (names.length > 0) detected.flavors.push({ module: module ?? "", file, names });
+    // 컨벤션 플러그인은 소스(.kt)만 본다. build-logic 자신의 빌드 스크립트가 JVM 플러그인을 쓰는 것은 모듈과 무관하다.
+    const conventionSource = module === undefined && /\.kt$/.test(file);
+    if (KOTLIN_JVM.test(text) && (module || conventionSource)) detected.jvm.push({ module: module ?? "", file });
   }
   return detected;
 }
@@ -128,6 +140,9 @@ export function detectProject(root: string): Detected {
 function capitalize(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+/** Kotlin/JVM 모듈의 빌드·테스트 명령 제안. */
+export const JVM_COMMANDS = { build: "./gradlew {module}:compileKotlin", test: "./gradlew {module}:test {tests}" };
 
 /** flavor가 있는 모듈의 빌드·테스트 명령 제안. 첫 flavor의 디버그 variant다. 차원이 여럿이면 이름을 조합해야 한다. */
 export function flavorCommands(flavor: string): { build: string; test: string } {
